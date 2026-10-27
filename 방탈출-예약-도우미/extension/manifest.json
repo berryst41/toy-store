@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "방탈출 예약 도우미",
+  "version": "0.3.0",
+  "description": "방탈출 예약 사이트(키이스케이프·판타스트릭·제로월드·비트포비아 던전 등)의 서버 시간을 보여 주고, 예약이 열리는 시각에 한 번 새로고침하고, 내 정보를 채워 줍니다. 예약 버튼은 직접 누릅니다.",
+  "permissions": [
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.keyescape.com/*",
+        "https://keyescape.com/*",
+        "https://www.keyescape.co.kr/*",
+        "https://keyescape.co.kr/*",
+        "https://www.fantastrick.co.kr/*",
+        "https://fantastrick.co.kr/*",
+        "https://www.zeroworldkorea.com/*",
+        "https://zeroworldkorea.com/*",
+        "https://www.xdungeon.net/*",
+        "https://xdungeon.net/*",
+        "https://www.dpsnnn.com/*",
+        "https://dpsnnn.com/*",
+        "https://www.doloescape.co.kr/*",
+        "https://doloescape.co.kr/*",
+        "https://www.thefrank.co.kr/*",
+        "https://thefrank.co.kr/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
