@@ -3,6 +3,8 @@
 인기 방탈출은 예약이 열리자마자 몇 초 만에 마감돼요.
 "정각에 딱 맞춰 새로고침하고, 고르고, 채우는 걸 도와주면 어떨까?" 싶어서 만든 크롬 확장 프로그램이에요.
 
+### [⬇️ 바로 내려받기](https://github.com/berryst41/toy-store/raw/main/%EB%B0%A9%ED%83%88%EC%B6%9C-%EC%98%88%EC%95%BD-%EB%8F%84%EC%9A%B0%EB%AF%B8/%EB%B0%A9%ED%83%88%EC%B6%9C%EC%98%88%EC%95%BD%EB%8F%84%EC%9A%B0%EB%AF%B8.zip)
+
 <img src="images/panel.png" width="280" alt="도우미 창">
 
 ## 무엇을 해 주나요?
@@ -27,7 +29,7 @@
 
 ## 설치하기
 
-1. [방탈출예약도우미.zip](방탈출예약도우미.zip)을 내려받아 풀고, `extension` 폴더를 지우지 않을 곳에 둬요.
+1. [**⬇️ 방탈출예약도우미.zip 받기**](https://github.com/berryst41/toy-store/raw/main/%EB%B0%A9%ED%83%88%EC%B6%9C-%EC%98%88%EC%95%BD-%EB%8F%84%EC%9A%B0%EB%AF%B8/%EB%B0%A9%ED%83%88%EC%B6%9C%EC%98%88%EC%95%BD%EB%8F%84%EC%9A%B0%EB%AF%B8.zip)를 눌러 내려받아 풀고, `extension` 폴더를 지우지 않을 곳에 둬요.
 2. 크롬 주소창에 `chrome://extensions` → 오른쪽 위 **개발자 모드** 켜기
 3. **압축해제된 확장 프로그램을 로드합니다** → `extension` 폴더 고르기
 4. 예약 화면을 열면 오른쪽 아래에 도우미 창이 나타나요.
