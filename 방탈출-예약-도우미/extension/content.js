@@ -48,9 +48,19 @@
   const KEY = (k) => (SITE.id === 'keyescape' ? k : `${k}_${SITE.id}`);
   const isReservePage = () => !!SITE.page && SITE.page.test(location.pathname + location.search);
   const KST = 9 * 3600 * 1000;
-  const store = chrome.storage.local;
-  const get = (k) => new Promise((r) => store.get(k, (v) => r(v[k])));
-  const set = (o) => new Promise((r) => store.set(o, r));
+  // 확장 프로그램을 새로 고치면(업데이트·다시 불러오기) 이미 열려 있던 탭의 도우미는 저장소에 손댈 수 없게 돼요.
+  // 그때는 오류를 내지 않고 "이 탭을 새로고침해 주세요"라고만 알려 줍니다.
+  const alive = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; } };
+  let msgBox = null; // 도우미 창의 안내 줄 (창을 만든 뒤에 채워요)
+  const stale = () => { if (msgBox) msgBox.textContent = '도우미가 새 버전으로 바뀌었어요. 이 탭을 새로고침(F5)해 주세요.'; };
+  const get = (k) => new Promise((r) => {
+    if (!alive()) { stale(); return r(undefined); }
+    try { chrome.storage.local.get(k, (v) => r(v && v[k])); } catch (e) { stale(); r(undefined); }
+  });
+  const set = (o) => new Promise((r) => {
+    if (!alive()) { stale(); return r(); }
+    try { chrome.storage.local.set(o, () => r()); } catch (e) { stale(); r(); }
+  });
 
   // ---------- 서버 시계 ----------
   let offset = 0; // 서버 시간 - 내 컴퓨터 시간 (ms)
@@ -162,6 +172,7 @@
   document.documentElement.appendChild(host);
   const $ = (id) => root.getElementById(id);
   const say = (t) => ($('msg').textContent = t);
+  msgBox = $('msg');
 
   $('hd').onclick = () => {
     const box = root.querySelector('.box');
