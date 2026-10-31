@@ -20,7 +20,7 @@
       ],
     },
     // 지점 고르기 없이 테마 카드를 누르는 화면. 일주일 뒤 날짜가 저녁 9시에 열립니다.
-    { id: 'fantastrick', host: /(^|\.)fantastrick\.co\.kr$/, name: '판타스트릭', page: /^\/reserve\/?$/, branches: [], openAt: '21:00:00' },
+    { id: 'fantastrick', host: /(^|\.)fantastrick\.co\.kr$/, name: '판타스트릭', page: /^\/reserve\/?(\?|$)/, branches: [], openAt: '21:00:00' },
     // 이름·전화번호 칸에 붙여넣기를 막아 두고 그림 글자(자동등록방지)도 있는 사이트라 내 정보는 직접 적습니다.
     {
       id: 'zeroworld', host: /(^|\.)zeroworldkorea\.com$/, name: '제로월드', page: /go=rev\.make/,
@@ -789,6 +789,8 @@
   if (state === 'done') {
     sessionStorage.removeItem(ARM_KEY);
     say('⏰ 정해 둔 시각에 새로고침했어요! 지점·테마·날짜·시간을 골라 주세요.');
+    // 고를 내용은 적어 뒀는데 "저절로 고르기"가 꺼져 있으면 알려 줍니다
+    get(KEY('pick')).then((p) => { if (p && !p.on && (p.theme || p.date || p.time)) say("⏰ 새로고침했어요! 그런데 '저절로 고르기'가 꺼져 있어요. 체크하면 바로 골라 드려요."); });
   }
 
   setInterval(() => {
