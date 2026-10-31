@@ -523,11 +523,32 @@
     return m ? { h: +m[1], m: +(m[2] || 0) } : null;
   }
   // 달력 위에 보이는 "2026년 10월"
+  // 화면 다른 곳(공지·안내)에 적힌 "2026년 10월"을 잘못 읽지 않게, 다음 달 단추 둘레에서 먼저 찾습니다
+  const MONTH_RX = /(\d{4})\s*년\s*(\d{1,2})\s*월/;
   function shownMonth() {
-    const m = /(\d{4})\s*년\s*(\d{1,2})\s*월/.exec(document.body.innerText);
+    const nx = findNextMonth();
+    for (let a = nx && nx.parentElement, i = 0; a && i < 4; a = a.parentElement, i++) {
+      const m = MONTH_RX.exec(a.innerText || '');
+      if (m) return { year: +m[1], month: +m[2] };
+    }
+    const m = MONTH_RX.exec(document.body.innerText);
     return m ? { year: +m[1], month: +m[2] } : null;
   }
+  // 날짜 칸에 "2026-11-03" 같은 날짜가 숨어 있는 사이트(키이스케이프·판타스트릭·제로월드)는 그걸로 바로 찾습니다
+  function findDayByIso(d) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const iso = `${d.year}-${pad(d.month)}-${pad(d.day)}`;
+    for (const el of document.querySelectorAll(`[data-date="${iso}"], a[href*="'${iso}'"], [onclick*="'${iso}'"]`)) {
+      if (!host.contains(el) && visible(el)) return el;
+    }
+    return null;
+  }
   function findNextMonth() {
+    // 1) "다음 달"이라고 이름표(aria-label·title)를 단 단추
+    for (const el of document.querySelectorAll('[aria-label],[title]')) {
+      if (host.contains(el) || !visible(el)) continue;
+      if (/^(다음\s*달|next\s*month)$/i.test((el.getAttribute('aria-label') || el.getAttribute('title') || '').trim())) return clickable(el);
+    }
     for (const el of document.querySelectorAll('a,button,span,div,img,i,[onclick]')) {
       if (host.contains(el) || !visible(el)) continue;
       const t = (el.tagName === 'IMG' ? el.alt : el.innerText || '').trim();
@@ -592,8 +613,9 @@
   }
   const FLOW_KEY = '__keHelperFlow';
   async function pickDate(d) {
-    // 달력을 원하는 달로 넘깁니다 (최대 3번)
-    for (let i = 0; i < 3; i++) {
+    // 달력을 원하는 달로 넘깁니다 (최대 3번). 원하는 날짜 칸이 이미 보이면 넘기지 않습니다.
+    await waitFor(() => shownMonth() || findDayByIso(d), 5000);
+    for (let i = 0; i < 3 && !findDayByIso(d); i++) {
       const sm = await waitFor(shownMonth, 5000);
       if (!sm || (sm.year === d.year && sm.month === d.month)) break;
       if (sm.year * 12 + sm.month > d.year * 12 + d.month) break;
@@ -602,7 +624,8 @@
       nx.click();
       await sleep(600);
     }
-    const dayEl = await waitFor(() => findDay(d.day), 8000);
+    const iso = await waitFor(() => findDayByIso(d), 1500);
+    const dayEl = iso ? clickable(iso) : await waitFor(() => findDay(d.day), 8000);
     if (!dayEl) { say(`달력에서 ${d.month}월 ${d.day}일을 찾지 못했어요. 직접 골라 주세요.`); return false; }
     // 아직 안 열렸거나 지난 날짜는 회색(disabled·locked)으로 그려집니다 (칸 자체나 바로 바깥 상자에 표시)
     const off = [dayEl, dayEl.parentElement].some((a) => a && (a.disabled || /disable|locked|\bpast\b|soldout|\boff\b/i.test(typeof a.className === 'string' ? a.className : '')));
