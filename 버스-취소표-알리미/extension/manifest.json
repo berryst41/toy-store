@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "버스 취소표 알리미",
+  "version": "0.1.0",
+  "description": "고속버스통합예매(kobus.co.kr)에서 매진된 차의 빈자리가 나면 소리와 알림으로 알려 주고 좌석 고르는 화면까지 열어 줘요.",
+  "permissions": ["storage", "alarms", "notifications", "offscreen"],
+  "host_permissions": ["https://www.kobus.co.kr/*"],
+  "background": { "service_worker": "bg.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.kobus.co.kr/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "48": "icon48.png", "128": "icon128.png" },
+  "action": { "default_title": "버스 취소표 알리미", "default_icon": { "48": "icon48.png" } }
+}
