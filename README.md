@@ -5,6 +5,7 @@
 **궁금한 건 일단 만들어 보는 장난감 가게**
 학교 일과는 상관없이, 제 호기심과 탐구로 만든 것들을 하나씩 진열하는 곳이에요.
 
+
 ![호기심](https://img.shields.io/badge/호기심-가득-ff6b81?style=for-the-badge)
 ![탐구](https://img.shields.io/badge/탐구-진행_중-4c6ef5?style=for-the-badge)
 ![재미](https://img.shields.io/badge/기준-재미있으면_OK-ffb703?style=for-the-badge)
