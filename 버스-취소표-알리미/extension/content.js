@@ -167,7 +167,13 @@
       <label class="row"><span>출발</span><select id="dep"><option value="">불러오는 중…</option></select></label>
       <label class="row"><span>도착</span><select id="arr"><option value="">출발지를 먼저 골라요</option></select></label>
       <label class="row"><span>날짜</span><input type="date" id="date"></label>
-      <label class="row"><span>시간</span><span class="times"><input type="time" id="tFrom" value="00:00"> ~ <input type="time" id="tTo" value="23:59"></span></label>
+      <label class="row"><span>시간</span>
+        <span class="times" style="flex-wrap:wrap;gap:10px">
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap"><input type="radio" name="timeMode" id="modeRange" value="range" checked>시간대</label>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap"><input type="radio" name="timeMode" id="modeExact" value="exact">정확히</label>
+        </span></label>
+      <label class="row" id="rowRange"><span></span><span class="times"><input type="time" id="tFrom" value="00:00"> ~ <input type="time" id="tTo" value="23:59"></span></label>
+      <label class="row" id="rowExact" style="display:none"><span></span><span class="times"><input type="time" id="tExact" value="00:00"></span></label>
       <div class="row" style="display:flex;align-items:center;gap:6px;margin:6px 0"><span style="width:52px;color:#4b5563">등급</span>
         <span class="grades">
           <label><input type="checkbox" id="g_normal" checked>일반</label>
@@ -177,6 +183,8 @@
       <label class="row"><span>매수</span><select id="count">
         <option value="1">1장</option><option value="2">2장</option><option value="3">3장</option>
         <option value="4">4장</option><option value="5">5장</option><option value="6">6장</option></select></label>
+      <label class="row" id="rowAdj" style="display:none"><span></span><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px"><input type="checkbox" id="adjacentOnly" checked>2명은 꼭 연석(나란히 붙은 자리)으로</label></label>
+      <label class="row"><span>좌석</span><input type="text" id="seats" placeholder="예: 12,13 (비우면 자동으로 골라요)"></label>
       <label class="row"><span>간격</span><select id="interval">
         <option value="30">30초마다</option><option value="60" selected>1분마다</option>
         <option value="120">2분마다</option><option value="180">3분마다</option><option value="300">5분마다</option></select></label>
@@ -224,18 +232,37 @@
   }
   S("dep").addEventListener("change", () => { fillArr(S("dep").value); saveForm(); });
   S("arr").addEventListener("change", saveForm);
-  ["date", "tFrom", "tTo", "count", "interval", "g_normal", "g_udeung", "g_premium"].forEach((id) => S(id).addEventListener("change", saveForm));
+  ["date", "tFrom", "tTo", "tExact", "count", "interval", "g_normal", "g_udeung", "g_premium", "seats", "adjacentOnly"].forEach((id) => S(id).addEventListener("change", saveForm));
+  function updateTimeMode() {
+    const exact = S("modeExact").checked;
+    S("rowRange").style.display = exact ? "none" : "";
+    S("rowExact").style.display = exact ? "" : "none";
+  }
+  [S("modeRange"), S("modeExact")].forEach((r) => r.addEventListener("change", () => { updateTimeMode(); saveForm(); }));
+  function updateAdjRow() { S("rowAdj").style.display = S("count").value === "2" ? "" : "none"; }
+  S("count").addEventListener("change", updateAdjRow);
+  updateTimeMode();
+  updateAdjRow();
 
+  function parseSeatPrefs(s) {
+    return Array.from(new Set((s || "").split(/[,\s]+/).map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n) && n > 0)));
+  }
   function readForm() {
     const dep = S("dep"), arr = S("arr");
+    const exact = S("modeExact").checked;
+    const timeFrom = exact ? (S("tExact").value || "00:00") : (S("tFrom").value || "00:00");
+    const timeTo = exact ? (S("tExact").value || "00:00") : (S("tTo").value || "23:59");
     return {
       deprCd: dep.value, deprNm: dep.value ? dep.options[dep.selectedIndex].textContent : "",
       arvlCd: arr.value, arvlNm: arr.value ? arr.options[arr.selectedIndex].textContent : "",
       date: (S("date").value || "").replace(/-/g, ""),
-      timeFrom: S("tFrom").value || "00:00", timeTo: S("tTo").value || "23:59",
+      timeMode: exact ? "exact" : "range",
+      timeFrom, timeTo,
       grades: { normal: S("g_normal").checked, udeung: S("g_udeung").checked, premium: S("g_premium").checked },
       count: +S("count").value || 1,
       intervalSec: +S("interval").value || 60,
+      seatPrefs: parseSeatPrefs(S("seats").value),
+      adjacentOnly: S("count").value === "2" ? S("adjacentOnly").checked : false,
     };
   }
   async function saveForm() { await store.set("form", readForm()); }
@@ -243,11 +270,18 @@
     if (!f) return;
     if (f.deprCd) { ensureOption(S("dep"), f.deprCd, f.deprNm); fillArr(f.deprCd, { code: f.arvlCd, name: f.arvlNm }); }
     if (f.date) S("date").value = ymdDash(f.date);
-    if (f.timeFrom) S("tFrom").value = f.timeFrom;
-    if (f.timeTo) S("tTo").value = f.timeTo;
+    const exact = f.timeMode === "exact";
+    S("modeExact").checked = exact;
+    S("modeRange").checked = !exact;
+    if (exact) { if (f.timeFrom) S("tExact").value = f.timeFrom; }
+    else { if (f.timeFrom) S("tFrom").value = f.timeFrom; if (f.timeTo) S("tTo").value = f.timeTo; }
+    updateTimeMode();
     if (f.grades) for (const g in GRADE_NAMES) S("g_" + g).checked = !!f.grades[g];
     if (f.count) S("count").value = String(f.count);
     if (f.intervalSec) S("interval").value = String(f.intervalSec);
+    if (f.seatPrefs && f.seatPrefs.length) S("seats").value = f.seatPrefs.join(", ");
+    if (typeof f.adjacentOnly === "boolean") S("adjacentOnly").checked = f.adjacentOnly;
+    updateAdjRow();
   }
 
   async function initRoutes(force) {
@@ -299,7 +333,8 @@
     S("stop").style.display = on ? "" : "none";
     if (!w) return;
     if (on) {
-      const head = `👀 지켜보는 중 (${(w.intervalSec || 60) >= 60 ? (w.intervalSec || 60) / 60 + "분" : w.intervalSec + "초"}마다)\n${w.deprNm} → ${w.arvlNm}, ${dateLabel(w.date)} ${w.timeFrom}~${w.timeTo}\n${Object.keys(GRADE_NAMES).filter((g) => w.grades[g]).map((g) => GRADE_NAMES[g]).join("·")} / ${w.count}장`;
+      const timeLabel = w.timeMode === "exact" ? "정확히 " + w.timeFrom : w.timeFrom + "~" + w.timeTo;
+      const head = `👀 지켜보는 중 (${(w.intervalSec || 60) >= 60 ? (w.intervalSec || 60) / 60 + "분" : w.intervalSec + "초"}마다)\n${w.deprNm} → ${w.arvlNm}, ${dateLabel(w.date)} ${timeLabel}\n${Object.keys(GRADE_NAMES).filter((g) => w.grades[g]).map((g) => GRADE_NAMES[g]).join("·")} / ${w.count}장${w.seatPrefs && w.seatPrefs.length ? " · 좌석 " + w.seatPrefs.join(",") + "번" : ""}`;
       const tail = w.lastCheck ? `\n마지막 확인 ${w.lastCheck}${w.checks ? " (" + w.checks + "번째)" : ""}` : "\n곧 첫 확인을 해요…";
       setStatus(head + tail + (w.lastError ? "\n⚠️ " + w.lastError : ""), w.lastError ? "bad" : "on");
     }
@@ -317,6 +352,7 @@
     if (miss.length) { setStatus(miss.join(", ") + "을(를) 골라 주세요.", "bad"); return; }
     if (f.date < todayYmd()) { setStatus("지난 날짜예요. 날짜를 다시 골라 주세요.", "bad"); return; }
     if (f.timeFrom > f.timeTo) { setStatus("시간의 앞쪽이 뒤쪽보다 늦어요. 예: 17:00 ~ 20:00", "bad"); return; }
+    if (f.seatPrefs.length && f.seatPrefs.length !== f.count) { setStatus(`좌석 번호 개수(${f.seatPrefs.length}개)와 매수(${f.count}장)가 달라요. 둘을 맞춰 주세요.`, "bad"); return; }
     await saveForm();
     await store.set("pick", null);
     const watch = { ...f, lastCheck: "", lastSummary: "", lastError: "", checks: 0, fails: 0 };
@@ -359,7 +395,7 @@
 
       // 빈자리를 찾았어요!
       const text = `${dateLabel(w.date)} ${hit.time} ${hit.gradeText || GRADE_NAMES[hit.grade]} ${w.deprNm}→${w.arvlNm} (남은 자리 ${hit.remain}석)`;
-      await store.set("pick", { at: Date.now(), stage: "list", deprTime: hit.args[1], cls: hit.args[5], cacm: hit.args[6], date: w.date, count: w.count, text });
+      await store.set("pick", { at: Date.now(), stage: "list", deprTime: hit.args[1], cls: hit.args[5], cacm: hit.args[6], date: w.date, count: w.count, seatPrefs: w.seatPrefs || [], adjacentOnly: !!w.adjacentOnly, text });
       await chrome.runtime.sendMessage({ type: "found", text });
       setStatus("🎉 빈자리를 찾았어요!\n" + text + "\n좌석 고르는 화면으로 가고 있어요…", "found");
       openSchedulePage(result.doc, w);
@@ -415,10 +451,10 @@
     if (p.stage === "seat" && /satschc/i.test(path)) {
       await store.set("pick", null);
       setStatus("🎉 좌석 고르는 화면이에요.\n" + p.text + `\n일반 ${p.count}명과 좌석을 고르고 있어요…`, "found");
-      const ok = await pickSeats(p.count);
+      const ok = await pickSeats(p.count, p.seatPrefs, p.adjacentOnly);
       chrome.runtime.sendMessage({ type: "seats-picked" });
       if (ok.done) {
-        setStatus(`✅ 좌석 ${ok.seats.join(", ")}번을 골라 두었어요.\n자리를 확인하고 화면의 결제 단추를 직접 눌러 주세요.\n(이 창이 가리면 파란 제목줄을 눌러 접어 주세요.)\n(다른 자리가 좋으면 눌러서 바꿔도 돼요.)`, "found");
+        setStatus(`✅ 좌석 ${ok.seats.join(", ")}번을 골라 두었어요.${ok.note ? "\n" + ok.note : ""}\n자리를 확인하고 화면의 결제 단추를 직접 눌러 주세요.\n(이 창이 가리면 파란 제목줄을 눌러 접어 주세요.)\n(다른 자리가 좋으면 눌러서 바꿔도 돼요.)`, "found");
       } else {
         setStatus("좌석 고르는 화면까지 열었어요.\n" + ok.why + "\n인원과 좌석을 직접 고른 뒤 결제해 주세요.", "found");
       }
@@ -427,7 +463,7 @@
 
   function visible(el) { return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length)); }
 
-  async function pickSeats(count) {
+  async function pickSeats(count, seatPrefs, adjacentOnly) {
     // 좌석 그림이 나올 때까지 잠깐 기다려요.
     let inputs = [];
     for (let i = 0; i < 40; i++) {
@@ -437,37 +473,61 @@
     }
     if (!inputs.length) return { done: false, why: "좌석 그림을 찾지 못했어요." };
 
-    // 1) 일반(어른) 인원 늘리기
     const counters = ["adltCnt", "adltCntMob"].map((id) => document.getElementById(id)).filter(Boolean);
     const counter = counters.find(visible) || counters[0];
-    if (counter) {
-      const addBtn = counter.closest(".countBox") && counter.closest(".countBox").querySelector(".btn_add");
-      for (let i = 0; i < 8 && addBtn && (+txt(counter) || 0) < count; i++) {
-        addBtn.click();
-        await sleep(250);
-      }
-      if ((+txt(counter) || 0) !== count) return { done: false, why: "인원 수를 맞추지 못했어요." };
-    }
+    const addBtn = counter && counter.closest(".countBox") && counter.closest(".countBox").querySelector(".btn_add");
+    if (!counter || !addBtn) return { done: false, why: "인원 늘리는 단추를 찾지 못했어요." };
 
-    // 2) 빈 좌석 고르기: 되도록 번호가 이어진 자리(나란히 앉는 자리)로
+    // 1) 빈 좌석 찾기
     const free = inputs.filter((i) => !i.disabled && !i.checked && !/disabled/.test(i.parentElement.className))
       .sort((a, b) => +a.value - +b.value);
     if (free.length < count) return { done: false, why: "남은 빈 좌석이 " + free.length + "개뿐이에요." };
-    let chosen = free.slice(0, count);
-    if (count >= 2) {
-      for (let s = 0; s + count <= free.length; s++) {
-        const part = free.slice(s, s + count);
-        if (+part[count - 1].value - +part[0].value === count - 1) { chosen = part; break; }
+
+    // 2) 원하는 좌석 번호가 있으면 그것부터, 없으면 이어진 자리(나란히 앉는 자리)로
+    let chosen = null;
+    let note = "";
+    if (seatPrefs && seatPrefs.length) {
+      const matched = seatPrefs.map((n) => free.find((i) => +i.value === n)).filter(Boolean);
+      if (matched.length === seatPrefs.length) {
+        chosen = matched;
+        note = "원하시는 좌석 " + seatPrefs.join(", ") + "번으로 골랐어요.";
+      } else {
+        note = "원하시는 좌석(" + seatPrefs.join(", ") + "번) 중 일부가 없어서, 대신 다른 자리를 골랐어요.";
       }
     }
-    for (const inp of chosen) {
+    if (!chosen) {
+      chosen = free.slice(0, count);
+      if (count >= 2) {
+        let adjacent = null;
+        for (let s = 0; s + count <= free.length; s++) {
+          const part = free.slice(s, s + count);
+          if (+part[count - 1].value - +part[0].value === count - 1) { adjacent = part; break; }
+        }
+        if (adjacent) {
+          chosen = adjacent;
+        } else if (count === 2 && adjacentOnly) {
+          return { done: false, why: "연석(나란히 붙은 두 자리)이 없어요. 화면에서 자리를 직접 봐 주세요." };
+        }
+      }
+    }
+
+    // 3) 인원을 한 명씩 늘리면서 그때그때 좌석을 골라요.
+    // (kobus 사이트는 좌석을 먼저 고른 인원이 있어야만 다음 인원 수 늘리기 단추가 먹혀요.)
+    for (let i = 0; i < count; i++) {
+      for (let t = 0; t < 8 && (+txt(counter) || 0) <= i; t++) {
+        addBtn.click();
+        await sleep(300);
+      }
+      if ((+txt(counter) || 0) !== i + 1) return { done: false, why: "인원 수를 맞추지 못했어요." };
+      const inp = chosen[i];
       const label = inp.id && document.querySelector(`label[for="${inp.id}"]`);
       (label && visible(label) ? label : inp).click();
       await sleep(300);
     }
+
     const picked = inputs.filter((i) => i.checked).map((i) => i.value);
     if (picked.length < count) return { done: false, why: "좌석을 다 고르지 못했어요." };
-    return { done: true, seats: picked };
+    return { done: true, seats: picked, note };
   }
 
   // ---------- 시작 ----------
