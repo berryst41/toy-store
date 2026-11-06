@@ -184,7 +184,7 @@
         <option value="1">1장</option><option value="2">2장</option><option value="3">3장</option>
         <option value="4">4장</option><option value="5">5장</option><option value="6">6장</option></select></label>
       <label class="row" id="rowAdj" style="display:none"><span></span><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px"><input type="checkbox" id="adjacentOnly" checked>2명은 꼭 연석(나란히 붙은 자리)으로</label></label>
-      <label class="row"><span>좌석</span><input type="text" id="seats" placeholder="예: 12,13 (비우면 자동으로 골라요)"></label>
+      <label class="row"><span>좌석</span><input type="text" id="seats" placeholder="예: 1,2,5,6,9,10 (매수보다 많이 적어도 돼요)"></label>
       <label class="row"><span>간격</span><select id="interval">
         <option value="30">30초마다</option><option value="60" selected>1분마다</option>
         <option value="120">2분마다</option><option value="180">3분마다</option><option value="300">5분마다</option></select></label>
@@ -193,7 +193,7 @@
       <div class="status" id="status">노선·날짜·시간을 고르고 [지켜보기 시작]을 눌러 주세요.</div>
       <div class="list" id="list"></div>
       <div class="tools" style="margin-top:8px"><button class="small" id="sound">🔔 알림 소리 들어 보기</button><button class="small" id="reload">노선 목록 다시 불러오기</button></div>
-      <div class="hint">※ 이 탭은 닫지 말고 켜 두세요. 다른 탭을 보고 있어도 돼요.<br>※ 결제는 도우미가 하지 않아요. 좌석이 골라지면 직접 확인하고 결제해 주세요.<br>※ 출발 1시간 안쪽 차는 웹에서 못 사요. 그때는 티머니 GO 앱을 써 주세요.</div>
+      <div class="hint">※ 이 탭은 닫지 말고 켜 두세요. 다른 탭을 보고 있어도 돼요.<br>※ 결제는 도우미가 하지 않아요. 좌석이 골라지면 직접 확인하고 결제해 주세요.<br>※ 출발 1시간 안쪽 차는 웹에서 못 사요. 그때는 티머니 GO 앱을 써 주세요.<br>※ 좌석 번호를 매수보다 많이 적어 두면, 그중 매수만큼 비는 조합이 나올 때까지 새로 배차되는 차까지 포함해서 계속 지켜봐요.</div>
     </div>
   </div>`;
   document.documentElement.appendChild(host);
@@ -352,7 +352,7 @@
     if (miss.length) { setStatus(miss.join(", ") + "을(를) 골라 주세요.", "bad"); return; }
     if (f.date < todayYmd()) { setStatus("지난 날짜예요. 날짜를 다시 골라 주세요.", "bad"); return; }
     if (f.timeFrom > f.timeTo) { setStatus("시간의 앞쪽이 뒤쪽보다 늦어요. 예: 17:00 ~ 20:00", "bad"); return; }
-    if (f.seatPrefs.length && f.seatPrefs.length !== f.count) { setStatus(`좌석 번호 개수(${f.seatPrefs.length}개)와 매수(${f.count}장)가 달라요. 둘을 맞춰 주세요.`, "bad"); return; }
+    if (f.seatPrefs.length && f.seatPrefs.length < f.count) { setStatus(`좌석 번호를 매수(${f.count}장)보다 적게 적으셨어요. ${f.count}개 이상 적어 주세요.`, "bad"); return; }
     await saveForm();
     await store.set("pick", null);
     const watch = { ...f, lastCheck: "", lastSummary: "", lastError: "", checks: 0, fails: 0 };
@@ -439,7 +439,7 @@
         await store.set("pick", null);
         setStatus("아쉽게도 그 사이에 자리가 다시 찼어요. 다시 지켜볼게요.", "bad");
         const w = await store.get("watch");
-        if (w) chrome.runtime.sendMessage({ type: "start", watch: w, intervalSec: w.intervalSec });
+        if (w) chrome.runtime.sendMessage({ type: "resume", watch: w, intervalSec: w.intervalSec });
         return;
       }
       await store.patch("pick", { stage: "seat", at: Date.now() });
@@ -452,10 +452,16 @@
       await store.set("pick", null);
       setStatus("🎉 좌석 고르는 화면이에요.\n" + p.text + `\n일반 ${p.count}명과 좌석을 고르고 있어요…`, "found");
       const ok = await pickSeats(p.count, p.seatPrefs, p.adjacentOnly);
-      chrome.runtime.sendMessage({ type: "seats-picked" });
       if (ok.done) {
+        chrome.runtime.sendMessage({ type: "seats-picked" });
         setStatus(`✅ 좌석 ${ok.seats.join(", ")}번을 골라 두었어요.${ok.note ? "\n" + ok.note : ""}\n자리를 확인하고 화면의 결제 단추를 직접 눌러 주세요.\n(이 창이 가리면 파란 제목줄을 눌러 접어 주세요.)\n(다른 자리가 좋으면 눌러서 바꿔도 돼요.)`, "found");
+      } else if (ok.insufficientPref) {
+        // 이 차는 적어 둔 좌석이 매수만큼 비지 않았어요. 결제창까지 왔지만 고르지 않고 다시 지켜봐요.
+        setStatus("이 차는 적어 두신 좌석이 아직 다 안 비었어요.\n" + ok.why, "on");
+        const w = await store.get("watch");
+        if (w) chrome.runtime.sendMessage({ type: "resume", watch: w, intervalSec: w.intervalSec });
       } else {
+        chrome.runtime.sendMessage({ type: "seats-picked" });
         setStatus("좌석 고르는 화면까지 열었어요.\n" + ok.why + "\n인원과 좌석을 직접 고른 뒤 결제해 주세요.", "found");
       }
     }
@@ -483,19 +489,21 @@
       .sort((a, b) => +a.value - +b.value);
     if (free.length < count) return { done: false, why: "남은 빈 좌석이 " + free.length + "개뿐이에요." };
 
-    // 2) 원하는 좌석 번호가 있으면 그것부터, 없으면 이어진 자리(나란히 앉는 자리)로
+    // 2) 적어 둔 좌석 후보 중 비어 있는 것부터, 없으면 이어진 자리(나란히 앉는 자리)로
     let chosen = null;
     let note = "";
     if (seatPrefs && seatPrefs.length) {
-      const matched = seatPrefs.map((n) => free.find((i) => +i.value === n)).filter(Boolean);
-      if (matched.length === seatPrefs.length) {
-        chosen = matched;
-        note = "원하시는 좌석 " + seatPrefs.join(", ") + "번으로 골랐어요.";
-      } else {
-        note = "원하시는 좌석(" + seatPrefs.join(", ") + "번) 중 일부가 없어서, 대신 다른 자리를 골랐어요.";
+      const prefFree = seatPrefs.map((n) => free.find((i) => +i.value === n)).filter(Boolean);
+      if (prefFree.length < count) {
+        return {
+          done: false,
+          insufficientPref: true,
+          why: `적어 두신 좌석(${seatPrefs.join(", ")}번) 중 지금은 ${prefFree.length}개만 비어 있어요 (필요: ${count}개). 계속 지켜볼게요.`,
+        };
       }
-    }
-    if (!chosen) {
+      chosen = prefFree.slice(0, count);
+      note = "적어 두신 좌석 중 " + chosen.map((i) => i.value).join(", ") + "번으로 골랐어요.";
+    } else {
       chosen = free.slice(0, count);
       if (count >= 2) {
         let adjacent = null;

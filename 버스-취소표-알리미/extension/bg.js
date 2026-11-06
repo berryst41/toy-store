@@ -88,6 +88,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await startAlarm(sec);
       await runCheck(); // 누르자마자 한 번 확인
       sendResponse({ ok: true });
+    } else if (msg.type === "resume") {
+      // 찾아간 차가 이미 다시 찼거나 원하는 좌석이 아직 없어서 다시 지켜볼 때는,
+      // 사이트에 부담 주지 않게 곧바로 확인하지 않고 정해 둔 간격을 그대로 기다려요.
+      const sec = Math.max(30, Number(msg.intervalSec) || 60);
+      await setWatch({ ...msg.watch, on: true, tabId: sender.tab && sender.tab.id, intervalSec: sec });
+      await startAlarm(sec);
+      sendResponse({ ok: true });
     } else if (msg.type === "stop") {
       await setWatch({ on: false });
       await chrome.alarms.clear(ALARM);

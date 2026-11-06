@@ -19,7 +19,7 @@
 | | 장난감 | 어떤 거예요? | 구경하기 |
 |:---:|:---|:---|:---:|
 | 🔑 | [방탈출 예약 도우미](방탈출-예약-도우미) | 예약이 열리는 순간 서버 시계에 맞춰 새로고침하고, 테마·날짜·시간을 고르고 내 정보까지 채워 주는 크롬 확장 프로그램 | [살펴보기](방탈출-예약-도우미/README.md) · [⬇️ 받기 v0.3.4](https://github.com/berryst41/toy-store/raw/main/%EB%B0%A9%ED%83%88%EC%B6%9C-%EC%98%88%EC%95%BD-%EB%8F%84%EC%9A%B0%EB%AF%B8/%EB%B0%A9%ED%83%88%EC%B6%9C%EC%98%88%EC%95%BD%EB%8F%84%EC%9A%B0%EB%AF%B8.zip) |
-| 🚌 | [버스 취소표 알리미](버스-취소표-알리미) | 매진된 고속버스를 1분마다 지켜보다가 빈자리가 나면 소리·알림으로 알려 주고, 좌석 고르기까지 도와주는 크롬 확장 프로그램 | [살펴보기](버스-취소표-알리미/README.md) · [⬇️ 받기 v0.1.0](https://github.com/berryst41/toy-store/raw/main/%EB%B2%84%EC%8A%A4-%EC%B7%A8%EC%86%8C%ED%91%9C-%EC%95%8C%EB%A6%AC%EB%AF%B8/%EB%B2%84%EC%8A%A4%EC%B7%A8%EC%86%8C%ED%91%9C%EC%95%8C%EB%A6%AC%EB%AF%B8.zip) |
+| 🚌 | [버스 취소표 알리미](버스-취소표-알리미) | 매진된 고속버스를 1분마다 지켜보다가 빈자리가 나면 소리·알림으로 알려 주고, 좌석 고르기까지 도와주는 크롬 확장 프로그램 | [살펴보기](버스-취소표-알리미/README.md) · [⬇️ 받기 v0.3.0](https://github.com/berryst41/toy-store/raw/main/%EB%B2%84%EC%8A%A4-%EC%B7%A8%EC%86%8C%ED%91%9C-%EC%95%8C%EB%A6%AC%EB%AF%B8/%EB%B2%84%EC%8A%A4%EC%B7%A8%EC%86%8C%ED%91%9C%EC%95%8C%EB%A6%AC%EB%AF%B8.zip) |
 
 <br>
 
