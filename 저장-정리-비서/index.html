@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>저장 정리 비서</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#e8590c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--main:#e8590c;--bg:#fff8f0;--card:#fff;--line:#f1dfcf;--text:#2b2118;--sub:#8a7868}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;padding-bottom:90px}
+header{position:sticky;top:0;z-index:5;background:var(--main);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:8px}
+header h1{font-size:18px;margin:0;flex:1}
+header button{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:10px;padding:8px 12px;font-size:15px}
+.bar{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.bar input[type=search]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{flex:none;border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 12px;font-size:14px}
+.chip.on{background:var(--main);color:#fff;border-color:var(--main)}
+.list{padding:0 14px;display:grid;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;gap:10px;align-items:flex-start}
+.card.sel{border-color:var(--main);box-shadow:0 0 0 2px #ffd8bd}
+.card input[type=checkbox]{width:22px;height:22px;margin-top:2px;accent-color:var(--main)}
+.thumb{width:64px;height:64px;border-radius:10px;background:#f5e9dc;object-fit:cover;flex:none;display:flex;align-items:center;justify-content:center;font-size:26px}
+.card .body{flex:1;min-width:0;cursor:pointer}
+.card .t{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .s{font-size:13px;color:var(--sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+.badge{display:inline-block;font-size:12px;background:#ffe8d6;color:#b34700;border-radius:99px;padding:2px 8px;margin-right:4px}
+.badge.gray{background:#eee;color:#666}.badge.red{background:#ffe3e3;color:#c92a2a}
+.empty{text-align:center;color:var(--sub);padding:50px 20px;line-height:1.7}
+.fab{position:fixed;right:16px;bottom:20px;width:58px;height:58px;border-radius:50%;background:var(--main);color:#fff;font-size:30px;border:0;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:6}
+.sbar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px;display:none;gap:8px;z-index:7;align-items:center;flex-wrap:wrap}
+.sbar.show{display:flex}
+.sbar b{flex:1;min-width:70px}
+button.p{background:var(--main);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-size:15px}
+button.g{background:#fff;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px}
+button.d{background:#fff;color:#c92a2a;border:1px solid #f3c2c2;border-radius:10px;padding:10px 14px;font-size:15px}
+button:disabled{opacity:.5}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:none;align-items:flex-end;justify-content:center}
+.modal.show{display:flex}
+.sheet{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px}
+.sheet h2{margin:0 0 10px;font-size:18px}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+.sheet input[type=text],.sheet input[type=password],.sheet textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit}
+.sheet textarea{min-height:110px}
+.row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.hint{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.5}
+table.f{width:100%;border-collapse:collapse;margin:8px 0}
+table.f td{border-bottom:1px solid var(--line);padding:6px 4px;font-size:14px;vertical-align:top}
+table.f td:first-child{color:var(--sub);width:30%;white-space:nowrap}
+.sheet ol,.sheet ul{padding-left:22px;line-height:1.6;font-size:14px}
+.place{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;font-size:14px}
+.place a{display:inline-block;margin:4px 8px 0 0;color:var(--main);font-size:13px;font-weight:600}
+.md h4{margin:14px 0 4px;font-size:15px}.md p{margin:4px 0;font-size:14px;line-height:1.6}
+.files{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.files span{background:#f5e9dc;border-radius:8px;padding:4px 8px;font-size:12px}
+#toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;z-index:40;display:none;max-width:90%;text-align:center}
+.prog{height:6px;background:#f1dfcf;border-radius:3px;overflow:hidden;margin-top:8px}.prog i{display:block;height:100%;background:var(--main);width:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>📌 저장 정리 비서</h1>
+  <button id="btnAll">전체선택</button>
+  <button id="btnSet">⚙️</button>
+</header>
+<div class="bar">
+  <input type="search" id="q" placeholder="🔍 이름·태그·내용 검색">
+  <div class="chips" id="chips"></div>
+</div>
+<div class="list" id="list"></div>
+<button class="fab" id="fab" aria-label="추가">＋</button>
+
+<div class="sbar" id="sbar">
+  <b id="scount"></b>
+  <button class="p" id="btnAI">🤖 AI 정리</button>
+  <button class="g" id="btnMerge">🧺 묶어서</button>
+  <button class="d" id="btnDel">🗑</button>
+</div>
+
+<!-- 추가 창 -->
+<div class="modal" id="mAdd"><div class="sheet">
+  <h2>＋ 저장글 추가</h2>
+  <label>인스타 링크</label>
+  <input type="text" id="aUrl" placeholder="https://www.instagram.com/reel/...">
+  <label>캡션(글)을 붙여넣기 <small>— 영상만 올릴 땐 비워도 돼요</small></label>
+  <textarea id="aCap" placeholder="게시물의 글을 길게 눌러 복사해서 붙여넣어요"></textarea>
+  <label>화면 녹화·스크린샷 (여러 개 가능)</label>
+  <input type="file" id="aFiles" accept="video/*,image/*" multiple>
+  <div class="hint">영상은 합쳐서 14MB까지예요. 릴스를 화면 녹화하면 말소리·자막까지 AI가 읽어요. 스크린샷은 자동으로 줄여서 써요.</div>
+  <div class="files" id="aFileList"></div>
+  <label><input type="checkbox" id="aNow" checked> 저장하고 바로 AI 정리</label>
+  <div class="row">
+    <button class="p" id="aSave">저장</button>
+    <button class="g" id="aPaste">📋 클립보드 붙여넣기</button>
+    <button class="g" data-close>닫기</button>
+  </div>
+</div></div>
+
+<!-- 상세 창 -->
+<div class="modal" id="mView"><div class="sheet" id="vBody"></div></div>
+
+<!-- 설정 창 -->
+<div class="modal" id="mSet"><div class="sheet">
+  <h2>⚙️ 설정</h2>
+  <label>Gemini API 키 (무료)</label>
+  <input type="password" id="sKey" placeholder="AIza...">
+  <div class="hint">① <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 접속 → ② 구글 로그인 → ③ "Create API key" → ④ 복사해서 여기에 붙여넣기. 키는 <b>이 휴대폰 안에만</b> 저장돼요.</div>
+  <label>AI 모델 이름</label>
+  <input type="text" id="sModel">
+  <div class="hint">기본값 <code>gemini-flash-latest</code>. 모델이 바뀌어 오류가 나면 여기만 고치면 돼요.</div>
+  <div class="row">
+    <button class="p" id="sSave">저장</button>
+    <button class="g" id="sExport">💾 백업 받기</button>
+    <button class="g" id="sImport">📂 백업 불러오기</button>
+    <button class="g" data-close>닫기</button>
+  </div>
+  <input type="file" id="sImpFile" accept="application/json" hidden>
+  <div class="hint" id="sVer" style="margin-top:14px"></div>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const VERSION = '0.1.0';
+const CATS = { '맛집': '🍽️', '레시피': '🍳', '여행': '🧳', '쇼핑': '🛍️', '기타': '📌' };
+const MAX_RAW = 14 * 1024 * 1024; // 한 번에 AI에 보낼 수 있는 파일 크기(합계)
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ls = {
+  get: (k, d = '') => { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+
+/* ---------- 저장소: IndexedDB (사진·영상도 담을 수 있어요) ---------- */
+const DB = (() => {
+  let p;
+  const open = () => p || (p = new Promise((res, rej) => {
+    const r = indexedDB.open('insta-helper', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('items', { keyPath: 'id' });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  const tx = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('items', mode);
+      const r = fn(t.objectStore('items'));
+      t.oncomplete = () => res(r.result);
+      t.onerror = () => rej(t.error);
+    });
+  };
+  return {
+    all: () => tx('readonly', s => s.getAll()),
+    put: o => tx('readwrite', s => s.put(o)),
+    del: id => tx('readwrite', s => s.delete(id))
+  };
+})();
+
+let items = [], filter = '전체', query = '', selected = new Set(), pending = [];
+
+/* ---------- 작은 도구들 ---------- */
+let toastT;
+function toast(msg, ms = 2600) {
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', ms);
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const fmtDate = ts => { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()}`; };
+
+// 사진을 가로세로 1280px 이하 JPEG로 줄여요 (AI에 보낼 크기 줄이기)
+async function shrink(file) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.82));
+  return { name: file.name, type: 'image/jpeg', blob };
+}
+// 목록에 보일 작은 그림(썸네일)
+async function thumbOf(file) {
+  const draw = (src, w, h) => {
+    const k = Math.min(1, 160 / Math.max(w, h)), c = document.createElement('canvas');
+    c.width = Math.round(w * k); c.height = Math.round(h * k);
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.7);
+  };
+  try {
+    if (file.type.startsWith('image/')) { const b = await createImageBitmap(file); return draw(b, b.width, b.height); }
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.src = URL.createObjectURL(file);
+    const wait = (ev) => new Promise((r, j) => { v.addEventListener(ev, r, { once: true }); v.onerror = j; setTimeout(j, 5000); });
+    await wait('loadeddata'); v.currentTime = Math.min(0.5, (v.duration || 1) / 2); await wait('seeked');
+    const t = draw(v, v.videoWidth, v.videoHeight); URL.revokeObjectURL(v.src); return t;
+  } catch (e) { return ''; }
+}
+const toB64 = blob => new Promise((res, rej) => {
+  const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob);
+});
+
+/* ---------- AI(Gemini) 호출 ---------- */
+const SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    category: { type: 'STRING', enum: Object.keys(CATS) },
+    title: { type: 'STRING' },
+    summary: { type: 'STRING' },
+    facts: { type: 'ARRAY', items: { type: 'OBJECT', properties: { k: { type: 'STRING' }, v: { type: 'STRING' } }, required: ['k', 'v'] } },
+    steps: { type: 'ARRAY', items: { type: 'STRING' } },
+    places: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, address: { type: 'STRING' } }, required: ['name'] } },
+    tags: { type: 'ARRAY', items: { type: 'STRING' } }
+  },
+  required: ['category', 'title', 'summary']
+};
+const PROMPT = `너는 인스타그램 저장글(릴스·피드)을 정리해 주는 한국어 비서야.
+아래 캡션과 첨부된 영상·사진(말소리, 자막, 화면 속 글자 포함)을 모두 보고 정리해.
+반드시 지킬 것:
+- 내용에 실제로 나온 정보만 써. 모르는 건 지어내지 말고 빼.
+- category는 맛집/레시피/여행/쇼핑/기타 중 하나.
+- title은 한 줄 제목(가게 이름·요리 이름·여행지·상품명 등), summary는 2~3문장 요약.
+- facts에는 분류에 맞게 핵심 정보를 {k,v}로:
+  · 맛집: 가게 이름, 위치, 대표 메뉴, 가격, 영업시간, 주차, 웨이팅·예약, 꿀팁
+  · 레시피: 인분, 시간, 재료(양 포함), 꿀팁
+  · 여행: 장소, 가는 법, 비용, 추천 시간, 준비물, 꿀팁
+  · 쇼핑: 상품명, 가격, 파는 곳, 할인·쿠폰, 장점, 단점
+- steps에는 레시피 조리 순서나 여행 코스·사용 순서를 순서대로 (없으면 빈 배열).
+- places에는 언급된 가게·장소 이름과 주소(아는 만큼). 지도로 찾을 수 있게 구체적으로.
+- tags는 검색용 짧은 말 3~6개(지역명, 음식 종류 등), '#'는 빼.`;
+
+async function gemini(parts, json) {
+  const key = ls.get('gkey'), model = ls.get('gmodel', 'gemini-flash-latest') || 'gemini-flash-latest';
+  if (!key) { openSet(); throw new Error('먼저 ⚙️ 설정에서 Gemini API 키를 넣어 주세요'); }
+  const body = { contents: [{ parts }] };
+  if (json) body.generationConfig = { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0.2 };
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    let m = ''; try { m = (await res.json()).error?.message || ''; } catch (e) {}
+    if (res.status === 400 && /API key/i.test(m)) throw new Error('API 키가 틀렸어요. ⚙️ 설정에서 다시 확인해 주세요');
+    if (res.status === 429) throw new Error('무료 사용 한도에 걸렸어요. 1분쯤 뒤에 다시 눌러 주세요');
+    if (res.status === 404) throw new Error('AI 모델 이름이 맞지 않아요. ⚙️ 설정에서 모델 이름을 확인해 주세요');
+    throw new Error(`AI 오류(${res.status}) ${m.slice(0, 120)}`);
+  }
+  const data = await res.json();
+  const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+  if (!txt) throw new Error('AI가 답을 주지 않았어요(내용이 차단됐을 수 있어요)');
+  return txt;
+}
+
+// 저장글 하나를 AI로 정리
+async function analyze(it) {
+  const total = (it.media || []).reduce((a, m) => a + m.blob.size, 0);
+  if (total > MAX_RAW) throw new Error('파일이 너무 커요(14MB 넘음). 더 짧게 녹화해 주세요');
+  const parts = [{ text: `${PROMPT}\n\n[인스타 링크]\n${it.url || '(없음)'}\n\n[캡션]\n${it.caption || '(없음)'}` }];
+  for (const m of it.media || []) parts.push({ inline_data: { mime_type: m.type || 'video/mp4', data: await toB64(m.blob) } });
+  if (!it.caption && !(it.media || []).length) throw new Error('캡션이나 영상·사진이 하나도 없어서 정리할 게 없어요');
+  const r = JSON.parse(await gemini(parts, true));
+  if (!CATS[r.category]) r.category = '기타';
+  return r;
+}
+
+/* ---------- 화면 그리기 ---------- */
+function visible() {
+  const q = query.trim().toLowerCase();
+  return items.filter(it => {
+    const cat = it.result?.category || '정리 전';
+    if (filter !== '전체' && cat !== filter) return false;
+    if (!q) return true;
+    const r = it.result || {};
+    return [it.url, it.caption, it.note, r.title, r.summary, (r.tags || []).join(' '), (r.facts || []).map(f => f.k + f.v).join(' '), (r.places || []).map(p => p.name + (p.address || '')).join(' ')]
+      .join(' ').toLowerCase().includes(q);
+  }).sort((a, b) => b.created - a.created);
+}
+function render() {
+  // 분류 단추
+  const cnt = c => items.filter(i => (i.result?.category || '정리 전') === c).length;
+  const names = ['전체', ...Object.keys(CATS), '정리 전'];
+  $('chips').innerHTML = names.map(n => `<button class="chip ${filter === n ? 'on' : ''}" data-cat="${n}">${CATS[n] || ''} ${n} ${n === '전체' ? items.length : cnt(n)}</button>`).join('');
+  // 목록
+  const v = visible();
+  $('list').innerHTML = v.length ? v.map(it => {
+    const r = it.result, cat = r?.category;
+    const th = it.thumb ? `<img class="thumb" src="${it.thumb}" alt="">` : `<div class="thumb">${cat ? CATS[cat] : '📎'}</div>`;
+    const status = it.status === 'error' ? '<span class="badge red">오류</span>' : r ? `<span class="badge">${CATS[cat]} ${cat}</span>` : '<span class="badge gray">정리 전</span>';
+    return `<div class="card ${selected.has(it.id) ? 'sel' : ''}" data-id="${it.id}">
+      <input type="checkbox" data-chk="${it.id}" ${selected.has(it.id) ? 'checked' : ''}>
+      ${th}
+      <div class="body" data-open="${it.id}">
+        <div class="t">${esc(r?.title || it.caption?.split('\n')[0]?.slice(0, 40) || it.url || '(내용 없음)')}</div>
+        <div class="s">${esc(r?.summary || it.error || it.caption || '')}</div>
+        <div style="margin-top:4px">${status}<small style="color:var(--sub)">${fmtDate(it.created)}</small></div>
+      </div></div>`;
+  }).join('') : `<div class="empty">${items.length ? '조건에 맞는 글이 없어요' : '아직 저장한 글이 없어요.<br>인스타에서 <b>공유 → 저장 정리 비서</b>를 누르거나<br>아래 ＋ 단추로 추가해 보세요'}</div>`;
+  // 아래 선택 바
+  $('sbar').classList.toggle('show', selected.size > 0);
+  $('scount').textContent = `${selected.size}개 선택`;
+}
+
+/* ---------- 상세 보기 ---------- */
+function mapLinks(p) {
+  const q = encodeURIComponent((p.name + ' ' + (p.address || '')).trim());
+  return `<a href="https://map.naver.com/p/search/${q}" target="_blank" rel="noopener">네이버지도</a><a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">구글지도</a>`;
+}
+function itemText(it) { // 복사용 글
+  const r = it.result; if (!r) return it.caption || it.url || '';
+  const L = [`[${r.category}] ${r.title}`, r.summary, ''];
+  (r.facts || []).forEach(f => L.push(`- ${f.k}: ${f.v}`));
+  (r.steps || []).forEach((s, i) => L.push(`${i + 1}. ${s}`));
+  (r.places || []).forEach(p => L.push(`📍 ${p.name} ${p.address || ''}`));
+  if (it.url) L.push('', it.url);
+  return L.join('\n');
+}
+function openView(id) {
+  const it = items.find(i => i.id === id); if (!it) return;
+  const r = it.result;
+  let h = '';
+  if (r) {
+    h += `<h2>${CATS[r.category]} ${esc(r.title)}</h2><p style="font-size:14px;line-height:1.6">${esc(r.summary)}</p>`;
+    if (r.facts?.length) h += `<table class="f">${r.facts.map(f => `<tr><td>${esc(f.k)}</td><td>${esc(f.v)}</td></tr>`).join('')}</table>`;
+    if (r.steps?.length) h += `<b>순서</b><ol>${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`;
+    if (r.places?.length) h += `<b>📍 위치</b>${r.places.map(p => `<div class="place"><b>${esc(p.name)}</b> ${esc(p.address || '')}<br>${mapLinks(p)}</div>`).join('')}`;
+    if (r.tags?.length) h += `<p>${r.tags.map(t => `<span class="badge">#${esc(t)}</span>`).join('')}</p>`;
+  } else {
+    h += `<h2>📎 정리 전</h2>${it.error ? `<p style="color:#c92a2a;font-size:14px">${esc(it.error)}</p>` : ''}`;
+  }
+  if (it.caption) h += `<details><summary style="font-size:13px;color:var(--sub)">원래 캡션 보기</summary><p style="white-space:pre-wrap;font-size:13px">${esc(it.caption)}</p></details>`;
+  if (it.media?.length) h += `<div class="files">${it.media.map(m => `<span>${m.type.startsWith('video') ? '🎬' : '🖼️'} ${esc(m.name)}</span>`).join('')}</div>`;
+  h += `<label>내 메모</label><textarea id="vNote" style="min-height:60px">${esc(it.note || '')}</textarea>
+  <div class="row">
+    ${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener"><button class="g">인스타에서 열기</button></a>` : ''}
+    <button class="p" id="vAI">${r ? '🔄 다시 정리' : '🤖 AI 정리'}</button>
+    <button class="g" id="vCopy">📋 복사</button>
+    <button class="d" id="vDel">🗑 삭제</button>
+    <button class="g" id="vClose">닫기</button>
+  </div>`;
+  $('vBody').innerHTML = h;
+  $('mView').classList.add('show');
+  $('vClose').onclick = async () => { it.note = $('vNote').value; await DB.put(it); $('mView').classList.remove('show'); render(); };
+  $('vCopy').onclick = async () => { try { await navigator.clipboard.writeText(itemText(it)); toast('복사했어요'); } catch (e) { toast('복사에 실패했어요'); } };
+  $('vDel').onclick = async () => { if (confirm('이 글을 지울까요?')) { await DB.del(it.id); items = items.filter(i => i !== it); selected.delete(it.id); $('mView').classList.remove('show'); render(); } };
+  $('vAI').onclick = async () => { it.note = $('vNote').value; $('mView').classList.remove('show'); await runAI([it]); openView(it.id); };
+}
+
+/* ---------- 여러 개 한꺼번에 AI 정리 ---------- */
+let busy = false;
+async function runAI(list) {
+  if (busy) return toast('이미 정리 중이에요');
+  busy = true; $('btnAI').disabled = true;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < list.length; i++) {
+    const it = list[i];
+    toast(`🤖 정리 중… ${i + 1}/${list.length}`, 60000);
+    try {
+      it.result = await analyze(it); it.status = 'done'; it.error = ''; ok++;
+    } catch (e) {
+      it.status = 'error'; it.error = e.message; fail++;
+      if (/한도|키|모델/.test(e.message)) { await DB.put(it); render(); toast(e.message, 5000); break; } // 계속해도 소용없는 오류는 멈춤
+    }
+    await DB.put(it); render();
+  }
+  busy = false; $('btnAI').disabled = false;
+  if (ok || fail) toast(`정리 완료 ${ok}개${fail ? ` · 실패 ${fail}개(카드를 눌러 확인)` : ''}`, 4000);
+}
+
+/* 선택한 것들을 한 장으로 묶어 정리 (맛집 비교, 장보기 목록, 여행 코스 등) */
+const md = s => {
+  let out = '', ul = false;
+  for (let l of esc(s).split('\n')) {
+    l = l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    if (/^\s*[-*] /.test(l)) { if (!ul) { out += '<ul>'; ul = true; } out += `<li>${l.replace(/^\s*[-*] /, '')}</li>`; continue; }
+    if (ul) { out += '</ul>'; ul = false; }
+    const h = l.match(/^#{1,4} (.*)/);
+    if (h) out += `<h4>${h[1]}</h4>`; else if (l.trim()) out += `<p>${l}</p>`;
+  }
+  return out + (ul ? '</ul>' : '');
+};
+async function mergeSelected() {
+  const list = items.filter(i => selected.has(i.id) && i.result);
+  if (list.length < 2) return toast('AI 정리가 끝난 글을 2개 이상 골라 주세요');
+  $('vBody').innerHTML = '<h2>🧺 묶어서 정리</h2><p>🤖 정리하는 중…</p>'; $('mView').classList.add('show');
+  try {
+    const data = list.map(i => ({ 분류: i.result.category, 제목: i.result.title, 요약: i.result.summary, 정보: i.result.facts, 순서: i.result.steps, 위치: i.result.places }));
+    const txt = await gemini([{ text: `아래는 내가 저장해 둔 글을 정리한 목록이야. 한국어로 보기 좋게 마크다운(제목 ##, 목록 -, 굵게 **)으로 묶어서 정리해 줘.
+- 맛집이면 지역별로 묶고 가게마다 위치·메뉴·가격을 한 줄씩,
+- 레시피면 필요한 재료를 합친 장보기 목록과 요리별 핵심 순서,
+- 여행이면 지역·동선 순서의 코스와 비용·꿀팁,
+- 쇼핑이면 상품 비교(가격·장단점)와 추천 순위.
+섞여 있으면 분류별로 나눠. 목록에 없는 정보는 지어내지 마.\n\n${JSON.stringify(data)}` }], false);
+    $('vBody').innerHTML = `<h2>🧺 묶어서 정리 (${list.length}개)</h2><div class="md">${md(txt)}</div>
+      <div class="row"><button class="p" id="mCopy">📋 복사</button><button class="g" id="mClose">닫기</button></div>`;
+    $('mCopy').onclick = async () => { try { await navigator.clipboard.writeText(txt); toast('복사했어요'); } catch (e) { toast('복사 실패'); } };
+    $('mClose').onclick = () => $('mView').classList.remove('show');
+  } catch (e) {
+    $('vBody').innerHTML = `<h2>🧺 묶어서 정리</h2><p style="color:#c92a2a">${esc(e.message)}</p><div class="row"><button class="g" id="mClose">닫기</button></div>`;
+    $('mClose').onclick = () => $('mView').classList.remove('show');
+  }
+}
+
+/* ---------- 추가 창 ---------- */
+function openAdd(url = '', cap = '') {
+  pending = []; $('aUrl').value = url; $('aCap').value = cap; $('aFiles').value = ''; $('aFileList').innerHTML = '';
+  $('aNow').checked = !!ls.get('gkey'); $('mAdd').classList.add('show');
+}
+$('aFiles').onchange = async e => {
+  pending = []; let total = 0;
+  for (const f of e.target.files) {
+    if (f.type.startsWith('image/')) { try { pending.push(await shrink(f)); } catch (err) { toast('사진을 읽지 못했어요: ' + f.name); } }
+    else if (f.type.startsWith('video/')) pending.push({ name: f.name, type: f.type, blob: f, raw: f });
+  }
+  total = pending.reduce((a, m) => a + m.blob.size, 0);
+  $('aFileList').innerHTML = pending.map(m => `<span>${m.type.startsWith('video') ? '🎬' : '🖼️'} ${esc(m.name)} (${(m.blob.size / 1048576).toFixed(1)}MB)</span>`).join('');
+  if (total > MAX_RAW) toast(`합계 ${(total / 1048576).toFixed(1)}MB예요. 14MB 넘으면 AI가 못 읽어요`, 5000);
+};
+$('aPaste').onclick = async () => {
+  try { const t = await navigator.clipboard.readText(); const u = t.match(/https?:\/\/\S+/); if (u) $('aUrl').value = u[0]; const rest = t.replace(/https?:\/\/\S+/, '').trim(); if (rest) $('aCap').value = rest; toast('붙여넣었어요'); }
+  catch (e) { toast('붙여넣기 권한이 없어요. 직접 길게 눌러 붙여넣어 주세요'); }
+};
+$('aSave').onclick = async () => {
+  const url = $('aUrl').value.trim(), caption = $('aCap').value.trim();
+  if (!url && !caption && !pending.length) return toast('링크·캡션·파일 중 하나는 넣어 주세요');
+  if (url && items.some(i => i.url === url) && !confirm('이미 저장한 링크예요. 또 저장할까요?')) return;
+  const it = { id: uid(), created: Date.now(), url, caption, note: '', media: pending.map(({ name, type, blob }) => ({ name, type, blob })), thumb: '', status: 'new', result: null, error: '' };
+  if (pending[0]) it.thumb = await thumbOf(pending[0].blob.type ? new File([pending[0].blob], pending[0].name, { type: pending[0].type }) : pending[0].blob);
+  await DB.put(it); items.push(it); $('mAdd').classList.remove('show'); render(); toast('저장했어요');
+  if ($('aNow').checked && ls.get('gkey')) runAI([it]);
+};
+
+/* ---------- 설정 창 ---------- */
+function openSet() { $('sKey').value = ls.get('gkey'); $('sModel').value = ls.get('gmodel', 'gemini-flash-latest'); $('sVer').textContent = `버전 v${VERSION}`; $('mSet').classList.add('show'); }
+$('sSave').onclick = () => { ls.set('gkey', $('sKey').value.trim()); ls.set('gmodel', $('sModel').value.trim() || 'gemini-flash-latest'); $('mSet').classList.remove('show'); toast('저장했어요'); };
+// 백업: 글·정리 결과·작은 그림만 (영상·사진 원본은 크기가 커서 제외)
+$('sExport').onclick = () => {
+  const data = items.map(({ media, ...rest }) => ({ ...rest, mediaNames: (media || []).map(m => m.name) }));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ v: 1, items: data }, null, 1)], { type: 'application/json' }));
+  a.download = `저장정리-백업-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+};
+$('sImport').onclick = () => $('sImpFile').click();
+$('sImpFile').onchange = async e => {
+  try {
+    const d = JSON.parse(await e.target.files[0].text()); let n = 0;
+    for (const it of d.items || []) { if (items.some(i => i.id === it.id)) continue; it.media = []; await DB.put(it); items.push(it); n++; }
+    render(); toast(`${n}개 불러왔어요`);
+  } catch (err) { toast('백업 파일을 읽지 못했어요'); }
+  e.target.value = '';
+};
+
+/* ---------- 이벤트 ---------- */
+$('fab').onclick = () => openAdd();
+$('btnSet').onclick = openSet;
+$('btnAll').onclick = () => { const v = visible(); const all = v.every(i => selected.has(i.id)); v.forEach(i => all ? selected.delete(i.id) : selected.add(i.id)); render(); };
+$('q').oninput = e => { query = e.target.value; render(); };
+$('chips').onclick = e => { const c = e.target.closest('[data-cat]'); if (c) { filter = c.dataset.cat; render(); } };
+$('list').onclick = e => {
+  const chk = e.target.closest('[data-chk]'); if (chk) { const id = chk.dataset.chk; selected.has(id) ? selected.delete(id) : selected.add(id); render(); return; }
+  const o = e.target.closest('[data-open]'); if (o) openView(o.dataset.open);
+};
+$('btnAI').onclick = () => runAI(items.filter(i => selected.has(i.id)));
+$('btnMerge').onclick = mergeSelected;
+$('btnDel').onclick = async () => {
+  if (!confirm(`선택한 ${selected.size}개를 지울까요?`)) return;
+  for (const id of selected) await DB.del(id);
+  items = items.filter(i => !selected.has(i.id)); selected.clear(); render();
+};
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('show'));
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); }));
+
+/* ---------- 시작 ---------- */
+(async function start() {
+  try { items = await DB.all(); } catch (e) { toast('저장소를 열 수 없어요(시크릿 모드인가요?)', 5000); }
+  render();
+  // 인스타에서 "공유"로 들어온 링크·글 받기
+  const p = new URLSearchParams(location.search);
+  const raw = [p.get('url'), p.get('text'), p.get('title')].filter(Boolean).join('\n');
+  if (raw) {
+    const u = raw.match(/https?:\/\/[^\s]+/);
+    const cap = raw.replace(/https?:\/\/[^\s]+/g, '').trim();
+    history.replaceState(null, '', location.pathname);
+    openAdd(u ? u[0] : '', cap);
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (!ls.get('gkey')) setTimeout(() => toast('처음이면 ⚙️ 설정에서 무료 AI 키를 넣어 주세요', 5000), 800);
+})();
+</script>
+</body>
+</html>
