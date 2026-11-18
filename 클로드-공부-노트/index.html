@@ -41,10 +41,13 @@
   .toolbar{display:flex;gap:8px;margin-bottom:14px}
   .toolbar input{flex:1}
 
-  .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
+  .tags.collapsed .tagchip.hide-when-collapsed{display:none}
   .tagchip{padding:4px 10px;border-radius:999px;background:var(--tag);color:#3949ab;
     font-size:12px;cursor:pointer;border:1px solid transparent}
   .tagchip.on{background:var(--accent);color:#fff}
+  .tagchip.more{background:transparent;border:1px solid var(--line);color:var(--sub);font-weight:600}
+  .tagfilter-wrap{margin-bottom:14px}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:14px 16px;margin-bottom:10px;cursor:pointer}
@@ -54,6 +57,7 @@
   .card p.summary{font-size:13px;color:#444;margin:6px 0}
   .card .tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   .card .tagrow span{font-size:11px;color:#3949ab;background:var(--tag);padding:2px 8px;border-radius:999px}
+  .card .tagrow .tag-more{background:transparent;border:1px solid var(--line);color:var(--sub);font-weight:600;cursor:pointer}
 
   .detail{display:none;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
   .card.open .detail{display:block}
@@ -113,7 +117,9 @@
     <input type="text" id="search" placeholder="🔍 제목·요약·태그 검색">
     <button class="btn ghost small" id="btn-refresh">새로고침</button>
   </div>
-  <div class="tags" id="tagFilters"></div>
+  <div class="tagfilter-wrap">
+    <div class="tags collapsed" id="tagFilters"></div>
+  </div>
 
   <div id="list"></div>
 </div>
@@ -125,6 +131,8 @@ const TABLE = "claude_notes";
 
 let notes = [];
 let activeTag = null;
+let tagsExpanded = false;
+const TAG_SHOW_COUNT = 8;
 
 async function api(path, opts={}){
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -151,15 +159,26 @@ async function load(){
 function renderTags(){
   const all = new Set();
   notes.forEach(n => (n.tags||[]).forEach(t => all.add(t)));
+  const sorted = [...all].sort();
   const box = document.getElementById("tagFilters");
   box.innerHTML = "";
-  [...all].sort().forEach(t => {
+  box.classList.toggle("collapsed", !tagsExpanded);
+
+  sorted.forEach((t, i) => {
     const chip = document.createElement("span");
-    chip.className = "tagchip" + (activeTag===t ? " on" : "");
+    chip.className = "tagchip" + (activeTag===t ? " on" : "") + (i >= TAG_SHOW_COUNT ? " hide-when-collapsed" : "");
     chip.textContent = "#" + t;
     chip.onclick = () => { activeTag = activeTag===t ? null : t; renderTags(); render(); };
     box.appendChild(chip);
   });
+
+  if(sorted.length > TAG_SHOW_COUNT){
+    const more = document.createElement("span");
+    more.className = "tagchip more";
+    more.textContent = tagsExpanded ? "▲ 접기" : `▼ 태그 더보기 (${sorted.length - TAG_SHOW_COUNT})`;
+    more.onclick = () => { tagsExpanded = !tagsExpanded; renderTags(); };
+    box.appendChild(more);
+  }
 }
 
 function render(){
@@ -181,7 +200,12 @@ function render(){
     card.className = "card";
     const date = new Date(n.created_at).toLocaleDateString("ko-KR");
     const points = (n.points||[]).map(p => `<li>${escapeHtml(p)}</li>`).join("");
-    const tags = (n.tags||[]).map(t => `<span>#${escapeHtml(t)}</span>`).join("");
+    const CARD_TAG_SHOW = 4;
+    const allTags = n.tags || [];
+    const shownTags = allTags.slice(0, CARD_TAG_SHOW).map(t => `<span>#${escapeHtml(t)}</span>`).join("");
+    const extraTags = allTags.slice(CARD_TAG_SHOW).map(t => `<span class="tag-extra-item" style="display:none">#${escapeHtml(t)}</span>`).join("");
+    const moreBtn = allTags.length > CARD_TAG_SHOW ? `<span class="tag-more" data-tagmore>+${allTags.length - CARD_TAG_SHOW}</span>` : "";
+    const tags = `${shownTags}${extraTags}${moreBtn}`;
     card.innerHTML = `
       <div class="top">
         <h3>${escapeHtml(n.title)}</h3>
@@ -197,8 +221,18 @@ function render(){
         </div>
       </div>
     `;
+    const tagMoreBtn = card.querySelector("[data-tagmore]");
+    if(tagMoreBtn){
+      tagMoreBtn.onclick = (e) => {
+        e.stopPropagation();
+        const extras = card.querySelectorAll(".tag-extra-item");
+        const nowHidden = extras[0] && extras[0].style.display === "none";
+        extras.forEach(el => el.style.display = nowHidden ? "inline-block" : "none");
+        tagMoreBtn.textContent = nowHidden ? "접기" : `+${allTags.length - CARD_TAG_SHOW}`;
+      };
+    }
     card.onclick = (e) => {
-      if(e.target.closest("[data-del]")) return;
+      if(e.target.closest("[data-del]") || e.target.closest("[data-tagmore]")) return;
       card.classList.toggle("open");
     };
     card.querySelector("[data-del]").onclick = async (e) => {
