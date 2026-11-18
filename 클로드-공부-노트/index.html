@@ -265,7 +265,7 @@ document.getElementById("btn-auto").onclick = async () => {
     return;
   }
   statusBox.style.display = "block";
-  statusBox.textContent = "⏳ AI가 캡처를 읽고 정리하는 중이에요...";
+  statusBox.textContent = "⏳ AI가 캡처에서 키워드를 뽑고, 키워드마다 찾아서 정리하는 중이에요... (키워드가 여러 개면 조금 걸려요)";
   try{
     const images = await Promise.all([...files].map(async f => ({
       mediaType: f.type || "image/jpeg",
@@ -285,7 +285,12 @@ document.getElementById("btn-auto").onclick = async () => {
       statusBox.textContent = "❌ 정리에 실패했어요: " + (data.error || res.statusText);
       return;
     }
-    statusBox.textContent = "✅ 정리해서 저장했어요: " + data.note.title;
+    const titles = (data.notes || []).map(n => n.title).join(", ");
+    let msg = `✅ ${data.notes.length}개 키워드로 나눠서 저장했어요: ${titles}`;
+    if(data.failures && data.failures.length){
+      msg += ` (${data.failures.length}개는 실패: ${data.failures.map(f=>f.keyword).join(", ")})`;
+    }
+    statusBox.textContent = msg;
     document.getElementById("f-images").value = "";
     await load();
   }catch(e){
