@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>클로드 공부 노트</title>
+<style>
+  :root{
+    --bg:#fafaf9; --card:#fff; --ink:#1f2328; --sub:#6b7280;
+    --line:#e5e7eb; --accent:#4c6ef5; --accent-ink:#fff; --tag:#eef2ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;}
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:20px;margin:4px 0 2px}
+  .lead{color:var(--sub);font-size:13px;margin:0 0 18px}
+
+  .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+  .box h2{font-size:15px;margin:0 0 10px}
+  label{display:block;font-size:12px;color:var(--sub);margin:10px 0 4px}
+  input[type=text],input[type=url],textarea{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;
+    font-size:14px;font-family:inherit;background:#fff;color:var(--ink);
+  }
+  textarea{resize:vertical;min-height:70px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .row > *{flex:1;min-width:140px}
+  .hint{font-size:11.5px;color:var(--sub);line-height:1.5;background:#f6f7fb;border-radius:9px;padding:8px 10px;margin-top:10px}
+  .hint b{color:var(--ink)}
+
+  .btn{appearance:none;border:none;border-radius:9px;padding:9px 14px;font-size:14px;
+    font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--accent);color:var(--accent-ink);margin-top:12px}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .btn.small{padding:5px 9px;font-size:12px}
+
+  .toolbar{display:flex;gap:8px;margin-bottom:14px}
+  .toolbar input{flex:1}
+
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tagchip{padding:4px 10px;border-radius:999px;background:var(--tag);color:#3949ab;
+    font-size:12px;cursor:pointer;border:1px solid transparent}
+  .tagchip.on{background:var(--accent);color:#fff}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;margin-bottom:10px;cursor:pointer}
+  .card .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .card h3{font-size:15px;margin:0}
+  .card .date{font-size:11px;color:var(--sub);white-space:nowrap}
+  .card p.summary{font-size:13px;color:#444;margin:6px 0}
+  .card .tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .card .tagrow span{font-size:11px;color:#3949ab;background:var(--tag);padding:2px 8px;border-radius:999px}
+
+  .detail{display:none;margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+  .card.open .detail{display:block}
+  .detail ul{margin:0;padding-left:18px;font-size:13.5px;line-height:1.6}
+  .detail a{font-size:12.5px;color:var(--accent)}
+  .card-actions{margin-top:10px;display:flex;gap:8px}
+
+  .empty{text-align:center;color:var(--sub);font-size:13px;padding:30px 0}
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#15171a;--card:#1e2126;--ink:#e8eaed;--sub:#9aa0a6;--line:#2c2f36;--tag:#242a3d;}
+    input,textarea{background:#15171a;color:var(--ink)}
+    .hint{background:#20242c}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📎 클로드 공부 노트</h1>
+  <p class="lead">인스타·블로그에서 본 클로드 관련 글을 핵심만 정리해 두는 나만의 노트예요.</p>
+
+  <div class="box">
+    <h2>➕ 새 노트 추가</h2>
+    <label>원문 링크 (있으면)</label>
+    <input type="url" id="f-url" placeholder="https://...">
+    <label>제목</label>
+    <input type="text" id="f-title" placeholder="예: 프롬프트에 역할을 주면 답이 더 좋아진다">
+    <label>한줄 요약</label>
+    <textarea id="f-summary" placeholder="가장 중요한 한 문장"></textarea>
+    <label>핵심 포인트 (한 줄에 하나씩)</label>
+    <textarea id="f-points" placeholder="포인트 1&#10;포인트 2&#10;포인트 3" style="min-height:90px"></textarea>
+    <div class="row">
+      <div>
+        <label>태그 (쉼표로 구분)</label>
+        <input type="text" id="f-tags" placeholder="프롬프트, MCP, 에이전트">
+      </div>
+      <div>
+        <label>출처</label>
+        <select id="f-type" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
+          <option value="instagram">인스타그램</option>
+          <option value="blog">블로그</option>
+          <option value="manual">직접 입력</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn primary" id="btn-save">노트 저장하기</button>
+    <div class="hint">
+      <b>캡처 이미지로 정리하고 싶다면?</b> 이미지는 여기서 직접 올릴 수 없어요.
+      Claude와 대화하는 창에 캡처를 붙여넣고 "이 캡처 정리해서 클로드 공부 노트에 추가해줘"라고 하면,
+      Claude가 내용을 읽고 요약해서 이 목록에 바로 추가해 줘요.
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="🔍 제목·요약·태그 검색">
+    <button class="btn ghost small" id="btn-refresh">새로고침</button>
+  </div>
+  <div class="tags" id="tagFilters"></div>
+
+  <div id="list"></div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://bmfihlddiyfeejrdrigm.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtZmlobGRkaXlmZWVqcmRyaWdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNTUwNzIsImV4cCI6MjEwNjgzMTA3Mn0.8EHC-CI5fz0yg9hF2Cp0uSfI1dZuUz5yS-MUaAdcCbc";
+const TABLE = "claude_notes";
+
+let notes = [];
+let activeTag = null;
+
+async function api(path, opts={}){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers:{
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": opts.prefer || "",
+      ...(opts.headers||{})
+    }
+  });
+  if(!res.ok) throw new Error(await res.text());
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function load(){
+  notes = await api(`${TABLE}?select=*&order=created_at.desc`) || [];
+  renderTags();
+  render();
+}
+
+function renderTags(){
+  const all = new Set();
+  notes.forEach(n => (n.tags||[]).forEach(t => all.add(t)));
+  const box = document.getElementById("tagFilters");
+  box.innerHTML = "";
+  [...all].sort().forEach(t => {
+    const chip = document.createElement("span");
+    chip.className = "tagchip" + (activeTag===t ? " on" : "");
+    chip.textContent = "#" + t;
+    chip.onclick = () => { activeTag = activeTag===t ? null : t; renderTags(); render(); };
+    box.appendChild(chip);
+  });
+}
+
+function render(){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const list = document.getElementById("list");
+  let items = notes.filter(n => {
+    if(activeTag && !(n.tags||[]).includes(activeTag)) return false;
+    if(!q) return true;
+    const hay = [n.title, n.summary, ...(n.tags||[])].join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+  list.innerHTML = "";
+  if(items.length === 0){
+    list.innerHTML = `<div class="empty">아직 노트가 없어요. 위에서 추가해 보세요.</div>`;
+    return;
+  }
+  items.forEach(n => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const date = new Date(n.created_at).toLocaleDateString("ko-KR");
+    const points = (n.points||[]).map(p => `<li>${escapeHtml(p)}</li>`).join("");
+    const tags = (n.tags||[]).map(t => `<span>#${escapeHtml(t)}</span>`).join("");
+    card.innerHTML = `
+      <div class="top">
+        <h3>${escapeHtml(n.title)}</h3>
+        <span class="date">${date}</span>
+      </div>
+      <p class="summary">${escapeHtml(n.summary)}</p>
+      <div class="tagrow">${tags}</div>
+      <div class="detail">
+        <ul>${points}</ul>
+        ${n.source_url ? `<p><a href="${escapeAttr(n.source_url)}" target="_blank" rel="noopener">🔗 원문 보기</a></p>` : ""}
+        <div class="card-actions">
+          <button class="btn ghost small" data-del="${n.id}">🗑️ 삭제</button>
+        </div>
+      </div>
+    `;
+    card.onclick = (e) => {
+      if(e.target.closest("[data-del]")) return;
+      card.classList.toggle("open");
+    };
+    card.querySelector("[data-del]").onclick = async (e) => {
+      e.stopPropagation();
+      if(!confirm("이 노트를 지울까요?")) return;
+      await api(`${TABLE}?id=eq.${n.id}`, { method:"DELETE" });
+      await load();
+    };
+    list.appendChild(card);
+  });
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+
+document.getElementById("btn-save").onclick = async () => {
+  const title = document.getElementById("f-title").value.trim();
+  const summary = document.getElementById("f-summary").value.trim();
+  if(!title || !summary){ alert("제목과 한줄 요약은 꼭 적어 주세요."); return; }
+  const points = document.getElementById("f-points").value.split("\n").map(s=>s.trim()).filter(Boolean);
+  const tags = document.getElementById("f-tags").value.split(",").map(s=>s.trim()).filter(Boolean);
+  const source_url = document.getElementById("f-url").value.trim() || null;
+  const source_type = document.getElementById("f-type").value;
+
+  await api(TABLE, {
+    method:"POST",
+    prefer:"return=minimal",
+    body: JSON.stringify([{ title, summary, points, tags, source_url, source_type }])
+  });
+
+  document.getElementById("f-url").value = "";
+  document.getElementById("f-title").value = "";
+  document.getElementById("f-summary").value = "";
+  document.getElementById("f-points").value = "";
+  document.getElementById("f-tags").value = "";
+  await load();
+};
+
+document.getElementById("search").oninput = render;
+document.getElementById("btn-refresh").onclick = load;
+
+load();
+</script>
+</body>
+</html>
