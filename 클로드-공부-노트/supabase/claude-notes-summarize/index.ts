@@ -1,7 +1,7 @@
 // 캡처 이미지(여러 장)를 받아서:
 // 1) Gemini로 핵심 키워드들을 뽑고
-// 2) 키워드마다 Gemini(웹 검색 기능 켠 채로)가 검색해서 더 깊이 정리해
-// 3) 키워드 하나당 노트 하나씩 claude_notes 표에 저장.
+// 2) 키워드마다 Gemini(가능하면 웹 검색까지 켜서)가 더 깊이 정리해
+// 3) 키워드 하나당 노트 하나씩(이미 같은 키워드 노트가 있으면 그 카드에 합쳐서) claude_notes 표에 저장.
 // POST { images: [{ mediaType, dataBase64 }, ...] }  (images는 1~10장)
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -12,6 +12,8 @@ const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 const EXTRACT_MODEL = "gemini-flash-lite-latest"; // 캡처 읽기(이미지 입력), 검색은 안 씀
 const RESEARCH_MODEL = "gemini-flash-latest"; // 웹 검색 기능(google_search)이 되는 모델
 const MAX_TOPICS = 5;
+const MAX_POINTS = 10;
+const MAX_TAGS = 8;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,11 +25,14 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
+function normKeyword(s: string) {
+  return (s || "").trim().toLowerCase();
+}
+
 function extractJson(raw: string): any | null {
   // 객체({...}) 또는 배열([...]) 둘 다 받아줌
   const objMatch = raw.match(/\{[\s\S]*\}/);
   const arrMatch = raw.match(/\[[\s\S]*\]/);
-  // 더 먼저(바깥쪽) 나오는 쪽을 고름
   const objIdx = objMatch ? raw.indexOf(objMatch[0]) : -1;
   const arrIdx = arrMatch ? raw.indexOf(arrMatch[0]) : -1;
   const candidates: string[] = [];
@@ -88,7 +93,7 @@ Deno.serve(async (req) => {
           "이 안에서 따로따로 공부할 만한 핵심 키워드(도구 이름, 기능 이름, 개념 등)를 뽑아줘. " +
           "예를 들어 '클로드 Skills 중 Remotion, Playwright 소개' 같은 글이면 키워드는 'Remotion', 'Playwright' 둘이야. " +
           "뚜렷이 나눌 키워드가 없고 하나의 팁/개념이면 키워드 1개만 뽑아. " +
-          `키워드는 최대 ${MAX_TOPICS}개까지만. 아래 JSON 형식으로만 답해. 설명 없이 JSON만 출력해.\n` +
+          `키워드는 최대 ${MAX_TOPICS}개까지만. 반드시 아래와 같은 형태의 하나의 JSON 객체로만 답해(배열만 단독으로 출력하지 말고, 반드시 topics 키를 가진 객체로). 설명 없이 JSON만 출력해.\n` +
           '{"topics":[{"keyword":"키워드","context":"이 캡처에서 이 키워드에 대해 뭐라고 했는지 간단히"}]}',
       },
     ];
@@ -108,8 +113,19 @@ Deno.serve(async (req) => {
       return json({ error: "캡처에서 정리할 내용을 찾지 못했어요.", raw: extractRaw }, 502);
     }
 
-    // 2단계: 키워드마다 웹 검색해서 깊이 있게 정리
+    // 기존에 같은 키워드로 만들어 둔 노트가 있으면 새로 만들지 않고 그 카드에 합침
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const { data: existingNotes } = await supabase
+      .from("claude_notes")
+      .select("id, title, summary, points, tags, keyword")
+      .not("keyword", "is", null);
+
+    const byKeyword = new Map<string, any>();
+    for (const n of existingNotes || []) {
+      if (n.keyword) byKeyword.set(normKeyword(n.keyword), n);
+    }
+
+    // 2단계: 키워드마다 (가능하면 웹 검색해서) 정리
     const notes: any[] = [];
     const failures: { keyword: string; detail: string }[] = [];
 
@@ -117,12 +133,17 @@ Deno.serve(async (req) => {
       const keyword = (topic.keyword || "").trim();
       if (!keyword) continue;
       const context = topic.context || "";
+      const existing = byKeyword.get(normKeyword(keyword));
 
       const researchParts = [
         {
           text:
             `너는 공부 노트를 만들어 주는 도우미야. "${keyword}"에 대해 웹 검색으로 찾아보고 공부용으로 정리해줘. ` +
             `참고로 사용자가 본 캡처에는 이렇게 나와 있었어: "${context}"\n` +
+            (existing
+              ? `이 키워드는 이전에도 한 번 정리한 적이 있어. 그때 정리한 핵심 포인트는 이래: ${JSON.stringify(existing.points || [])}\n` +
+                "겹치는 내용은 다시 쓰지 말고, 이번 캡처에서 새로 알게 된 내용이나 보충할 점 위주로 정리해.\n"
+              : "") +
             "이 내용을 참고하되, 검색한 최신 정보로 보충해서 '이게 뭔지', '왜 쓰는지', '핵심 사용법/포인트'를 정리해. " +
             "답은 설명 없이 아래 JSON 형식으로만 출력해(코드블록 표시 없이).\n" +
             '{"title":"짧은 제목","summary":"한 문장 요약","points":["핵심 포인트1","핵심 포인트2","..."],"tags":["태그1","태그2"]}\n' +
@@ -151,26 +172,62 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const tags = Array.from(new Set([...(parsed.tags || []), keyword]));
-      const { data: inserted, error } = await supabase
-        .from("claude_notes")
-        .insert([
-          {
-            title: parsed.title || keyword,
-            summary: parsed.summary || "",
-            points: parsed.points || [],
-            tags,
-            source_type: usedSearch ? "capture-researched" : "capture-researched-nosearch",
-          },
-        ])
-        .select()
-        .single();
+      const sourceType = usedSearch ? "capture-researched" : "capture-researched-nosearch";
 
-      if (error) {
-        failures.push({ keyword, detail: error.message });
-        continue;
+      if (existing) {
+        // 같은 키워드 카드가 있으면: 포인트·태그는 합치고(중복 빼고), 요약은 최신으로 덮어씀
+        const mergedPoints = Array.from(new Set([...(existing.points || []), ...(parsed.points || [])])).slice(
+          0,
+          MAX_POINTS,
+        );
+        const mergedTags = Array.from(new Set([...(existing.tags || []), ...(parsed.tags || []), keyword])).slice(
+          0,
+          MAX_TAGS,
+        );
+        const { data: updated, error } = await supabase
+          .from("claude_notes")
+          .update({
+            summary: parsed.summary || existing.summary,
+            points: mergedPoints,
+            tags: mergedTags,
+            source_type: sourceType,
+          })
+          .eq("id", existing.id)
+          .select()
+          .single();
+
+        if (error) {
+          failures.push({ keyword, detail: error.message });
+          continue;
+        }
+        updated.merged = true;
+        notes.push(updated);
+        byKeyword.set(normKeyword(keyword), updated); // 같은 배치 안에서 또 나오면 또 합쳐지게
+      } else {
+        const tags = Array.from(new Set([...(parsed.tags || []), keyword])).slice(0, MAX_TAGS);
+        const { data: inserted, error } = await supabase
+          .from("claude_notes")
+          .insert([
+            {
+              title: parsed.title || keyword,
+              summary: parsed.summary || "",
+              points: (parsed.points || []).slice(0, MAX_POINTS),
+              tags,
+              keyword,
+              source_type: sourceType,
+            },
+          ])
+          .select()
+          .single();
+
+        if (error) {
+          failures.push({ keyword, detail: error.message });
+          continue;
+        }
+        inserted.merged = false;
+        notes.push(inserted);
+        byKeyword.set(normKeyword(keyword), inserted);
       }
-      notes.push(inserted);
     }
 
     if (notes.length === 0) {
