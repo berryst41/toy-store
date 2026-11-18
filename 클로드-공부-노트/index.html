@@ -106,9 +106,9 @@
   </div>
 
   <div class="box">
-    <h2>📸 캡처로 자동 정리</h2>
-    <p class="lead" style="margin:0 0 10px">캡처 이미지를 여러 장 고르면 AI가 알아서 읽고 정리해서 저장해요.</p>
-    <input type="file" id="f-images" accept="image/*" multiple>
+    <h2>📸 캡처·PDF로 자동 정리</h2>
+    <p class="lead" style="margin:0 0 10px">캡처 이미지나 PDF 파일을 여러 개 고르면 AI가 알아서 읽고 정리해서 저장해요.</p>
+    <input type="file" id="f-images" accept="image/*,application/pdf" multiple>
     <button class="btn primary" id="btn-auto" style="margin-top:12px">AI가 정리해서 저장하기</button>
     <div id="auto-status" class="hint" style="display:none"></div>
   </div>
@@ -291,11 +291,11 @@ document.getElementById("btn-auto").onclick = async () => {
   const files = document.getElementById("f-images").files;
   const statusBox = document.getElementById("auto-status");
   if(!files || files.length === 0){
-    alert("캡처 이미지를 먼저 골라 주세요.");
+    alert("캡처 이미지나 PDF를 먼저 골라 주세요.");
     return;
   }
   if(files.length > 10){
-    alert("한 번에 10장까지만 올릴 수 있어요.");
+    alert("한 번에 10개까지만 올릴 수 있어요.");
     return;
   }
   statusBox.style.display = "block";
