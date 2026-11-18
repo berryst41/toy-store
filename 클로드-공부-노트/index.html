@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>클로드 공부 노트</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#4c6ef5">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root{
     --bg:#fafaf9; --card:#fff; --ink:#1f2328; --sub:#6b7280;
@@ -237,6 +240,10 @@ document.getElementById("search").oninput = render;
 document.getElementById("btn-refresh").onclick = load;
 
 load();
+
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
 </script>
 </body>
 </html>
