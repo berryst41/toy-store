@@ -99,11 +99,14 @@
       </div>
     </div>
     <button class="btn primary" id="btn-save">노트 저장하기</button>
-    <div class="hint">
-      <b>캡처 이미지로 정리하고 싶다면?</b> 이미지는 여기서 직접 올릴 수 없어요.
-      Claude와 대화하는 창에 캡처를 붙여넣고 "이 캡처 정리해서 클로드 공부 노트에 추가해줘"라고 하면,
-      Claude가 내용을 읽고 요약해서 이 목록에 바로 추가해 줘요.
-    </div>
+  </div>
+
+  <div class="box">
+    <h2>📸 캡처로 자동 정리</h2>
+    <p class="lead" style="margin:0 0 10px">캡처 이미지를 여러 장 고르면 AI가 알아서 읽고 정리해서 저장해요.</p>
+    <input type="file" id="f-images" accept="image/*" multiple>
+    <button class="btn primary" id="btn-auto" style="margin-top:12px">AI가 정리해서 저장하기</button>
+    <div id="auto-status" class="hint" style="display:none"></div>
   </div>
 
   <div class="toolbar">
@@ -238,6 +241,57 @@ document.getElementById("btn-save").onclick = async () => {
 
 document.getElementById("search").oninput = render;
 document.getElementById("btn-refresh").onclick = load;
+
+const EDGE_URL = `${SUPABASE_URL}/functions/v1/claude-notes-summarize`;
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById("btn-auto").onclick = async () => {
+  const files = document.getElementById("f-images").files;
+  const statusBox = document.getElementById("auto-status");
+  if(!files || files.length === 0){
+    alert("캡처 이미지를 먼저 골라 주세요.");
+    return;
+  }
+  if(files.length > 10){
+    alert("한 번에 10장까지만 올릴 수 있어요.");
+    return;
+  }
+  statusBox.style.display = "block";
+  statusBox.textContent = "⏳ AI가 캡처를 읽고 정리하는 중이에요...";
+  try{
+    const images = await Promise.all([...files].map(async f => ({
+      mediaType: f.type || "image/jpeg",
+      dataBase64: await fileToBase64(f)
+    })));
+    const res = await fetch(EDGE_URL, {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ images })
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){
+      statusBox.textContent = "❌ 정리에 실패했어요: " + (data.error || res.statusText);
+      return;
+    }
+    statusBox.textContent = "✅ 정리해서 저장했어요: " + data.note.title;
+    document.getElementById("f-images").value = "";
+    await load();
+  }catch(e){
+    statusBox.textContent = "❌ 오류가 났어요: " + e.message;
+  }
+};
 
 load();
 
