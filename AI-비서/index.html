@@ -915,12 +915,13 @@ function welcomeHTML() {
 // 확인 카드 한 줄 (구글 일은 계정 고르기·메일 내용까지 보여 줘요)
 function askItem(m, i, live) {
   const a = m.ask.actions[i], d = m.ask.items[i];
-  if (!G_TYPES.has(a.type) || a.type === 'delete_gcal_event' || a.type === 'do_on_site') return `<li>${esc(d)}</li>`;
-  const need = a.type === 'send_mail' ? 'mail_send' : '';
-  const cur = acctOf(a.account, need), list = G.accounts.filter(x => !need || x.level === 'mail_send');
-  const sel = live && list.length ? `<select data-acc="${m.id}" data-i="${i}">${list.map(x => `<option value="${x.id}" ${cur && x.id === cur.id ? 'selected' : ''}>${a.type === 'send_mail' ? '보내는 계정' : '넣을 캘린더'}: ${esc(aName(x))} (${esc(x.email)})</option>`).join('')}</select>`
-    : `<div class="tag">${a.type === 'send_mail' ? '보내는 계정' : '넣을 캘린더'}: ${cur ? esc(aName(cur) + ' · ' + cur.email) : '⚠️ 맞는 계정 없음'}</div>`;
-  const body = a.type === 'send_mail' ? `<pre>받는 사람: ${esc(a.to)}\n제목: ${esc(a.subject)}\n\n${esc(a.body)}</pre>` : '';
+  if (!G_TYPES.has(a.type) || ['delete_gcal_event', 'do_on_site', 'done_gtask'].includes(a.type)) return `<li>${esc(d)}</li>`;
+  const need = a.type === 'send_mail' ? 'mail_send' : { add_gtask: 'tasks', append_sheet: 'sheets', make_doc: 'make' }[a.type] || '';
+  const cur = acctOf(a.account, need), list = G.accounts.filter(x => !need || (need === 'mail_send' ? x.level === 'mail_send' : x.caps?.[need]));
+  const what = a.type === 'send_mail' ? '보내는 계정' : a.type === 'add_gcal_event' ? '넣을 캘린더' : '쓸 계정';
+  const sel = live && list.length ? `<select data-acc="${m.id}" data-i="${i}">${list.map(x => `<option value="${x.id}" ${cur && x.id === cur.id ? 'selected' : ''}>${what}: ${esc(aName(x))} (${esc(x.email)})</option>`).join('')}</select>`
+    : `<div class="tag">${what}: ${cur ? esc(aName(cur) + ' · ' + cur.email) : '⚠️ 맞는 계정 없음'}</div>`;
+  const body = a.type === 'send_mail' ? `<pre>받는 사람: ${esc(a.to)}\n제목: ${esc(a.subject)}\n\n${esc(a.body)}</pre>` : a.type === 'make_doc' ? `<pre>${esc(String(a.body || '').slice(0, 2000))}</pre>` : '';
   return `<li>${esc(d)}${sel}${body}</li>`;
 }
 function askHTML(m) {
