@@ -366,8 +366,10 @@ async function coolSync() {
     if (t.kind === 'watch') await B.update(t.id, { status: 'queued' });
     else await B.update(t.id, { status: 'failed', step: '일꾼이 다시 켜져서 멈췄어요. 다시 맡겨 주세요' });
   }
-  if (!TEST) await browser();
+  if (!TEST && !HIDDEN) await browser(); // 숨어서 켤 때는 맡긴 일이 올 때만 브라우저 창을 열어요
   say('✅ 준비됐어요. 앱에서 일을 맡겨 주세요.');
+  if (!TEST && !HIDDEN && !fs.existsSync(path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'AI 비서 PC 일꾼.lnk')))
+    say("💡 PC를 켤 때 일꾼이 창 없이 저절로 켜지게 하려면, 이 창을 닫고 'PC-켤때-자동켜기.bat'을 더블클릭하세요.");
   let doBusy = false, lastBeat = 0, lastCool = 0;
   if (fs.existsSync(path.join(COOL_DIR, 'items.json'))) say('📨 쿨메신저 비서를 찾았어요. 정리된 항목을 앱과 맞출게요(쪽지 원문은 안 올려요).');
   for (let loops = 0; ; loops++) {
