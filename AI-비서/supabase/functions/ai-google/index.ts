@@ -190,6 +190,24 @@ Deno.serve(async req => {
     const act = body.action as string;
     if (act === 'config') return json({ configured: !!(CID && CSECRET), client_id: CID, scopes: SCOPES });
 
+    // 5분마다 예약 작업(pg_cron)이 불러요: 정한 시각이 지났고 오늘 아직 안 보냈으면 브리핑 알림
+    if (act === 'cron_brief') {
+      const { data: cfg } = await admin.from('ai_push_config').select('cron_secret, vapid_public').eq('id', 1).single();
+      if (!cfg || req.headers.get('x-cron-secret') !== cfg.cron_secret) return json({ error: 'forbidden' }, 403);
+      if (!cfg.vapid_public) return json({ skip: 'no subscribers yet' });
+      const t = kDate(), now = mins(kst().toISOString().slice(11, 16)), out: unknown[] = [];
+      const { data: owners } = await admin.from('ai_owner').select('user_id');
+      for (const o of owners || []) {
+        const { data: p } = await admin.from('ai_profile').select('settings, brief_sent').eq('user_id', o.user_id).maybeSingle();
+        const b = p?.settings?.brief; if (!b?.on) continue;
+        const at = /^\d{2}:\d{2}$/.test(b.time || '') ? mins(b.time) : mins('07:30');
+        if (p.brief_sent === t || now < at || now > at + 180) continue;
+        await admin.from('ai_profile').update({ brief_sent: t }).eq('user_id', o.user_id); // 먼저 표시 → 두 번 안 가게
+        out.push(await pushTo(o.user_id, await buildBrief(o.user_id)));
+      }
+      return json({ ok: true, out });
+    }
+
     // 로그인한 주인만
     const auth = req.headers.get('Authorization') || '';
     const userDb = createClient(SB_URL, SB_ANON, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
@@ -197,6 +215,10 @@ Deno.serve(async req => {
     if (!user) return json({ error: '로그인이 필요해요' }, 401);
     const { data: isOwner } = await userDb.rpc('ai_is_owner');
     if (!isOwner) return json({ error: '이 AI 비서의 주인만 쓸 수 있어요' }, 403);
+    // 알림·브리핑은 구글 설정이 없어도 돼요
+    if (act === 'push_key') return json({ key: await vapidKey() });
+    if (act === 'brief') return json(await buildBrief(user.id));
+    if (act === 'push_test') { await vapidKey(); const msg = await buildBrief(user.id); return json({ sent: await pushTo(user.id, msg), ...msg }); }
     if (!(CID && CSECRET)) return json({ error: 'not_configured' }, 400);
 
     const { data: rows } = await admin.from('ai_google_accounts').select('*').eq('user_id', user.id).order('created_at');
