@@ -899,8 +899,15 @@ function renderPlan() {
     return `<div class="row ${x.done ? 'done' : ''}"><input type="checkbox" data-chk="${x.id}" ${x.done ? 'checked' : ''}><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small style="${late ? 'color:var(--warn);font-weight:700' : ''}">~ ${dLabel(x.due)}${late ? ' · 마감 지남' : ''}</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
   }).join('') : '<div class="none">할 일이 없어요 🎉</div>';
 }
-$('pPlan').onclick = e => {
-  const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk;
+$('pPlan').onclick = async e => {
+  const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev;
+  if (dg) {
+    const ev = G.events.find(x => x.id === dg); if (!ev) return;
+    if (!confirm(`구글 캘린더 [${ev.label}]에서 지울까요?\n${dLabel(ev.date)} ${ev.time || ''} ${ev.title}`)) return;
+    try { const r = await gcall('cal_delete', { account: ev.account, id: dg }); G.events = G.events.filter(x => x.id !== dg); gSave(); renderPlan(); toast(r.verified ? '지웠어요 ✔️ 확인됨' : '지웠는데 확인은 못 했어요'); }
+    catch (err) { toast('⚠️ ' + err.message, 4000); }
+    return;
+  }
   if (d1) remove('event', d1);
   else if (d2) remove('todo', d2);
   else if (c) { const x = S.todos.find(y => y.id === c); put('todo', { ...x, done: e.target.checked, doneAt: e.target.checked ? today() : '' }); }
