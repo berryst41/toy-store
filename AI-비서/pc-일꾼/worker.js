@@ -110,18 +110,21 @@ async function gemini(parts) {
 }
 
 /* ============ 브라우저 (따로 연 창) ============ */
-let ctx = null;
-async function browser() {
-  if (ctx) return ctx;
-  const { chromium } = require('playwright-core');
-  const dir = path.join(HOME, 'browser');
-  const opts = { headless: !!TEST, viewport: TEST ? { width: 1100, height: 800 } : null, args: TEST ? [] : ['--start-maximized'] };
-  for (const channel of ['chrome', 'msedge']) {
-    try { ctx = await chromium.launchPersistentContext(dir, { ...opts, channel }); break; } catch (e) { say('브라우저 열기 실패', channel, e.message.split('\n')[0]); }
-  }
-  if (!ctx) throw new Error('크롬이나 엣지를 열 수 없어요. 크롬을 설치해 주세요');
-  ctx.on('close', () => { ctx = null; });
-  return ctx;
+let ctx = null, opening = null;
+function browser() {
+  if (ctx) return Promise.resolve(ctx);
+  return opening ??= (async () => { // 일이 동시에 와도 창은 한 번만 열어요
+    const { chromium } = require('playwright-core');
+    const dir = path.join(HOME, 'browser');
+    const opts = { headless: !!TEST, viewport: TEST ? { width: 1100, height: 800 } : null, args: TEST ? [] : ['--start-maximized'] };
+    for (const channel of ['chrome', 'msedge']) {
+      try { ctx = await chromium.launchPersistentContext(dir, { ...opts, channel }); break; } catch (e) { say('브라우저 열기 실패', channel, e.message.split('\n')[0]); }
+    }
+    opening = null;
+    if (!ctx) throw new Error('크롬이나 엣지를 열 수 없어요. 크롬을 설치해 주세요');
+    ctx.on('close', () => { ctx = null; });
+    return ctx;
+  })();
 }
 const shot = async page => 'data:image/jpeg;base64,' + (await page.screenshot({ type: 'jpeg', quality: 45 })).toString('base64');
 async function mark(page) {
@@ -161,7 +164,8 @@ async function permission(t, why, action, img) {
     await sleep(2000);
     const r = await B.get(t.id);
     if (!r || r.status === 'stopped') return false;
-    if (r.answer === 'yes' || r.answer === 'no') { await B.update(t.id, { answer: null, need: null, status: 'running' }); return r.answer === 'yes'; }
+    const ans = r.answer;
+    if (ans === 'yes' || ans === 'no') { await B.update(t.id, { answer: null, need: null, status: 'running' }); return ans === 'yes'; }
   }
 }
 
@@ -192,7 +196,7 @@ async function runWatch(t) {
         return; // 창은 열어 둬요(바로 직접 할 수 있게)
       }
       if (n % 5 === 1 || !loaded) await log(t, loaded ? `👀 ${n}번째 확인 · 아직이에요` : `⚠️ ${n}번째 확인 · 페이지가 잘 안 떠요`);
-      await sleep(every - 2500);
+      await sleep(Math.max(0, every - 2500));
     }
     await log(t, '⏰ 지켜보는 시간이 끝났어요', { status: 'failed' });
     await page.close().catch(() => {});
