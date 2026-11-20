@@ -4,7 +4,7 @@ const CACHE = 'ai-secretary-v0.7.1';
 // 아침 브리핑 알림 받기 → 누르면 앱 열기
 self.addEventListener('push', e => {
   let d = {}; try { d = e.data.json(); } catch (_) { d = { title: 'AI 비서', body: e.data ? e.data.text() : '' }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'AI 비서', { body: d.body || '', tag: d.tag || 'ai', icon: 'icon-192.png', badge: 'icon-192.png', data: { url: d.url || './' } }));
+  e.waitUntil(self.registration.showNotification(d.title || 'AI berryst', { body: d.body || '', tag: d.tag || 'ai', icon: 'icon-192.png', badge: 'icon-192.png', data: { url: d.url || './' } }));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
