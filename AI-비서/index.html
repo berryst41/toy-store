@@ -817,7 +817,7 @@ const SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'done_todo', 'delete_todo', 'add_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail'] },
+          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail'] },
           id: { type: 'STRING' }, date: { type: 'STRING' }, time: { type: 'STRING' }, end_time: { type: 'STRING' }, title: { type: 'STRING' },
           account: { type: 'STRING' }, to: { type: 'STRING' }, subject: { type: 'STRING' }, body: { type: 'STRING' }
         },
@@ -839,6 +839,9 @@ function systemPrompt() {
    구글 계정이 연결돼 있으면: 새 일정은 add_gcal_event(account=계정 이름표, date, time, end_time, title)로 구글 캘린더에 넣어. 사용자가 계정을 말하지 않으면 ⭐기본 계정. 구글 일정 지우기는 delete_gcal_event(id=[구글 일정]의 id). 구글 계정이 없으면 add_event를 써.
    메일 보내기는 send_mail(account, to, subject, body). 받는 사람 주소를 모르면 보내지 말고 물어봐. 메일 읽기 계정의 [최근 메일]을 보고 요약·답장 초안을 도와줘.
    add_gcal_event·delete_gcal_event·send_mail도 [허락] 버튼을 눌러야 실행돼. "넣었어요/보냈어요"라고 말하지 말고 "아래에서 확인하고 허락해 주세요"라고 해.
+   할 일 마감을 미루거나 이름을 고치면 update_todo(id, title, date=새 마감일).
+   🧠 기억 키우기: 사용자가 대화 중에 오래 쓸 정보(나·가족·반·학교·담당 업무·좋아하는 것·싫어하는 것·습관·자주 하는 일·연락처 이름 등)를 말하면 묻지 말고 add_memo(title=짧은 한 줄)로 기억해. [기억]에 이미 비슷한 게 있으면 새로 넣지 말고 update_memo(id, title)로 고쳐. 한 번만 쓸 일시적인 내용은 기억하지 마. 기억했으면 reply 끝에 "(기억해 둘게요)"라고 짧게 붙여.
+   대답할 때 [기억]을 적극적으로 써서 사용자에게 맞춰 줘(예: 반 학생 수, 좋아하는 음식).
 2) 학교 업무(사용자는 교사일 수 있어): 공문 요약, 기안문, 가정통신문, 학부모 문자, 생활기록부 문구 등은 바로 쓸 수 있는 완성된 글로 써 줘. 공문에 마감일이 있으면 add_todo로 할 일에도 넣어.
 3) 그 밖의 질문: 무엇이든 성실하게 답해. 모르는 건 모른다고 해.
 reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "넣어 둘게요"처럼 한 줄로 알려 줘.
