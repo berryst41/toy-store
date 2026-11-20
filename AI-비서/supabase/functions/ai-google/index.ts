@@ -154,14 +154,14 @@ async function sheetAppend(a: Acct, raw: string, values: unknown) {
   const meta = await g(a, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}?fields=properties.title,spreadsheetUrl`).catch(() => ({} as any));
   return { verified: d.updates?.updatedRows === 1, range: d.updates?.updatedRange || '', name: meta.properties?.title || '', link: meta.spreadsheetUrl || '' };
 }
+// 새 구글 문서: Docs API(documents 허락)로 만들고 글을 넣어요. (drive.file 허락은 유튜브 허락과 같이 받을 수 없어서 안 써요)
 async function docCreate(a: Acct, title: string, text: string) {
-  const bd = 'aib' + crypto.randomUUID().replace(/-/g, '');
-  const body = `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: String(title || '새 문서').slice(0, 120), mimeType: 'application/vnd.google-apps.document' })}\r\n--${bd}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${String(text || '')}\r\n--${bd}--`;
-  const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', { method: 'POST', headers: { Authorization: 'Bearer ' + await at(a), 'Content-Type': `multipart/related; boundary=${bd}` }, body });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`google ${r.status}: ${d.error?.message || ''}`.slice(0, 200));
-  const back = await g(a, `https://www.googleapis.com/drive/v3/files/${d.id}?fields=id,trashed`).catch(() => null);
-  return { verified: !!back && !back.trashed, name: d.name, link: d.webViewLink || '' };
+  const name = String(title || '새 문서').slice(0, 120), body = String(text || '').slice(0, 200000);
+  const d = await g(a, 'https://docs.googleapis.com/v1/documents', { method: 'POST', body: JSON.stringify({ title: name }) });
+  if (body) await g(a, `https://docs.googleapis.com/v1/documents/${d.documentId}:batchUpdate`, { method: 'POST', body: JSON.stringify({ requests: [{ insertText: { location: { index: 1 }, text: body } }] }) });
+  const back = await g(a, `https://docs.googleapis.com/v1/documents/${d.documentId}?fields=title,body.content`).catch(() => null);
+  const len = JSON.stringify(back?.body?.content || []).length;
+  return { verified: !!back && back.title === name && (!body || len > 200), name, link: `https://docs.google.com/document/d/${d.documentId}/edit` };
 }
 
 /* ---------- 캘린더 ---------- */
