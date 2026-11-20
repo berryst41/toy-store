@@ -182,6 +182,9 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <button class="p" id="tdAdd">추가</button>
     </div>
     <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요.</p>
+
+    <h2>📨 쿨메신저 <small id="coolAt"></small></h2>
+    <div id="coolList"></div>
   </section>
 
   <!-- 메일 -->
@@ -312,7 +315,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
