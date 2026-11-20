@@ -154,6 +154,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <input type="date" id="evD">
       <input type="time" id="evT">
       <input class="grow" id="evTitle" placeholder="일정 이름">
+      <select id="evWhere" title="어디에 넣을까요?"><option value="">📱 AI 비서</option></select>
       <button class="p" id="evAdd">추가</button>
     </div>
 
@@ -165,6 +166,12 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <button class="p" id="tdAdd">추가</button>
     </div>
     <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요.</p>
+  </section>
+
+  <!-- 메일 -->
+  <section id="pMail" class="page">
+    <h2>📬 최근 메일 <small>연결한 구글 계정 모두 · 최근 3일</small> <button class="g" id="mailRefresh" style="margin-left:auto;padding:5px 10px;font-size:13px">🔄</button></h2>
+    <div id="mailList"></div>
   </section>
 
   <!-- 기억 -->
