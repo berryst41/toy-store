@@ -615,6 +615,14 @@ async function startSession(u) {
   if (G.configured) { try { const d = await gcall('list'); G.accounts = d.accounts; gSave(); renderG(); } catch (e) {} }
   await finishOAuth();
   gRefresh(true);
+  // PC 일꾼 일 바뀌면 바로 보이게
+  if (tchan) sb.removeChannel(tchan);
+  tchan = sb.channel('ai-tasks-' + u.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_tasks', filter: `user_id=eq.${u.id}` }, p => {
+      if (p.eventType === 'DELETE') { T = T.filter(x => x.id !== p.old?.id); renderWork(); } else if (p.new?.id) refreshTask(p.new.id);
+    }).subscribe();
+  loadTasks();
+  if (START_TAB) document.querySelector(`nav button[data-p=${START_TAB}]`)?.click();
 }
 // 다른 기기에서 돌아왔을 때 / 다시 온라인일 때 맞추기
 document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) { pushNow().then(pullNow); loadUsage(); } });
@@ -656,6 +664,7 @@ $('sync').onclick = () => { if (owner) { pushNow().then(pullNow); toast('지금 
    구글 계정 여러 개 (서버 함수 ai-google이 열쇠를 갖고 대신 불러요)
    ========================================================== */
 const REDIRECT = location.origin + location.pathname;
+const START_TAB = new URLSearchParams(location.search).get('tab') === 'work' ? 'pWork' : '';
 const LEVEL_TXT = { calendar: '📅 캘린더만', mail_read: '📬 캘린더+메일 읽기', mail_send: '✉️ 캘린더+메일 읽기·보내기' };
 const G_TYPES = new Set(['add_gcal_event', 'delete_gcal_event', 'send_mail']);
 let G = { configured: null, client_id: '', scopes: {}, accounts: [], events: [], mails: [], errors: [], at: 0 };
