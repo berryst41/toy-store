@@ -688,6 +688,8 @@ function welcomeHTML() {
   h += td.length ? `남은 할 일 <b>${td.length}개</b>${late ? ` (마감 지난 것 <b style="color:var(--warn)">${late}개</b>)` : ''}<br>` : '';
   h += `<span style="color:var(--sub);font-size:13px">일정 넣기·할 일 정리·공문 요약·기안문·가정통신문·궁금한 것 무엇이든 말해 주세요. 🎤로 말해도 돼요.</span>`;
   if (!user && sb) h += `<div class="banner" data-open-set="1">☁️ 로그인하면 폰·PC가 저절로 맞춰져요 → 설정 열기</div>`;
+  const sg = suggestions();
+  if (sg.length) h += `<div style="margin-top:8px;font-size:13px;color:var(--sub)">💡 이런 걸 도와드릴까요?</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">${sg.map((s, i) => `<button class="chip" data-sug="${i}">${esc(s[0])}</button>`).join('')}</div>`;
   return h + '</div>';
 }
 // 확인 카드 한 줄 (구글 일은 계정 고르기·메일 내용까지 보여 줘요)
@@ -740,6 +742,8 @@ function renderChat(extra = '') {
 }
 $('msgs').onclick = async e => {
   if (e.target.closest('[data-open-set]')) return openSet();
+  const sgb = e.target.closest('[data-sug]');
+  if (sgb) { const s = suggestions()[+sgb.dataset.sug]; if (s) send(s[1]); return; }
   const c = e.target.closest('[data-copy]');
   if (c) {
     const txt = S.chat.find(m => m.id === c.dataset.copy)?.text || '';
