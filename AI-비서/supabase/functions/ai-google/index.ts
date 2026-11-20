@@ -130,6 +130,58 @@ async function mailSend(a: Acct, to: string, subject: string, body: string) {
   return { id: sent.id, verified: !!back && (back.labelIds || []).includes('SENT') };
 }
 
+/* ---------- 아침 브리핑 (AI 없이 규칙으로 — 키가 없어도 돼요) ---------- */
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const kst = () => new Date(Date.now() + 9 * 3600e3);
+const kDate = () => kst().toISOString().slice(0, 10);
+const addD = (s: string, n: number) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const mins = (s: string) => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+async function buildBrief(uid: string) {
+  const t = kDate(), tm = addD(t, 1);
+  const { data: items } = await admin.from('ai_items').select('kind,data').eq('user_id', uid).eq('deleted', false).in('kind', ['event', 'todo']);
+  const ev: { time: string; title: string }[] = (items || []).filter((i: any) => i.kind === 'event' && i.data.date === t).map((i: any) => ({ time: i.data.time || '', title: i.data.title }));
+  const todos = (items || []).filter((i: any) => i.kind === 'todo' && !i.data.done).map((i: any) => i.data);
+  const { data: rows } = await admin.from('ai_google_accounts').select('*').eq('user_id', uid);
+  let unread = 0;
+  if (CID && CSECRET) for (const a of (rows || []) as Acct[]) {
+    try { (await calList(a, t, t)).forEach((e: any) => ev.push({ time: e.time, title: e.title })); } catch (_) { /* 계정 하나가 안 돼도 계속 */ }
+    if (canMail(a)) try { const d = await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + new URLSearchParams({ q: 'is:unread in:inbox newer_than:1d', maxResults: '50' })); unread += (d.messages || []).length; } catch (_) { /* */ }
+  }
+  ev.sort((x, y) => (x.time || '00:00').localeCompare(y.time || '00:00'));
+  const late = todos.filter((x: any) => x.due && x.due < t), dueToday = todos.filter((x: any) => x.due === t), dueTom = todos.filter((x: any) => x.due === tm);
+  const lines: string[] = [];
+  lines.push(ev.length ? `📅 오늘 일정 ${ev.length}개: ` + ev.slice(0, 5).map(e => `${e.time || '종일'} ${e.title}`).join(', ') : '📅 오늘 잡힌 일정 없음');
+  if (dueToday.length) lines.push('⏰ 오늘 마감: ' + dueToday.slice(0, 3).map((x: any) => x.title).join(', '));
+  if (late.length) lines.push(`⚠️ 마감 지난 할 일 ${late.length}개`);
+  if (unread) lines.push(`📬 안 읽은 메일 ${unread}통`);
+  const tips: string[] = [];
+  if (dueTom.length) tips.push(`내일 마감 ${dueTom.length}개 미리 챙기기`);
+  if (late.length) tips.push('마감 지난 할 일 정리하기');
+  if (unread >= 3) tips.push('메일 요약 받아 보기');
+  if (tips.length) lines.push('💡 ' + tips.join(' · '));
+  const d = kst();
+  return { title: `☀️ ${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WD[d.getUTCDay()]}) 아침 브리핑`, body: lines.join('\n') };
+}
+async function vapidKey() {
+  const { data: cfg } = await admin.from('ai_push_config').select('*').eq('id', 1).single();
+  if (cfg?.vapid_public) return cfg.vapid_public as string;
+  const k = webpush.generateVAPIDKeys(); // 처음 한 번 서버 안에서 만들어 저장해요
+  await admin.from('ai_push_config').update({ vapid_public: k.publicKey, vapid_private: k.privateKey }).eq('id', 1);
+  return k.publicKey;
+}
+async function pushTo(uid: string, msg: { title: string; body: string }) {
+  const { data: cfg } = await admin.from('ai_push_config').select('*').eq('id', 1).single();
+  if (!cfg?.vapid_public) return 0;
+  webpush.setVapidDetails('mailto:noreply@ai-secretary.app', cfg.vapid_public, cfg.vapid_private);
+  const { data: subs } = await admin.from('ai_push_subs').select('id,sub').eq('user_id', uid);
+  let sent = 0;
+  for (const s of subs || []) {
+    try { await webpush.sendNotification(s.sub, JSON.stringify({ ...msg, tag: 'ai-brief', url: './?brief=1' }), { TTL: 6 * 3600 }); sent++; }
+    catch (e) { const c = (e as { statusCode?: number }).statusCode; if (c === 404 || c === 410) await admin.from('ai_push_subs').delete().eq('id', s.id); }
+  }
+  return sent;
+}
+
 /* ---------- 요청 처리 ---------- */
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
