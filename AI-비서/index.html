@@ -914,8 +914,14 @@ function applyActions(actions = [], approved = false) {
       const x = { ...find(S.todos), done: true, doneAt: today() }; put('todo', x); addedIds.push(x.id); done.push(`✔️ 끝남: ${x.title}`);
     } else if (a.type === 'delete_todo' && find(S.todos)) {
       const x = find(S.todos); remove('todo', x.id); removedIds.push(x.id); done.push(`🗑️ 할 일 삭제: ${x.title}`);
+    } else if (a.type === 'update_todo' && find(S.todos)) {
+      const old = find(S.todos), x = { ...old, title: title || old.title, due: okDate(a.date) ? a.date : old.due }; put('todo', x); addedIds.push(x.id);
+      done.push(`✏️ 할 일 고침: ${x.title}${x.due ? ' (~' + dLabel(x.due) + ')' : ''}`);
     } else if (a.type === 'add_memo' && title) {
-      const x = { id: uid('m'), text: title, created: today() }; put('memo', x); addedIds.push(x.id); done.push(`📒 기억: ${title}`);
+      if (S.memos.some(m => m.text.trim() === title)) continue; // 똑같은 기억은 두 번 넣지 않기
+      const x = { id: uid('m'), text: title, created: today(), auto: true }; put('memo', x); addedIds.push(x.id); done.push(`🧠 기억: ${title}`);
+    } else if (a.type === 'update_memo' && title && find(S.memos)) {
+      const x = { ...find(S.memos), text: title, updated: today() }; put('memo', x); addedIds.push(x.id); done.push(`🧠 기억 고침: ${title}`);
     } else if (a.type === 'delete_memo' && find(S.memos)) {
       const x = find(S.memos); remove('memo', x.id); removedIds.push(x.id); done.push(`🗑️ 기억 지움: ${x.text}`);
     }
