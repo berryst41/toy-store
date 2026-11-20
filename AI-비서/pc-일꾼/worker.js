@@ -388,4 +388,4 @@ async function coolSync() {
     await sleep(3000);
   }
   if (TEST) { fs.writeFileSync(process.env.AIW_TEST + '.out.json', JSON.stringify({ rows: B.rows, cool: B.cool, notified: TEST.notified || [] }, null, 1)); if (ctx) await ctx.close(); process.exit(0); }
-})().catch(e => { console.error('\n❌', e.message); if (!TEST) ask('Enter를 누르면 닫혀요').then(() => process.exit(1)); else process.exit(1); });
+})().catch(e => { console.error('\n❌', e.message); if (!TEST && !HIDDEN) ask('Enter를 누르면 닫혀요').then(() => process.exit(1)); else process.exit(1); });
