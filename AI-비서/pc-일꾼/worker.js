@@ -31,12 +31,17 @@ const B = TEST ? testBackend() : {
   async update(id, patch) { const { error } = await sb.from('ai_tasks').update(patch).eq('id', id); if (error) say('⚠️ 저장 실패', error.message); },
   async add(row) { await sb.from('ai_tasks').insert({ ...row, user_id: me.id }); },
   async notify(title, body) { try { await sb.functions.invoke('ai-google', { body: { action: 'notify', title, body } }); } catch (e) { /* 알림 실패는 넘어가요 */ } },
-  async beat(info) { await sb.from('ai_workers').upsert({ user_id: me.id, name: cfg.name, last_seen: new Date().toISOString(), info }); }
+  async beat(info) { await sb.from('ai_workers').upsert({ user_id: me.id, name: cfg.name, last_seen: new Date().toISOString(), info }); },
+  async coolAll() { const { data, error } = await sb.from('ai_cool').select('id,done,gone,kind,text,due,time,sender,recv,fav'); if (error) throw error; return data; },
+  async coolUpsert(rows) { for (let i = 0; i < rows.length; i += 200) { const { error } = await sb.from('ai_cool').upsert(rows.slice(i, i + 200).map(r => ({ ...r, user_id: me.id }))); if (error) throw error; } }
 };
 function testBackend() {
-  const rows = TEST.tasks.map((t, i) => ({ id: 't' + i, status: 'queued', log: [], ...t }));
+  const rows = (TEST.tasks || []).map((t, i) => ({ id: 't' + i, status: 'queued', log: [], ...t }));
+  const cool = TEST.cool || [];
   return {
-    rows,
+    rows, cool,
+    async coolAll() { return cool.map(r => ({ ...r })); },
+    async coolUpsert(list) { for (const r of list) { const o = cool.find(x => x.id === r.id); if (o) Object.assign(o, r); else cool.push({ kind: 'todo', text: '', done: false, gone: false, ...r }); } },
     async tasks(st) { return rows.filter(r => st.includes(r.status)); },
     async get(id) { const r = rows.find(x => x.id === id); if (r && r.status === 'need_ok' && TEST.answer) { r.answer = TEST.answer; r.status = 'running'; } return r; },
     async update(id, p) { Object.assign(rows.find(x => x.id === id), p); if (p.status || p.step) say('  ↳', id, p.status || '', p.step || ''); },
