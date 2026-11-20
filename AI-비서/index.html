@@ -1071,7 +1071,9 @@ $('sClose').onclick = () => $('mSet').classList.remove('show');
 $('sSave').onclick = () => {
   ls.set('gkey', $('sKey').value.trim()); ls.set('gmodel', $('sModel').value.trim() || DEFAULT_MODEL);
   ls.set('me', $('sMe').value.trim()); ls.set('limit', String(+$('sLimit').value || DEFAULT_LIMIT));
-  pushProfile(); renderUsage(); $('mSet').classList.remove('show'); toast('저장했어요');
+  const bOn = $('bOn').checked; ls.set('brief', JSON.stringify({ on: bOn, time: $('bTime').value || '07:30' }));
+  pushProfile(); renderUsage(); $('mSet').classList.remove('show');
+  toast(bOn && !owner ? '저장했어요. 아침 브리핑 알림은 로그인해야 와요' : bOn && !ls.get('pushOn') ? '저장했어요. 알림을 받으려면 [🔔 이 기기에서 알림 받기]도 눌러 주세요' : '저장했어요', 4500);
 };
 $('sClearChat').onclick = () => { if (!confirm('대화 내용만 지울까요? (일정·할 일·기억은 그대로예요)')) return; [...S.chat].forEach(m => remove('chat', m.id)); renderChat(); toast('대화를 지웠어요'); };
 $('sBackup').onclick = () => {
@@ -1106,6 +1108,8 @@ if (sb) {
 const sp = new URLSearchParams(location.search);
 const shared = [sp.get('title'), sp.get('text'), sp.get('url')].filter(Boolean).join('\n');
 if (shared) { history.replaceState(null, '', location.pathname); $('inp').value = shared + '\n\n위 내용 정리해 줘.'; grow(); }
+// 아침 브리핑 알림을 누르고 들어왔으면 → 자세한 브리핑 바로 해 주기
+if (sp.get('brief')) { history.replaceState(null, '', location.pathname); if (ls.get('gkey')) setTimeout(async () => { await gRefresh(true); send(QUICK[0][1]); }, 1500); }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 if (!ls.get('gkey')) setTimeout(() => toast('처음이면 ⚙️ 설정에서 무료 AI 키를 넣어 주세요', 5000), 800);
 </script>
