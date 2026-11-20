@@ -239,6 +239,7 @@ const uid = p => p + Date.now().toString(36).slice(-4) + Math.random().toString(
 S.chat.forEach((m, i) => { if (!m.id) m.id = uid('c'); if (!m.ts) m.ts = Date.now() - (S.chat.length - i) * 1000; });
 let dirty = {}; try { dirty = JSON.parse(ls.get('dirty', '{}')); } catch (e) {}
 const saveLocal = () => { ls.set('data', JSON.stringify(S)); ls.set('dirty', JSON.stringify(dirty)); };
+saveLocal(); // v0.1 자료를 새 이름으로 바로 옮겨 두기
 
 /* ---------- 날짜 도우미 ---------- */
 const pad = n => String(n).padStart(2, '0');
@@ -361,7 +362,7 @@ async function verifyOnServer(ids, expectDeleted = []) {
 }
 async function startSession(u) {
   user = u; owner = false;
-  if (!u) { setSync('local'); renderAcct(); return; }
+  if (!u) { if (chan) { sb.removeChannel(chan); chan = null; } setSync('local'); loadUsage(); renderAcct(); return; }
   setSync('busy');
   const { data: ok, error } = await sb.rpc('ai_claim_owner');
   if (error) { setSync('off'); renderAcct(); return; }
