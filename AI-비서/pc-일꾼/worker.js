@@ -32,8 +32,9 @@ const B = TEST ? testBackend() : {
   async add(row) { await sb.from('ai_tasks').insert({ ...row, user_id: me.id }); },
   async notify(title, body) { try { await sb.functions.invoke('ai-google', { body: { action: 'notify', title, body } }); } catch (e) { /* 알림 실패는 넘어가요 */ } },
   async beat(info) { await sb.from('ai_workers').upsert({ user_id: me.id, name: cfg.name, last_seen: new Date().toISOString(), info }); },
-  async coolAll() { const { data, error } = await sb.from('ai_cool').select('id,done,gone,kind,text,due,time,sender,recv,fav'); if (error) throw error; return data; },
-  async coolUpsert(rows) { for (let i = 0; i < rows.length; i += 200) { const { error } = await sb.from('ai_cool').upsert(rows.slice(i, i + 200).map(r => ({ ...r, user_id: me.id }))); if (error) throw error; } }
+  async coolAll() { const { data, error } = await sb.from('ai_cool').select('id,done,done_src,gone'); if (error) throw error; return data; },
+  async coolUpsert(rows) { for (let i = 0; i < rows.length; i += 200) { const { error } = await sb.from('ai_cool').upsert(rows.slice(i, i + 200).map(r => ({ ...r, user_id: me.id }))); if (error) throw error; } },
+  async coolGone(ids) { const { error } = await sb.from('ai_cool').update({ gone: true }).in('id', ids); if (error) throw error; }
 };
 function testBackend() {
   const rows = (TEST.tasks || []).map((t, i) => ({ id: 't' + i, status: 'queued', log: [], ...t }));
