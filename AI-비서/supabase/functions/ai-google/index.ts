@@ -232,6 +232,15 @@ Deno.serve(async req => {
     // 알림·브리핑은 구글 설정이 없어도 돼요
     if (act === 'push_key') return json({ key: await vapidKey() });
     if (act === 'brief') return json(await buildBrief(user.id));
+    if (act === 'pair_create') {
+      const AB = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint8Array(8));
+      const code = Array.from(r, x => AB[x % AB.length]).join('');
+      const expires_at = new Date(Date.now() + 10 * 60e3).toISOString();
+      await admin.from('ai_pair').delete().eq('user_id', user.id);
+      await admin.from('ai_pair').insert({ code, user_id: user.id, gkey: String(body.gkey || '').slice(0, 200), expires_at });
+      return json({ code, expires_at });
+    }
+    if (act === 'notify') return json({ sent: await pushTo(user.id, { title: String(body.title || 'AI 비서').slice(0, 60), body: String(body.body || '').slice(0, 300), url: './?tab=work', tag: String(body.tag || 'ai-work').slice(0, 40) }) });
     if (act === 'push_test') { await vapidKey(); const msg = await buildBrief(user.id); return json({ sent: await pushTo(user.id, msg), ...msg }); }
     if (!(CID && CSECRET)) return json({ error: 'not_configured' }, 400);
 
