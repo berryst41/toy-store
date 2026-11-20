@@ -3,6 +3,7 @@
 // (선택) AI_TOKEN_KEY(32바이트 base64). 없으면 서버 비밀키(service role)에서 잠금 열쇠를 만들어요 — 그 키를 바꾸면 구글 계정을 다시 연결해야 해요.
 // 구글 열쇠(refresh token)는 AES-GCM으로 잠가서 ai_google_accounts.token_enc에 두고, 브라우저로는 절대 내보내지 않아요.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
+import webpush from 'npm:web-push@3.6.7';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
