@@ -13,9 +13,11 @@
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:100dvh}
-header{background:var(--main);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px;flex:none}
-header h1{font-size:18px;margin:0;flex:1}
+header{background:var(--main);color:#fff;padding:8px 10px 8px 14px;display:flex;align-items:center;gap:6px;flex:none}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap}
 header button{background:transparent;border:0;color:#fff;font-size:22px;padding:4px 6px;cursor:pointer}
+.pill{background:rgba(255,255,255,.18);border-radius:99px;padding:4px 9px;font-size:12.5px;white-space:nowrap;cursor:pointer;border:0;color:#fff}
+.pill.bad{background:#ffe3e3;color:#c92a2a}
 nav{display:flex;background:#fff;border-bottom:1px solid var(--line);flex:none}
 nav button{flex:1;border:0;background:#fff;padding:11px 4px;font-size:15px;color:var(--sub);border-bottom:3px solid transparent;cursor:pointer}
 nav button.on{color:var(--main);border-bottom-color:var(--main);font-weight:700}
@@ -27,16 +29,24 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column;width:100%;max-wi
 .m{max-width:88%;padding:10px 12px;border-radius:14px;line-height:1.6;font-size:15px;word-break:break-word}
 .m.u{align-self:flex-end;background:var(--main);color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
 .m.a{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
-.m.a h3,.m.a h4{margin:8px 0 4px;font-size:15px}
+.m.a h4{margin:8px 0 4px;font-size:15px}
 .m.a ul,.m.a ol{margin:4px 0;padding-left:20px}
 .m.a p{margin:4px 0}
-.m.a .tools{display:flex;gap:6px;margin-top:6px}
+.m.a .tools{display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap}
 .m.a .tools button{border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12px;padding:3px 8px;color:var(--sub);cursor:pointer}
+.chk{font-size:12px;color:var(--ok)}
+.chk.no{color:var(--warn)}
 .act{display:inline-block;background:var(--soft);color:var(--main);border-radius:8px;font-size:12.5px;padding:3px 8px;margin:6px 4px 0 0}
+.ask{margin-top:8px;border:2px solid #ffc078;background:#fff9f0;border-radius:12px;padding:10px}
+.ask b{display:block;margin-bottom:4px;color:#d9480f}
+.ask ul{margin:4px 0 8px;padding-left:20px;font-size:14px}
+.ask .btns{margin-top:6px}
+.ask.done{border-color:var(--line);background:#f8f9fa}
 .m.err{align-self:flex-start;background:#fff4e6;border:1px solid #ffd8a8;color:#a14b00;font-size:14px}
 .typing{align-self:flex-start;color:var(--sub);font-size:14px;padding:4px 8px}
 .welcome{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;line-height:1.7;font-size:14.5px}
 .welcome b{color:var(--main)}
+.banner{background:var(--soft);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13.5px;cursor:pointer}
 .quick{display:flex;gap:6px;overflow-x:auto;padding:8px 14px 0;flex:none;scrollbar-width:none}
 .quick::-webkit-scrollbar{display:none}
 .chip{flex:none;border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 11px;font-size:13.5px;cursor:pointer;color:var(--text)}
@@ -62,8 +72,8 @@ h2 small{color:var(--sub);font-weight:400;font-size:13px}
 .row .t small{color:var(--sub);font-size:12.5px}
 .row.done .t div{text-decoration:line-through;color:var(--sub)}
 .row input[type=checkbox]{width:22px;height:22px;accent-color:var(--main);flex:none}
-.row .del{border:0;background:transparent;color:#bbb;font-size:18px;cursor:pointer;padding:4px}
-.row .del:hover{color:#e03131}
+.del{border:0;background:transparent;color:#bbb;font-size:18px;cursor:pointer;padding:4px}
+.del:hover{color:#e03131}
 .when{flex:none;min-width:54px;font-size:13px;color:var(--main);font-weight:700}
 .dhead{font-size:13px;color:var(--sub);margin:12px 2px 4px;font-weight:700}
 .dhead.today{color:var(--main)}
@@ -73,6 +83,8 @@ h2 small{color:var(--sub);font-weight:400;font-size:13px}
 .add input.grow{flex:1 1 160px}
 button.p{background:var(--main);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-size:15px;cursor:pointer}
 button.g{background:#fff;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px;cursor:pointer}
+button.ok{background:var(--ok);color:#fff;border:0;border-radius:10px;padding:9px 14px;font-size:15px;cursor:pointer}
+button:disabled{opacity:.5}
 .memo{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;gap:8px}
 .memo div{flex:1;white-space:pre-wrap;font-size:15px;line-height:1.5}
 .memo small{display:block;color:var(--sub);font-size:12px;margin-top:4px}
@@ -81,6 +93,7 @@ button.g{background:#fff;color:var(--text);border:1px solid var(--line);border-r
 .sheet{background:#fff;width:100%;max-width:560px;max-height:90dvh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
 @media(min-width:700px){.modal{align-items:center}.sheet{border-radius:18px}}
 .sheet h3{margin:0 0 6px}
+.sheet h4{margin:18px 0 0;font-size:15px;border-top:1px solid var(--line);padding-top:14px}
 label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 .sheet input,.sheet textarea,.sheet select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit}
 .hint{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.5}
@@ -92,6 +105,8 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 <body>
 <header>
   <h1>🤖 AI 비서</h1>
+  <button class="pill" id="usage" title="오늘 AI 사용량">🔋 오늘 0회</button>
+  <button class="pill" id="sync" title="동기화 상태">📱 이 기기만</button>
   <button id="bSet" title="설정">⚙️</button>
 </header>
 <nav>
@@ -150,22 +165,42 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 <!-- 설정 창 -->
 <div class="modal" id="mSet"><div class="sheet">
   <h3>⚙️ 설정</h3>
+
+  <h4 style="border:0;padding:0;margin-top:6px">☁️ 계정 (폰·PC 자동 동기화)</h4>
+  <div id="acctOut">
+    <label>이메일</label>
+    <input type="email" id="aEmail" placeholder="자주 쓰는 이메일" autocomplete="username">
+    <label>비밀번호 (6자 이상)</label>
+    <input type="password" id="aPw" autocomplete="current-password">
+    <div class="btns" style="margin-top:8px">
+      <button class="p" id="aLogin">로그인</button>
+      <button class="g" id="aSignup">처음이에요 (가입)</button>
+    </div>
+    <div class="hint">폰과 PC에서 <b>같은 이메일·비밀번호</b>로 로그인하면 일정·할 일·기억·대화가 저절로 맞춰져요. 이 AI 비서는 <b>처음 가입한 한 사람만</b> 쓸 수 있게 잠겨 있어요. 로그인하지 않아도 이 기기에서는 그대로 쓸 수 있어요.</div>
+  </div>
+  <div id="acctIn" style="display:none">
+    <div style="margin-top:8px">✅ <b id="aWho"></b> 로 로그인했어요</div>
+    <div class="btns" style="margin-top:8px"><button class="g" id="aSyncNow">🔄 지금 맞추기</button><button class="g" id="aLogout">로그아웃</button></div>
+  </div>
+
+  <h4>🤖 AI</h4>
   <label>Gemini API 키 (무료)</label>
   <input type="password" id="sKey" placeholder="AIza로 시작하는 키" autocomplete="off">
-  <div class="hint"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>에서 구글 로그인 → "Create API key" → 복사해서 붙여넣기. 키는 이 기기 안에만 저장돼요.</div>
+  <div class="hint"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>에서 구글 로그인 → "Create API key" → 복사해서 붙여넣기. 키는 <b>이 기기 안에만</b> 저장돼요(폰·PC 각각 한 번씩 넣어요).</div>
   <label>AI 모델</label>
   <input type="text" id="sModel">
   <div class="hint">기본값 <code>gemini-flash-lite-latest</code> (빠르고 무료 한도가 넉넉해요). 오류가 나면 여기만 고치면 돼요.</div>
+  <label>하루 무료 한도 (대략)</label>
+  <input type="number" id="sLimit" min="1">
+  <div class="hint">구글이 남은 양을 알려 주지 않아서 직접 세어요. 위쪽 🔋에 "오늘 쓴 횟수 / 이 숫자"로 보여요. 한도에 걸리면 그날 횟수를 기억해서 알려 줘요.</div>
   <label>내 정보 (비서가 나를 알고 대답하도록)</label>
   <textarea id="sMe" rows="4" placeholder="예: 초등학교 5학년 담임, 정보 업무 담당. 존댓말로 짧게 대답해 줘."></textarea>
-  <label>다른 기기로 옮기기 · 백업</label>
-  <div class="btns" style="margin-top:4px">
+
+  <h4>💾 백업</h4>
+  <div class="btns" style="margin-top:8px">
     <button class="g" id="sBackup">⬇️ 백업 파일 받기</button>
     <button class="g" id="sRestore">⬆️ 백업 불러오기</button>
     <input type="file" id="sRestoreFile" accept=".json,application/json" hidden>
-  </div>
-  <div class="hint">PC ↔ 폰으로 옮길 때: 한쪽에서 받은 백업 파일을 다른 쪽에서 불러오면 일정·할 일·기억·대화가 그대로 옮겨져요. (API 키는 빠져요)</div>
-  <div class="btns">
     <button class="g" id="sClearChat">🧹 대화만 지우기</button>
   </div>
   <div class="btns">
@@ -177,20 +212,33 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <div class="toast" id="toast"></div>
 
+<script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
+const DEFAULT_LIMIT = 1000;
+const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
+const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전). 데이터는 잠금 규칙으로 주인만 볼 수 있어요.
 const $ = id => document.getElementById(id);
 
-/* ---------- 저장 (이 기기 localStorage) ---------- */
+/* ---------- 이 기기 저장 (berryst41.github.io의 다른 장난감과 겹치지 않게 'ai.' 붙임) ---------- */
 const ls = {
-  get: (k, d = '') => { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
+  get: (k, d = '') => { try { return localStorage.getItem('ai.' + k) ?? d; } catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem('ai.' + k, v); } catch (e) {} },
+  del: k => { try { localStorage.removeItem('ai.' + k); } catch (e) {} }
 };
+// v0.1에서 쓰던 이름 옮기기
+try {
+  if (!ls.get('gkey') && localStorage.getItem('gkey')) ls.set('gkey', localStorage.getItem('gkey'));
+  if (!ls.get('me') && localStorage.getItem('me')) ls.set('me', localStorage.getItem('me'));
+} catch (e) {}
+
 let S = { events: [], todos: [], memos: [], chat: [] };
-try { Object.assign(S, JSON.parse(ls.get('ai-secretary', '{}'))); } catch (e) {}
-const save = () => ls.set('ai-secretary', JSON.stringify(S));
-const uid = p => p + Math.random().toString(36).slice(2, 7);
+try { Object.assign(S, JSON.parse(ls.get('data') || (() => { try { return localStorage.getItem('ai-secretary'); } catch (e) { return null; } })() || '{}')); } catch (e) {}
+const uid = p => p + Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6);
+S.chat.forEach((m, i) => { if (!m.id) m.id = uid('c'); if (!m.ts) m.ts = Date.now() - (S.chat.length - i) * 1000; });
+let dirty = {}; try { dirty = JSON.parse(ls.get('dirty', '{}')); } catch (e) {}
+const saveLocal = () => { ls.set('data', JSON.stringify(S)); ls.set('dirty', JSON.stringify(dirty)); };
 
 /* ---------- 날짜 도우미 ---------- */
 const pad = n => String(n).padStart(2, '0');
@@ -212,7 +260,6 @@ function dLabel(s) {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let tt;
 function toast(m, ms = 2500) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), ms); }
-// 아주 간단한 마크다운 → HTML
 function md(src) {
   const lines = esc(src).split('\n'); let h = '', list = '';
   const inline = s => s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -229,6 +276,149 @@ function md(src) {
 }
 const toB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
 
+/* ==========================================================
+   데이터 바꾸기는 모두 put / remove 로만 (그래야 서버와 맞춰져요)
+   ========================================================== */
+const LIST = { event: 'events', todo: 'todos', memo: 'memos', chat: 'chat' };
+function put(kind, obj) {
+  const arr = S[LIST[kind]], i = arr.findIndex(x => x.id === obj.id);
+  if (i >= 0) arr[i] = obj; else arr.push(obj);
+  dirty[obj.id] = { kind, deleted: false };
+  saveLocal(); schedulePush();
+}
+function remove(kind, id) {
+  S[LIST[kind]] = S[LIST[kind]].filter(x => x.id !== id);
+  dirty[id] = { kind, deleted: true };
+  saveLocal(); schedulePush();
+}
+
+/* ---------- 서버(Supabase) ---------- */
+let sb = null, user = null, owner = false, chan = null, pushT = null, online = false;
+try { if (window.supabase) sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { storageKey: 'ai.auth', persistSession: true, autoRefreshToken: true } }); } catch (e) { sb = null; }
+
+function setSync(state) {
+  const b = $('sync');
+  const map = { local: '📱 이 기기만', ok: '☁️ 동기화됨', busy: '⏳ 맞추는 중', off: '⚠️ 연결 안 됨' };
+  b.textContent = map[state]; b.classList.toggle('bad', state === 'off');
+  online = state === 'ok' || state === 'busy';
+}
+function schedulePush() { if (!owner) return; clearTimeout(pushT); pushT = setTimeout(pushNow, 400); }
+async function pushNow() {
+  if (!owner) return false;
+  const ids = Object.keys(dirty); if (!ids.length) return true;
+  setSync('busy');
+  const rows = ids.map(id => {
+    const d = dirty[id], obj = d.deleted ? null : S[LIST[d.kind]].find(x => x.id === id);
+    if (!d.deleted && !obj) return { id, kind: d.kind, data: {}, deleted: true };
+    const { id: _, ...data } = obj || {};
+    return { id, kind: d.kind, data: d.deleted ? {} : data, deleted: !!d.deleted, user_id: user.id };
+  });
+  const { error } = await sb.from('ai_items').upsert(rows);
+  if (error) { setSync('off'); return false; }
+  const snap = { ...dirty }; ids.forEach(id => { if (dirty[id] === snap[id]) delete dirty[id]; });
+  saveLocal(); setSync('ok'); return true;
+}
+function applyRow(r) {
+  if (!r || !LIST[r.kind] || dirty[r.id]) return false; // 아직 안 올린 내 변경이 있으면 그걸 우선
+  const key = LIST[r.kind];
+  S[key] = S[key].filter(x => x.id !== r.id);
+  if (!r.deleted) S[key].push({ id: r.id, ...r.data });
+  return true;
+}
+async function pullNow() {
+  if (!owner) return;
+  setSync('busy');
+  const since = ls.get('pulledAt', '1970-01-01T00:00:00Z');
+  let last = since, changed = false, from = 0;
+  for (;;) {
+    const { data, error } = await sb.from('ai_items').select('*').gt('updated_at', since).order('updated_at').range(from, from + 499);
+    if (error) { setSync('off'); return; }
+    for (const r of data) { if (applyRow(r)) changed = true; if (r.updated_at > last) last = r.updated_at; }
+    if (data.length < 500) break; from += 500;
+  }
+  ls.set('pulledAt', last);
+  S.chat.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  saveLocal(); setSync('ok');
+  if (changed) refreshAll();
+}
+async function pullProfile() {
+  const { data } = await sb.from('ai_profile').select('*').maybeSingle();
+  if (data) { if (data.me) ls.set('me', data.me); if (data.settings?.limit) ls.set('limit', String(data.settings.limit)); }
+}
+async function pushProfile() {
+  if (!owner) return;
+  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { limit: +ls.get('limit') || DEFAULT_LIMIT }, updated_at: new Date().toISOString() });
+}
+// 서버에 정말 저장됐는지 다시 읽어서 확인 ("했다는 말" 대신 확인)
+async function verifyOnServer(ids, expectDeleted = []) {
+  if (!owner) return null;
+  await pushNow();
+  const all = [...ids, ...expectDeleted]; if (!all.length) return true;
+  const { data, error } = await sb.from('ai_items').select('id,deleted').in('id', all);
+  if (error) return false;
+  const m = Object.fromEntries(data.map(r => [r.id, r.deleted]));
+  return ids.every(id => m[id] === false) && expectDeleted.every(id => m[id] !== false);
+}
+async function startSession(u) {
+  user = u; owner = false;
+  if (!u) { setSync('local'); renderAcct(); return; }
+  setSync('busy');
+  const { data: ok, error } = await sb.rpc('ai_claim_owner');
+  if (error) { setSync('off'); renderAcct(); return; }
+  if (!ok) { toast('이 AI 비서는 이미 다른 주인이 있어요. 로그아웃할게요', 5000); await sb.auth.signOut(); return; }
+  owner = true;
+  // 이 기기에 있던 것 중 서버에 한 번도 안 올린 건 올리기 (v0.1에서 넘어올 때 등)
+  if (ls.get('uploadedFor') !== u.id) {
+    for (const k of Object.keys(LIST)) for (const x of S[LIST[k]]) dirty[x.id] = dirty[x.id] || { kind: k, deleted: false };
+    ls.set('pulledAt', '1970-01-01T00:00:00Z');
+    if (ls.get('me')) await pushProfile(); else await pullProfile();
+    ls.set('uploadedFor', u.id); saveLocal();
+  } else await pullProfile();
+  await pushNow(); await pullNow(); await loadUsage();
+  if (chan) sb.removeChannel(chan);
+  chan = sb.channel('ai-items-' + u.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_items', filter: `user_id=eq.${u.id}` }, p => {
+      if (applyRow(p.new)) { S.chat.sort((a, b) => (a.ts || 0) - (b.ts || 0)); saveLocal(); refreshAll(); }
+      if (p.new?.updated_at > ls.get('pulledAt', '')) ls.set('pulledAt', p.new.updated_at);
+    }).subscribe();
+  renderAcct();
+}
+// 다른 기기에서 돌아왔을 때 / 다시 온라인일 때 맞추기
+document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) { pushNow().then(pullNow); loadUsage(); } });
+window.addEventListener('online', () => { if (owner) pushNow().then(pullNow); });
+
+/* ---------- 오늘 AI 사용량 (폰+PC 합계) ---------- */
+let usage = { count: 0, limited: false };
+function renderUsage() {
+  const lim = +ls.get('limit') || DEFAULT_LIMIT, b = $('usage');
+  b.textContent = usage.limited ? `⛔ 오늘 한도 (${usage.count}회)` : `🔋 오늘 ${usage.count}/${lim}회`;
+  b.classList.toggle('bad', usage.limited || usage.count >= lim);
+}
+async function loadUsage() {
+  const d = today();
+  if (owner) {
+    const { data } = await sb.from('ai_usage').select('count,limited_at').eq('day', d).maybeSingle();
+    usage = { count: data?.count || 0, limited: data?.limited_at != null };
+  } else {
+    const u = JSON.parse(ls.get('usage', '{}')); usage = u.day === d ? u : { count: 0, limited: false };
+  }
+  renderUsage();
+}
+async function bumpUsage(limited) {
+  const d = today();
+  if (owner) {
+    const { data } = await sb.rpc('ai_bump_usage', { p_day: d, p_limited: !!limited });
+    if (typeof data === 'number') usage.count = data;
+  } else {
+    const u = JSON.parse(ls.get('usage', '{}')); if (u.day !== d) { u.day = d; u.count = 0; u.limited = false; }
+    if (!limited) u.count++; ls.set('usage', JSON.stringify(u)); usage.count = u.count;
+  }
+  if (limited) usage.limited = true;
+  renderUsage();
+}
+$('usage').onclick = () => toast(usage.limited ? '오늘 무료 한도에 걸렸어요. 1분 뒤 다시 되거나, 내일 오후 5시(한국 시간)쯤 풀려요' : `오늘 AI를 ${usage.count}번 썼어요 (폰·PC 합계). 한도는 ⚙️에서 바꿀 수 있어요`, 4500);
+$('sync').onclick = () => { if (owner) { pushNow().then(pullNow); toast('지금 맞추는 중이에요'); } else openSet(); };
+
 /* ---------- 탭 ---------- */
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
@@ -236,8 +426,9 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   if (b.dataset.p === 'pPlan') renderPlan();
   if (b.dataset.p === 'pMemo') renderMemo();
 });
+function refreshAll() { renderChat(); if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); }
 
-/* ---------- 빠른 버튼 (일상 + 학교 업무) ---------- */
+/* ---------- 빠른 버튼 ---------- */
 const QUICK = [
   ['☀️ 오늘 브리핑', '오늘 일정이랑 할 일 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
   ['🗓️ 이번 주', '이번 주 일정과 마감 있는 할 일을 요일별로 정리해 줘.'],
@@ -265,29 +456,52 @@ function welcomeHTML() {
   let h = `<div class="welcome">안녕하세요! 😊 <b>${dLabel(t)}</b>이에요.<br>`;
   h += ev.length ? `오늘 일정 <b>${ev.length}개</b>: ${ev.map(e => esc((e.time ? e.time + ' ' : '') + e.title)).join(', ')}<br>` : '오늘 잡힌 일정은 없어요.<br>';
   h += td.length ? `남은 할 일 <b>${td.length}개</b>${late ? ` (마감 지난 것 <b style="color:var(--warn)">${late}개</b>)` : ''}<br>` : '';
-  h += `<span style="color:var(--sub);font-size:13px">일정 넣기·할 일 정리·공문 요약·기안문·가정통신문·궁금한 것 무엇이든 말해 주세요. 🎤로 말해도 돼요.</span></div>`;
-  return h;
+  h += `<span style="color:var(--sub);font-size:13px">일정 넣기·할 일 정리·공문 요약·기안문·가정통신문·궁금한 것 무엇이든 말해 주세요. 🎤로 말해도 돼요.</span>`;
+  if (!user && sb) h += `<div class="banner" data-open-set="1">☁️ 로그인하면 폰·PC가 저절로 맞춰져요 → 설정 열기</div>`;
+  return h + '</div>';
 }
-function msgHTML(m, i) {
+function askHTML(m) {
+  const a = m.ask; if (!a) return '';
+  const items = a.items.map(x => `<li>${esc(x)}</li>`).join('');
+  if (a.status === 'wait') return `<div class="ask"><b>✋ 이렇게 해도 될까요?</b><ul>${items}</ul><div class="btns"><button class="ok" data-ok="${m.id}">✅ 허락</button><button class="g" data-no="${m.id}">취소</button></div></div>`;
+  const st = a.status === 'yes' ? `✅ 허락해서 했어요${a.check === true ? ' · <span class="chk">✔️ 확인됨</span>' : a.check === false ? ' · <span class="chk no">⚠️ 확인 못 함</span>' : ''}` : '🚫 취소했어요';
+  return `<div class="ask done"><ul>${items}</ul><div style="font-size:13px">${st}</div></div>`;
+}
+function msgHTML(m) {
   if (m.role === 'user') return `<div class="m u">${esc(m.text)}${m.file ? `<div style="font-size:12px;opacity:.85;margin-top:4px">📎 ${esc(m.file)}</div>` : ''}</div>`;
   const acts = (m.acts || []).map(a => `<span class="act">${esc(a)}</span>`).join('');
-  return `<div class="m a">${md(m.text)}${acts ? `<div>${acts}</div>` : ''}<div class="tools"><button data-copy="${i}">📋 복사</button></div></div>`;
+  const chk = m.check === true ? '<span class="chk">✔️ 저장 확인</span>' : m.check === false ? '<span class="chk no">⚠️ 아직 서버에 저장 안 됨(연결 확인)</span>' : '';
+  return `<div class="m a">${md(m.text)}${acts ? `<div>${acts}</div>` : ''}${askHTML(m)}<div class="tools"><button data-copy="${m.id}">📋 복사</button>${chk}</div></div>`;
 }
 function renderChat(extra = '') {
-  $('msgs').innerHTML = welcomeHTML() + S.chat.map(msgHTML).join('') + extra;
-  $('msgs').scrollTop = $('msgs').scrollHeight;
+  const near = $('msgs').scrollHeight - $('msgs').scrollTop - $('msgs').clientHeight < 80;
+  $('msgs').innerHTML = welcomeHTML() + S.chat.slice(-100).map(msgHTML).join('') + extra;
+  if (near || extra) $('msgs').scrollTop = $('msgs').scrollHeight;
 }
-$('msgs').onclick = e => {
-  const b = e.target.closest('[data-copy]'); if (!b) return;
-  const txt = S.chat[b.dataset.copy]?.text || '';
-  (navigator.clipboard?.writeText(txt) || Promise.reject()).then(() => toast('복사했어요'), () => {
-    const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('복사했어요');
-  });
+$('msgs').onclick = async e => {
+  if (e.target.closest('[data-open-set]')) return openSet();
+  const c = e.target.closest('[data-copy]');
+  if (c) {
+    const txt = S.chat.find(m => m.id === c.dataset.copy)?.text || '';
+    (navigator.clipboard?.writeText(txt) || Promise.reject()).then(() => toast('복사했어요'), () => {
+      const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('복사했어요');
+    });
+    return;
+  }
+  const ok = e.target.closest('[data-ok]'), no = e.target.closest('[data-no]');
+  if (!ok && !no) return;
+  const m = S.chat.find(x => x.id === (ok || no).dataset[ok ? 'ok' : 'no']); if (!m?.ask || m.ask.status !== 'wait') return;
+  if (no) { m.ask.status = 'no'; put('chat', m); renderChat(); return; }
+  const r = applyActions(m.ask.actions, true);
+  m.ask.status = 'yes'; put('chat', m); renderChat();
+  // 지운 게 정말 없어졌는지 확인
+  let check = r.removedIds.every(id => !Object.values(LIST).some(k => S[k].some(x => x.id === id)));
+  if (check && owner) check = await verifyOnServer(r.addedIds, r.removedIds);
+  m.ask.check = check; put('chat', m); renderChat();
 };
 const grow = () => { const t = $('inp'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 160) + 'px'; };
 $('inp').addEventListener('input', grow);
 $('inp').addEventListener('keydown', e => {
-  // PC: Enter = 보내기, Shift+Enter = 줄바꿈 (한글 조합 중엔 무시)
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && matchMedia('(pointer:fine)').matches) { e.preventDefault(); send(); }
 });
 $('bSend').onclick = () => send();
@@ -343,10 +557,11 @@ function systemPrompt() {
   const week = Array.from({ length: 14 }, (_, i) => { const d = addDays(t, i); return `${d}(${WD[new Date(d + 'T00:00').getDay()]})`; }).join(', ');
   return `너는 사용자의 개인 AI 비서야. 한국어로, 쉽고 친절하게, 핵심부터 짧게 대답해. 필요하면 마크다운(제목 #, 목록 -, 굵게 **)을 써.
 세 가지를 다 잘해야 해:
-1) 일정·할 일·기억 관리: 사용자가 일정/할 일/기억을 넣거나 지우거나 끝냈다고 하면 actions에 담아. 날짜는 YYYY-MM-DD, 시간은 HH:MM(24시간, 모르면 빈칸). "다음 주 화요일" 같은 말은 아래 달력으로 정확히 계산해. 지우기·완료는 아래 목록의 id를 써. 확실하지 않으면 actions에 넣지 말고 되물어봐. 일정을 물어보면 아래 목록만 보고 대답해(지어내지 마).
+1) 일정·할 일·기억 관리: 사용자가 일정/할 일/기억을 넣거나 지우거나 끝냈다고 하면 actions에 담아. 날짜는 YYYY-MM-DD, 시간은 HH:MM(24시간, 모르면 빈칸). "다음 주 화요일" 같은 말은 아래 달력으로 정확히 계산해. 지우기·완료는 아래 목록의 id를 써. 확실하지 않거나 대상이 여러 개라 애매하면 actions에 넣지 말고 되물어봐. 시키지 않은 일은 하지 마. 일정을 물어보면 아래 목록만 보고 대답해(지어내지 마).
+   지우기(delete_…)는 사용자가 [허락] 버튼을 눌러야 실행돼. 그러니 지우기를 담았을 때는 "지워도 될지 아래에서 허락해 주세요"라고 말하고, 다 지웠다고 말하지 마.
 2) 학교 업무(사용자는 교사일 수 있어): 공문 요약, 기안문, 가정통신문, 학부모 문자, 생활기록부 문구 등은 바로 쓸 수 있는 완성된 글로 써 줘. 공문에 마감일이 있으면 add_todo로 할 일에도 넣어.
 3) 그 밖의 질문: 무엇이든 성실하게 답해. 모르는 건 모른다고 해.
-reply에는 사용자에게 보여 줄 대답만 써. actions로 한 일은 reply에 "넣어 둘게요"처럼 한 줄로 알려 줘.
+reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "넣어 둘게요"처럼 한 줄로 알려 줘.
 
 [지금] ${t} ${WD[now.getDay()]}요일 ${pad(now.getHours())}:${pad(now.getMinutes())}
 [달력] ${week}
@@ -369,11 +584,12 @@ async function gemini(contents) {
   if (!res.ok) {
     let m = ''; try { m = (await res.json()).error?.message || ''; } catch (e) {}
     if (res.status === 400 && /API key/i.test(m)) throw new Error('API 키가 틀렸어요. ⚙️ 설정에서 다시 확인해 주세요');
-    if (res.status === 429) throw new Error('무료 사용 한도에 걸렸어요. 1분쯤 뒤에 다시 해 주세요');
+    if (res.status === 429) { bumpUsage(true); throw new Error('무료 사용 한도에 걸렸어요. 1분쯤 뒤에 다시 해 주세요 (계속 막히면 오늘 하루치를 다 쓴 거예요)'); }
     if (res.status === 503) throw new Error('AI가 지금 바빠요. 잠시 뒤에 다시 해 주세요');
     if (res.status === 404) throw new Error('AI 모델 이름이 맞지 않아요. ⚙️ 설정에서 확인해 주세요');
     throw new Error(`AI 오류(${res.status}) ${m.slice(0, 120)}`);
   }
+  bumpUsage(false);
   const data = await res.json();
   const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
   if (!txt) throw new Error('AI가 답을 주지 않았어요(내용이 차단됐을 수 있어요)');
@@ -383,30 +599,38 @@ async function gemini(contents) {
 /* ---------- AI가 시킨 일 처리 ---------- */
 const okDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const okTime = s => /^\d{2}:\d{2}$/.test(s || '') ? s : '';
-function applyActions(actions = []) {
-  const done = [];
+const NEED_OK = new Set(['delete_event', 'delete_todo', 'delete_memo']); // 허락이 필요한 일
+function describe(a) {
+  const f = arr => arr.find(x => x.id === a.id);
+  if (a.type === 'delete_event') { const e = f(S.events); return e && `🗑️ 일정 지우기: ${dLabel(e.date)} ${e.time || ''} ${e.title}`; }
+  if (a.type === 'delete_todo') { const x = f(S.todos); return x && `🗑️ 할 일 지우기: ${x.title}`; }
+  if (a.type === 'delete_memo') { const x = f(S.memos); return x && `🗑️ 기억 지우기: ${x.text}`; }
+}
+function applyActions(actions = [], approved = false) {
+  const done = [], addedIds = [], removedIds = [], wait = [];
   for (const a of actions) {
+    if (NEED_OK.has(a.type) && !approved) { const d = describe(a); if (d) wait.push({ a, d }); continue; }
     const title = (a.title || '').trim();
     const find = arr => arr.find(x => x.id === a.id);
     if (a.type === 'add_event' && title && okDate(a.date)) {
-      S.events.push({ id: uid('e'), date: a.date, time: okTime(a.time), title });
+      const e = { id: uid('e'), date: a.date, time: okTime(a.time), title }; put('event', e); addedIds.push(e.id);
       done.push(`📅 일정 추가: ${dLabel(a.date)} ${okTime(a.time)} ${title}`);
     } else if (a.type === 'delete_event' && find(S.events)) {
-      const e = find(S.events); S.events = S.events.filter(x => x !== e); done.push(`🗑️ 일정 삭제: ${e.title}`);
+      const e = find(S.events); remove('event', e.id); removedIds.push(e.id); done.push(`🗑️ 일정 삭제: ${e.title}`);
     } else if (a.type === 'add_todo' && title) {
-      S.todos.push({ id: uid('t'), title, due: okDate(a.date) ? a.date : '', done: false });
-      done.push(`✅ 할 일 추가: ${title}${okDate(a.date) ? ' (~' + dLabel(a.date) + ')' : ''}`);
+      const x = { id: uid('t'), title, due: okDate(a.date) ? a.date : '', done: false }; put('todo', x); addedIds.push(x.id);
+      done.push(`✅ 할 일 추가: ${title}${x.due ? ' (~' + dLabel(x.due) + ')' : ''}`);
     } else if (a.type === 'done_todo' && find(S.todos)) {
-      const x = find(S.todos); x.done = true; x.doneAt = today(); done.push(`✔️ 끝남: ${x.title}`);
+      const x = { ...find(S.todos), done: true, doneAt: today() }; put('todo', x); addedIds.push(x.id); done.push(`✔️ 끝남: ${x.title}`);
     } else if (a.type === 'delete_todo' && find(S.todos)) {
-      const x = find(S.todos); S.todos = S.todos.filter(y => y !== x); done.push(`🗑️ 할 일 삭제: ${x.title}`);
+      const x = find(S.todos); remove('todo', x.id); removedIds.push(x.id); done.push(`🗑️ 할 일 삭제: ${x.title}`);
     } else if (a.type === 'add_memo' && title) {
-      S.memos.push({ id: uid('m'), text: title, created: today() }); done.push(`📒 기억: ${title}`);
+      const x = { id: uid('m'), text: title, created: today() }; put('memo', x); addedIds.push(x.id); done.push(`📒 기억: ${title}`);
     } else if (a.type === 'delete_memo' && find(S.memos)) {
-      const x = find(S.memos); S.memos = S.memos.filter(y => y !== x); done.push(`🗑️ 기억 지움: ${x.text}`);
+      const x = find(S.memos); remove('memo', x.id); removedIds.push(x.id); done.push(`🗑️ 기억 지움: ${x.text}`);
     }
   }
-  return done;
+  return { done, addedIds, removedIds, wait };
 }
 
 /* ---------- 보내기 ---------- */
@@ -418,21 +642,22 @@ async function send(text) {
   if (!text) text = '이 파일 내용을 정리해 줘.';
   busy = true; $('inp').value = ''; grow();
   const file = attach; attach = null; $('att').classList.remove('show');
-  S.chat.push({ role: 'user', text, file: file?.name }); save();
-  renderChat('<div class="typing">비서가 생각하고 있어요… ✍️</div>');
+  const um = { id: uid('c'), role: 'user', text, file: file?.name || '', ts: Date.now() };
+  S.chat.push(um); renderChat('<div class="typing">비서가 생각하고 있어요… ✍️</div>');
   try {
-    // 최근 대화 16개만 보내요 (빠르고 무료 한도 아끼기)
     const hist = S.chat.slice(-16).map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
     if (file) hist[hist.length - 1].parts.push({ inline_data: { mime_type: file.type || 'application/octet-stream', data: await toB64(file) } });
     const r = await gemini(hist);
-    const acts = applyActions(r.actions);
-    S.chat.push({ role: 'model', text: r.reply || '(대답이 비어 있어요)', acts });
-    if (S.chat.length > 100) S.chat = S.chat.slice(-100);
-    save(); renderChat();
+    put('chat', um);
+    const res = applyActions(r.actions);
+    const am = { id: uid('c'), role: 'model', text: r.reply || '(대답이 비어 있어요)', acts: res.done, ts: Date.now() };
+    if (res.wait.length) am.ask = { status: 'wait', items: res.wait.map(w => w.d), actions: res.wait.map(w => w.a) };
+    put('chat', am); renderChat();
+    if (owner && res.addedIds.length) { am.check = await verifyOnServer(res.addedIds); put('chat', am); renderChat(); }
   } catch (e) {
+    S.chat = S.chat.filter(m => m !== um);
     renderChat(`<div class="m err">⚠️ ${esc(e.message)}</div>`);
     if (!$('inp').value) { $('inp').value = text; grow(); }
-    S.chat.pop(); save();
   } finally { busy = false; }
 }
 
@@ -457,21 +682,21 @@ function renderPlan() {
 }
 $('pPlan').onclick = e => {
   const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk;
-  if (d1) { S.events = S.events.filter(x => x.id !== d1); }
-  else if (d2) { S.todos = S.todos.filter(x => x.id !== d2); }
-  else if (c) { const x = S.todos.find(y => y.id === c); x.done = e.target.checked; x.doneAt = x.done ? today() : ''; }
+  if (d1) remove('event', d1);
+  else if (d2) remove('todo', d2);
+  else if (c) { const x = S.todos.find(y => y.id === c); put('todo', { ...x, done: e.target.checked, doneAt: e.target.checked ? today() : '' }); }
   else return;
-  save(); renderPlan();
+  renderPlan();
 };
 $('evAdd').onclick = () => {
   const title = $('evTitle').value.trim(), date = $('evD').value;
   if (!title || !date) return toast('날짜와 일정 이름을 넣어 주세요');
-  S.events.push({ id: uid('e'), date, time: $('evT').value, title }); save();
+  put('event', { id: uid('e'), date, time: $('evT').value, title });
   $('evTitle').value = ''; $('evT').value = ''; renderPlan(); toast('일정을 넣었어요');
 };
 $('tdAdd').onclick = () => {
   const title = $('tdTitle').value.trim(); if (!title) return toast('할 일을 적어 주세요');
-  S.todos.push({ id: uid('t'), title, due: $('tdDue').value, done: false }); save();
+  put('todo', { id: uid('t'), title, due: $('tdDue').value, done: false });
   $('tdTitle').value = ''; $('tdDue').value = ''; renderPlan();
 };
 $('evTitle').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) $('evAdd').click(); };
@@ -479,19 +704,50 @@ $('tdTitle').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) $('tdAd
 
 /* ---------- 기억 화면 ---------- */
 function renderMemo() {
-  $('memoList').innerHTML = S.memos.length ? S.memos.map(m => `<div class="memo"><div>${esc(m.text)}<small>${esc(m.created || '')}</small></div><button class="del" data-del-m="${m.id}" style="border:0;background:transparent;color:#bbb;font-size:18px;cursor:pointer">✕</button></div>`).join('')
+  $('memoList').innerHTML = S.memos.length ? S.memos.map(m => `<div class="memo"><div>${esc(m.text)}<small>${esc(m.created || '')}</small></div><button class="del" data-del-m="${m.id}">✕</button></div>`).join('')
     : '<div class="box"><div class="none">아직 기억하는 게 없어요</div></div>';
 }
-$('memoList').onclick = e => { const id = e.target.dataset.delM; if (!id) return; S.memos = S.memos.filter(m => m.id !== id); save(); renderMemo(); };
-$('memoAdd').onclick = () => { const v = $('memoText').value.trim(); if (!v) return; S.memos.push({ id: uid('m'), text: v, created: today() }); save(); $('memoText').value = ''; renderMemo(); };
+$('memoList').onclick = e => { const id = e.target.dataset.delM; if (!id) return; remove('memo', id); renderMemo(); };
+$('memoAdd').onclick = () => { const v = $('memoText').value.trim(); if (!v) return; put('memo', { id: uid('m'), text: v, created: today() }); $('memoText').value = ''; renderMemo(); };
 $('memoText').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) $('memoAdd').click(); };
 
+/* ---------- 계정 ---------- */
+function renderAcct() {
+  $('acctOut').style.display = owner ? 'none' : ''; $('acctIn').style.display = owner ? '' : 'none';
+  if (owner) $('aWho').textContent = user.email;
+  renderChat();
+}
+async function doAuth(signup) {
+  if (!sb) return toast('지금은 서버에 연결할 수 없어요(인터넷 확인)');
+  const email = $('aEmail').value.trim(), password = $('aPw').value;
+  if (!email || password.length < 6) return toast('이메일과 6자 이상 비밀번호를 넣어 주세요');
+  $('aLogin').disabled = $('aSignup').disabled = true;
+  const { error } = signup ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+  $('aLogin').disabled = $('aSignup').disabled = false;
+  if (error) {
+    const m = error.message || '';
+    return toast(/already registered/i.test(m) ? '이미 가입한 이메일이에요. [로그인]을 눌러 주세요' : /Invalid login/i.test(m) ? '이메일이나 비밀번호가 틀렸어요' : '로그인 실패: ' + m, 4500);
+  }
+  $('aPw').value = ''; toast('로그인했어요. 폰·PC가 이제 저절로 맞춰져요');
+}
+$('aLogin').onclick = () => doAuth(false);
+$('aSignup').onclick = () => doAuth(true);
+$('aLogout').onclick = async () => { await pushNow(); await sb.auth.signOut(); toast('로그아웃했어요. 이 기기에 있는 내용은 그대로 남아요'); };
+$('aSyncNow').onclick = async () => { await pushNow(); await pullNow(); toast('맞췄어요'); };
+
 /* ---------- 설정 ---------- */
-function openSet() { $('sKey').value = ls.get('gkey'); $('sModel').value = ls.get('gmodel') || DEFAULT_MODEL; $('sMe').value = ls.get('me'); $('sVer').textContent = `AI 비서 v${VERSION}`; $('mSet').classList.add('show'); }
+function openSet() {
+  $('sKey').value = ls.get('gkey'); $('sModel').value = ls.get('gmodel') || DEFAULT_MODEL; $('sMe').value = ls.get('me');
+  $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); $('mSet').classList.add('show');
+}
 $('bSet').onclick = openSet;
 $('sClose').onclick = () => $('mSet').classList.remove('show');
-$('sSave').onclick = () => { ls.set('gkey', $('sKey').value.trim()); ls.set('gmodel', $('sModel').value.trim() || DEFAULT_MODEL); ls.set('me', $('sMe').value.trim()); $('mSet').classList.remove('show'); toast('저장했어요'); };
-$('sClearChat').onclick = () => { if (!confirm('대화 내용만 지울까요? (일정·할 일·기억은 그대로예요)')) return; S.chat = []; save(); renderChat(); toast('대화를 지웠어요'); };
+$('sSave').onclick = () => {
+  ls.set('gkey', $('sKey').value.trim()); ls.set('gmodel', $('sModel').value.trim() || DEFAULT_MODEL);
+  ls.set('me', $('sMe').value.trim()); ls.set('limit', String(+$('sLimit').value || DEFAULT_LIMIT));
+  pushProfile(); renderUsage(); $('mSet').classList.remove('show'); toast('저장했어요');
+};
+$('sClearChat').onclick = () => { if (!confirm('대화 내용만 지울까요? (일정·할 일·기억은 그대로예요)')) return; [...S.chat].forEach(m => remove('chat', m.id)); renderChat(); toast('대화를 지웠어요'); };
 $('sBackup').onclick = () => {
   const data = JSON.stringify({ app: 'ai-secretary', version: VERSION, me: ls.get('me'), ...S }, null, 1);
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
@@ -503,18 +759,24 @@ $('sRestoreFile').onchange = async () => {
   try {
     const d = JSON.parse(await f.text());
     if (d.app !== 'ai-secretary') throw 0;
-    if (!confirm('백업으로 바꿀까요? 지금 이 기기의 일정·할 일·기억·대화는 백업 내용으로 바뀌어요.')) return;
-    S = { events: d.events || [], todos: d.todos || [], memos: d.memos || [], chat: d.chat || [] };
+    if (!confirm('백업 내용을 더할까요? 같은 항목은 백업 것으로 바뀌고, 지금 있는 다른 항목은 그대로 남아요.')) return;
+    for (const k of Object.keys(LIST)) for (const x of d[LIST[k]] || []) put(k, k === 'chat' ? { ts: Date.now(), ...x, id: x.id || uid('c') } : x);
     if (d.me) ls.set('me', d.me);
-    save(); renderChat(); renderPlan(); renderMemo(); $('mSet').classList.remove('show'); toast('백업을 불러왔어요');
+    S.chat.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    refreshAll(); renderPlan(); renderMemo(); $('mSet').classList.remove('show'); toast('백업을 불러왔어요');
   } catch (e) { toast('AI 비서 백업 파일이 아니에요'); }
 };
 document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); }));
 
 /* ---------- 시작 ---------- */
 $('evD').value = today();
-renderChat();
-// 다른 앱에서 "공유"로 들어온 글 받기
+setSync('local'); loadUsage(); renderChat();
+if (sb) {
+  sb.auth.onAuthStateChange((ev, session) => {
+    const u = session?.user || null;
+    if ((u?.id || null) !== (user?.id || null)) setTimeout(() => startSession(u), 0);
+  });
+} else setSync('off');
 const sp = new URLSearchParams(location.search);
 const shared = [sp.get('title'), sp.get('text'), sp.get('url')].filter(Boolean).join('\n');
 if (shared) { history.replaceState(null, '', location.pathname); $('inp').value = shared + '\n\n위 내용 정리해 줘.'; grow(); }
