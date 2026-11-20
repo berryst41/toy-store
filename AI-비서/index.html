@@ -426,6 +426,10 @@ async function startSession(u) {
       if (p.new?.updated_at > ls.get('pulledAt', '')) ls.set('pulledAt', p.new.updated_at);
     }).subscribe();
   renderAcct();
+  await gConfig(); renderG();
+  if (G.configured) { try { const d = await gcall('list'); G.accounts = d.accounts; gSave(); renderG(); } catch (e) {} }
+  await finishOAuth();
+  gRefresh(true);
 }
 // 다른 기기에서 돌아왔을 때 / 다시 온라인일 때 맞추기
 document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) { pushNow().then(pullNow); loadUsage(); } });
@@ -914,9 +918,18 @@ $('pPlan').onclick = async e => {
   else return;
   renderPlan();
 };
-$('evAdd').onclick = () => {
-  const title = $('evTitle').value.trim(), date = $('evD').value;
+$('evAdd').onclick = async () => {
+  const title = $('evTitle').value.trim(), date = $('evD').value, where = $('evWhere').value;
   if (!title || !date) return toast('날짜와 일정 이름을 넣어 주세요');
+  if (where) {
+    try {
+      $('evAdd').disabled = true;
+      const r = await gcall('cal_insert', { account: where, event: { date, time: $('evT').value, title } });
+      G.events.push({ ...r.event }); gSave(); $('evTitle').value = ''; $('evT').value = ''; renderPlan();
+      toast(r.verified ? `${aName(r.account)} 캘린더에 넣었어요 ✔️ 확인됨` : '넣었는데 확인은 못 했어요');
+    } catch (err) { toast('⚠️ ' + err.message, 4000); } finally { $('evAdd').disabled = false; }
+    return;
+  }
   put('event', { id: uid('e'), date, time: $('evT').value, title });
   $('evTitle').value = ''; $('evT').value = ''; renderPlan(); toast('일정을 넣었어요');
 };
@@ -964,7 +977,8 @@ $('aSyncNow').onclick = async () => { await pushNow(); await pullNow(); toast('�
 /* ---------- 설정 ---------- */
 function openSet() {
   $('sKey').value = ls.get('gkey'); $('sModel').value = ls.get('gmodel') || DEFAULT_MODEL; $('sMe').value = ls.get('me');
-  $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); $('mSet').classList.add('show');
+  $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); renderG(); $('mSet').classList.add('show');
+  if (owner) gConfig().then(renderG);
 }
 $('bSet').onclick = openSet;
 $('sClose').onclick = () => $('mSet').classList.remove('show');
