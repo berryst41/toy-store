@@ -397,11 +397,63 @@ async function pullNow() {
 }
 async function pullProfile() {
   const { data } = await sb.from('ai_profile').select('*').maybeSingle();
-  if (data) { if (data.me) ls.set('me', data.me); if (data.settings?.limit) ls.set('limit', String(data.settings.limit)); }
+  if (data) {
+    if (data.me) ls.set('me', data.me);
+    if (data.settings?.limit) ls.set('limit', String(data.settings.limit));
+    if (data.settings?.brief) ls.set('brief', JSON.stringify(data.settings.brief));
+  }
 }
+const briefCfg = () => { try { return { on: false, time: '07:30', ...JSON.parse(ls.get('brief', '{}')) }; } catch (e) { return { on: false, time: '07:30' }; } };
 async function pushProfile() {
   if (!owner) return;
-  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { limit: +ls.get('limit') || DEFAULT_LIMIT }, updated_at: new Date().toISOString() });
+  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { limit: +ls.get('limit') || DEFAULT_LIMIT, brief: briefCfg() }, updated_at: new Date().toISOString() });
+}
+
+/* ---------- 아침 브리핑 알림 (웹 푸시) ---------- */
+const b64u = s => { const p = '='.repeat((4 - s.length % 4) % 4), r = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+async function subscribePush() {
+  if (!owner) return toast('먼저 위에서 로그인해 주세요');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return toast('이 브라우저는 알림을 못 받아요(크롬에서 돼요. 아이폰은 홈 화면에 추가한 뒤에 돼요)', 5000);
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') return toast('알림을 허락해 주셔야 받을 수 있어요 (브라우저 주소창 옆 🔒에서 바꿀 수 있어요)', 5000);
+  try {
+    const { key } = await gcall('push_key');
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(key) });
+    const j = sub.toJSON();
+    const { error } = await sb.from('ai_push_subs').upsert({ user_id: user.id, endpoint: j.endpoint, sub: j }, { onConflict: 'endpoint' });
+    if (error) throw new Error(error.message);
+    ls.set('pushOn', '1'); renderBrief(); toast('🔔 이 기기에서 알림을 받아요');
+  } catch (e) { toast('⚠️ 알림 켜기 실패: ' + e.message, 5000); }
+}
+function renderBrief() {
+  const b = briefCfg();
+  $('bOn').checked = !!b.on; $('bTime').value = b.time || '07:30';
+  $('bPush').textContent = ls.get('pushOn') && typeof Notification !== 'undefined' && Notification.permission === 'granted' ? '🔔 이 기기 알림 켜짐 ✓' : '🔔 이 기기에서 알림 받기';
+  $('briefBox').style.opacity = owner ? 1 : .5;
+}
+$('bPush').onclick = subscribePush;
+$('bTest').onclick = async () => {
+  if (!owner) return toast('먼저 위에서 로그인해 주세요');
+  try { $('bTest').disabled = true; const r = await gcall('push_test'); toast(r.sent ? `📨 알림 ${r.sent}곳에 보냈어요` : '알림 받을 기기가 아직 없어요. [🔔 알림 받기]부터 눌러 주세요', 4500); }
+  catch (e) { toast('⚠️ ' + e.message, 4000); } finally { $('bTest').disabled = false; }
+};
+
+/* ---------- 💡 먼저 제안하기 (규칙으로, AI 사용량 안 씀) ---------- */
+function suggestions() {
+  const t = today(), tm = addDays(t, 1), out = [];
+  const td = S.todos.filter(x => !x.done);
+  const late = td.filter(x => x.due && x.due < t), dueT = td.filter(x => x.due === t), dueTm = td.filter(x => x.due === tm);
+  const evTm = allEvents().filter(e => e.date === tm), evT = allEvents().filter(e => e.date === t && (!e.time || e.time >= `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`));
+  const unread = G.mails.filter(m => m.unread).length;
+  if (late.length) out.push([`⚠️ 마감 지난 할 일 ${late.length}개 정리`, '마감 지난 할 일을 보여 주고, 하나씩 "끝냈는지 / 미룰지 / 지울지" 물어봐 줘. 미루면 새 마감일로 할 일을 고쳐 줘.']);
+  if (dueT.length) out.push([`⏰ 오늘 마감 ${dueT.length}개`, '오늘 마감인 할 일을 보여 주고, 지금부터 어떤 순서로 하면 좋을지 시간표처럼 짜 줘.']);
+  if (evT.length) out.push([`📅 오늘 남은 일정 ${evT.length}개`, '오늘 남은 일정을 정리해 주고, 각각 미리 챙길 것(준비물·자료)이 있으면 알려 줘.']);
+  if (dueTm.length || evTm.length) out.push([`🌙 내일 준비 (${evTm.length + dueTm.length}개)`, '내일 일정과 내일 마감 할 일을 보고, 오늘 미리 준비할 것을 체크리스트로 만들어 줘. 필요하면 할 일로 넣어 줘.']);
+  if (unread) out.push([`📬 안 읽은 메일 ${unread}통 요약`, '안 읽은 메일을 중요한 순서로 요약해 줘. 답장이 필요한 것과 일정·마감이 있는 것을 먼저 알려 줘.']);
+  if (!S.memos.length) out.push(['📒 나에 대해 알려 주기', '나를 더 잘 도와줄 수 있게 나에 대해 물어볼 것 5가지를 하나씩 물어봐 줘. 대답하면 기억해 줘.']);
+  return out.slice(0, 4);
 }
 // 서버에 정말 저장됐는지 다시 읽어서 확인 ("했다는 말" 대신 확인)
 async function verifyOnServer(ids, expectDeleted = []) {
