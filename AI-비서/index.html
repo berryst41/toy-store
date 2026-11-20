@@ -882,11 +882,12 @@ async function send(text) {
 /* ---------- 일정·할 일 화면 ---------- */
 function renderPlan() {
   const t = today();
-  const evs = S.events.filter(e => e.date >= addDays(t, -1)).sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
+  const evs = allEvents().filter(e => e.date >= addDays(t, -1)).sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
   let h = '', last = '';
   for (const e of evs) {
     if (e.date !== last) { if (last) h += '</div>'; h += `<div class="dhead ${e.date === t ? 'today' : ''}">${dLabel(e.date)}</div><div class="box">`; last = e.date; }
-    h += `<div class="row"><span class="when">${esc(e.time || '종일')}</span><div class="t"><div>${esc(e.title)}</div></div><button class="del" data-del-ev="${e.id}" title="삭제">✕</button></div>`;
+    const src = e.g ? `<small>${dotH(e.color)}${esc(e.label)}</small>` : '<small>📱 AI 비서</small>';
+    h += `<div class="row"><span class="when">${esc(e.time || '종일')}${e.end ? `<br><span class="tag">~${esc(e.end)}</span>` : ''}</span><div class="t"><div>${esc(e.title)}</div>${G.accounts.length ? src : ''}</div><button class="del" ${e.g ? `data-del-gev="${e.id}"` : `data-del-ev="${e.id}"`} title="삭제">✕</button></div>`;
   }
   if (last) h += '</div>';
   const old = S.events.filter(e => e.date < addDays(t, -1)).length;
