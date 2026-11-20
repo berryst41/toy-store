@@ -584,13 +584,16 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === b.dataset.p));
   if (b.dataset.p === 'pPlan') renderPlan();
   if (b.dataset.p === 'pMemo') renderMemo();
+  if (b.dataset.p === 'pMail') { renderMail(); gRefresh(); }
+  if (b.dataset.p === 'pPlan') gRefresh();
 });
-function refreshAll() { renderChat(); if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); }
+function refreshAll() { renderChat(); if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
 
 /* ---------- 빠른 버튼 ---------- */
 const QUICK = [
   ['☀️ 오늘 브리핑', '오늘 일정이랑 할 일 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
   ['🗓️ 이번 주', '이번 주 일정과 마감 있는 할 일을 요일별로 정리해 줘.'],
+  ['📬 메일 정리', '최근 메일을 정리해 줘. 답장이 필요한 것, 할 일·마감·일정이 있는 것을 먼저 알려 주고, 일정은 캘린더에 넣을지 물어봐 줘.'],
   ['📄 공문 요약', '📎로 붙인 공문(또는 아래 붙여넣은 글)을 요약해 줘. 내가 해야 할 일·마감일·제출 방법을 따로 뽑고, 마감일은 할 일에도 넣어 줘.\n\n'],
   ['📝 기안문', '아래 내용으로 학교 기안문(품의) 초안을 써 줘. 제목, 관련 근거, 본문(목적·일시·장소·대상·내용·예산), 붙임 순서로.\n\n내용: '],
   ['💌 가정통신문', '아래 내용으로 초등학교 가정통신문을 써 줘. 학부모님께 공손하고 따뜻하게, 한 장 분량으로.\n\n내용: '],
