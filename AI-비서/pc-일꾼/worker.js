@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼');
 fs.mkdirSync(HOME, { recursive: true });
@@ -351,5 +351,5 @@ async function coolSync() {
     if (TEST && !running.size && !(await B.tasks(['queued'])).length) break;
     await sleep(3000);
   }
-  if (TEST) { fs.writeFileSync(process.env.AIW_TEST + '.out.json', JSON.stringify({ rows: B.rows, notified: TEST.notified || [] }, null, 1)); if (ctx) await ctx.close(); process.exit(0); }
+  if (TEST) { fs.writeFileSync(process.env.AIW_TEST + '.out.json', JSON.stringify({ rows: B.rows, cool: B.cool, notified: TEST.notified || [] }, null, 1)); if (ctx) await ctx.close(); process.exit(0); }
 })().catch(e => { console.error('\n❌', e.message); if (!TEST) ask('Enter를 누르면 닫혀요').then(() => process.exit(1)); else process.exit(1); });
