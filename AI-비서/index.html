@@ -624,12 +624,42 @@ function welcomeHTML() {
   if (!user && sb) h += `<div class="banner" data-open-set="1">☁️ 로그인하면 폰·PC가 저절로 맞춰져요 → 설정 열기</div>`;
   return h + '</div>';
 }
+// 확인 카드 한 줄 (구글 일은 계정 고르기·메일 내용까지 보여 줘요)
+function askItem(m, i, live) {
+  const a = m.ask.actions[i], d = m.ask.items[i];
+  if (!G_TYPES.has(a.type) || a.type === 'delete_gcal_event') return `<li>${esc(d)}</li>`;
+  const need = a.type === 'send_mail' ? 'mail_send' : '';
+  const cur = acctOf(a.account, need), list = G.accounts.filter(x => !need || x.level === 'mail_send');
+  const sel = live && list.length ? `<select data-acc="${m.id}" data-i="${i}">${list.map(x => `<option value="${x.id}" ${cur && x.id === cur.id ? 'selected' : ''}>${a.type === 'send_mail' ? '보내는 계정' : '넣을 캘린더'}: ${esc(aName(x))} (${esc(x.email)})</option>`).join('')}</select>`
+    : `<div class="tag">${a.type === 'send_mail' ? '보내는 계정' : '넣을 캘린더'}: ${cur ? esc(aName(cur) + ' · ' + cur.email) : '⚠️ 맞는 계정 없음'}</div>`;
+  const body = a.type === 'send_mail' ? `<pre>받는 사람: ${esc(a.to)}\n제목: ${esc(a.subject)}\n\n${esc(a.body)}</pre>` : '';
+  return `<li>${esc(d)}${sel}${body}</li>`;
+}
 function askHTML(m) {
   const a = m.ask; if (!a) return '';
-  const items = a.items.map(x => `<li>${esc(x)}</li>`).join('');
-  if (a.status === 'wait') return `<div class="ask"><b>✋ 이렇게 해도 될까요?</b><ul>${items}</ul><div class="btns"><button class="ok" data-ok="${m.id}">✅ 허락</button><button class="g" data-no="${m.id}">취소</button></div></div>`;
-  const st = a.status === 'yes' ? `✅ 허락해서 했어요${a.check === true ? ' · <span class="chk">✔️ 확인됨</span>' : a.check === false ? ' · <span class="chk no">⚠️ 확인 못 함</span>' : ''}` : '🚫 취소했어요';
-  return `<div class="ask done"><ul>${items}</ul><div style="font-size:13px">${st}</div></div>`;
+  const live = a.status === 'wait';
+  const items = a.items.map((_, i) => askItem(m, i, live)).join('');
+  if (live) return `<div class="ask"><b>✋ 이렇게 해도 될까요?</b><ul>${items}</ul><div class="btns"><button class="ok" data-ok="${m.id}">✅ 허락</button><button class="g" data-no="${m.id}">취소</button></div></div>`;
+  if (a.status === 'run') return `<div class="ask"><ul>${items}</ul><div style="font-size:13px">⏳ 하는 중…</div></div>`;
+  const res = (a.result || []).map(x => `<div style="font-size:13px">${esc(x)}</div>`).join('');
+  const st = a.status === 'yes' ? `✅ 허락해서 했어요${a.check === true ? ' · <span class="chk">✔️ 확인됨</span>' : a.check === false ? ' · <span class="chk no">⚠️ 확인 못 함 — 직접 한 번 봐 주세요</span>' : ''}` : '🚫 취소했어요';
+  return `<div class="ask done"><ul>${items}</ul>${res}<div style="font-size:13px">${st}</div></div>`;
+}
+// [허락] 뒤 구글 일 하기 — 서버가 실제로 됐는지 다시 읽어 확인해서 verified로 알려 줘요
+async function runG(a) {
+  if (a.type === 'add_gcal_event') {
+    const d = await gcall('cal_insert', { account: acctOf(a.account)?.id, event: { date: a.date, time: okTime(a.time), end: okTime(a.end_time), title: a.title } });
+    return { ok: d.verified, text: `📅 ${aName(d.account)} 캘린더에 넣었어요: ${dLabel(a.date)} ${okTime(a.time)} ${a.title}` };
+  }
+  if (a.type === 'delete_gcal_event') {
+    const ev = G.events.find(x => x.id === a.id);
+    const d = await gcall('cal_delete', { account: ev?.account || acctOf(a.account)?.id, id: a.id });
+    return { ok: d.verified, text: `🗑️ 구글 일정을 지웠어요: ${ev?.title || ''}` };
+  }
+  if (a.type === 'send_mail') {
+    const d = await gcall('mail_send', { account: acctOf(a.account, 'mail_send')?.id, to: a.to, subject: a.subject, body: a.body });
+    return { ok: d.verified, text: `✉️ ${d.account.email} → ${a.to} 보냈어요 (보낸편지함 ${d.verified ? '확인' : '확인 못 함'})` };
+  }
 }
 function msgHTML(m) {
   if (m.role === 'user') return `<div class="m u">${esc(m.text)}${m.file ? `<div style="font-size:12px;opacity:.85;margin-top:4px">📎 ${esc(m.file)}</div>` : ''}</div>`;
