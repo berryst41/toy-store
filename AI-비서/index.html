@@ -367,7 +367,7 @@ let tt;
 function toast(m, ms = 2500) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), ms); }
 function md(src) {
   const lines = esc(src).split('\n'); let h = '', list = '';
-  const inline = s => s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  const inline = s => linkify(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
   const close = () => { if (list) { h += `</${list}>`; list = ''; } };
   for (const l of lines) {
     let m;
@@ -953,6 +953,43 @@ async function runG(a) {
     const d = await gcall('mail_send', { account: acctOf(a.account, 'mail_send')?.id, to: a.to, subject: a.subject, body: a.body });
     return { ok: d.verified, text: `✉️ ${d.account.email} → ${a.to} 보냈어요 (보낸편지함 ${d.verified ? '확인' : '확인 못 함'})` };
   }
+  if (a.type === 'add_gtask') {
+    const d = await gcall('gtask_add', { account: acctOf(a.account, 'tasks')?.id, title: a.title, due: okDate(a.date) ? a.date : '' });
+    return { ok: d.verified, text: `☑️ ${aName(d.account)} 구글 할 일에 넣었어요: ${a.title}${okDate(a.date) ? ' (~' + dLabel(a.date) + ')' : ''}` };
+  }
+  if (a.type === 'done_gtask') {
+    const t = G.tasks.find(x => x.id === a.id);
+    const d = await gcall('gtask_done', { account: t?.account, id: a.id });
+    G.tasks = G.tasks.filter(x => x.id !== a.id);
+    return { ok: d.verified, text: `✔️ 구글 할 일 끝냄: ${t?.title || ''}` };
+  }
+  if (a.type === 'append_sheet') {
+    const d = await gcall('sheet_append', { account: a.account ? acctOf(a.account, 'sheets')?.id : '', id: a.id || a.url, values: a.values || [] });
+    return { ok: d.verified, text: `📊 시트${d.name ? ' "' + d.name + '"' : ''}에 한 줄 더했어요: ${(a.values || []).join(' | ')}${d.link ? ' ' + d.link : ''}` };
+  }
+  if (a.type === 'make_doc') {
+    const d = await gcall('doc_create', { account: acctOf(a.account, 'make')?.id, title: a.title, text: a.body });
+    return { ok: d.verified, text: `📄 구글 문서를 만들었어요: ${d.name} ${d.link}` };
+  }
+}
+// v0.7 찾아보기: 드라이브·파일 읽기·유튜브 — 결과를 AI에게 한 번 더 보내 대답하게 해요
+const LOOK = new Set(['find_drive', 'read_drive', 'find_youtube']);
+async function doLook(a) {
+  const q = (a.text || a.title || '').trim();
+  try {
+    if (a.type === 'find_drive') {
+      const d = await gcall('drive_find', { q });
+      return { act: `🔎 드라이브에서 "${q}" 찾음: ${d.files.length}개`, text: `[드라이브 찾기 "${q}"]\n` + (d.files.map(f => `- (id:${f.id}) [${f.label}] ${f.kind} "${f.name}" ${f.modified} ${f.link}`).join('\n') || '찾은 파일 없음') };
+    }
+    if (a.type === 'read_drive') {
+      const d = await gcall('file_read', { account: a.account ? acctOf(a.account, 'drive')?.id || '' : '', id: a.id || a.url || q });
+      return { act: `📖 읽음: ${d.name}`, text: `[파일 내용 "${d.name}" (${d.kind}) ${d.link}]\n${d.text}${d.cut ? '\n…(너무 길어서 뒷부분은 잘렸어)' : ''}` };
+    }
+    if (a.type === 'find_youtube') {
+      const d = await gcall('yt_find', { q });
+      return { act: `▶️ 유튜브에서 "${q}" 찾음: ${d.videos.length}개`, text: `[유튜브 찾기 "${q}"]\n` + (d.videos.map(v => `- "${v.title}" (${v.channel}, ${v.date}) ${v.link}`).join('\n') || '찾은 영상 없음') };
+    }
+  } catch (e) { return { act: `⚠️ 찾기 못 함: ${e.message}`, text: `[찾기 실패] ${e.message}` }; }
 }
 function msgHTML(m) {
   if (m.role === 'user') return `<div class="m u">${esc(m.text)}${m.file ? `<div style="font-size:12px;opacity:.85;margin-top:4px">📎 ${esc(m.file)}</div>` : ''}</div>`;
