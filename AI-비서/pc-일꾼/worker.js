@@ -334,10 +334,12 @@ async function coolSync() {
   }
   if (!TEST) await browser();
   say('✅ 준비됐어요. 앱에서 일을 맡겨 주세요.');
-  let doBusy = false, lastBeat = 0;
+  let doBusy = false, lastBeat = 0, lastCool = 0;
+  if (fs.existsSync(path.join(COOL_DIR, 'items.json'))) say('📨 쿨메신저 비서를 찾았어요. 정리된 항목을 앱과 맞출게요(쪽지 원문은 안 올려요).');
   for (let loops = 0; ; loops++) {
     try {
-      if (Date.now() - lastBeat > 30000) { lastBeat = Date.now(); await B.beat({ v: VERSION, running: running.size }); }
+      if (Date.now() - lastCool > (TEST ? 0 : 20000)) { lastCool = Date.now(); await coolSync().catch(e => say('⚠️ 쿨메신저 맞추기 실패:', e.message)); }
+      if (Date.now() - lastBeat > 30000) { lastBeat = Date.now(); await B.beat({ v: VERSION, running: running.size, cool: coolInfo }); }
       for (const t of await B.tasks(['queued'])) {
         if (running.has(t.id)) continue;
         if (t.kind === 'do' && doBusy) continue; // 대신 하기는 한 번에 하나씩
