@@ -904,6 +904,8 @@ function welcomeHTML() {
   if (wait) h += `<div class="banner" data-go-work="1" style="background:#fff4e6;color:#d9480f">✋ PC 일꾼이 허락을 기다려요 (${wait}개) → 보러 가기</div>`;
   h += ev.length ? `오늘 일정 <b>${ev.length}개</b>: ${ev.map(e => esc((e.time ? e.time + ' ' : '') + e.title)).join(', ')}<br>` : '오늘 잡힌 일정은 없어요.<br>';
   h += td.length ? `남은 할 일 <b>${td.length}개</b>${late ? ` (마감 지난 것 <b style="color:var(--warn)">${late}개</b>)` : ''}<br>` : '';
+  const ct = coolOpen().filter(x => x.kind === 'todo');
+  if (ct.length) h += `📨 쿨메신저 할 일 <b>${ct.length}개</b>${ct.some(x => x.due && x.due <= t) ? ` (오늘까지 <b style="color:var(--warn)">${ct.filter(x => x.due && x.due <= t).length}개</b>)` : ''}<br>`;
   h += `<span style="color:var(--sub);font-size:13px">일정 넣기·할 일 정리·공문 요약·기안문·가정통신문·궁금한 것 무엇이든 말해 주세요. 🎤로 말해도 돼요.</span>`;
   if (!user && sb) h += `<div class="banner" data-open-set="1">☁️ 로그인하면 폰·PC가 저절로 맞춰져요 → 설정 열기</div>`;
   const sg = suggestions();
