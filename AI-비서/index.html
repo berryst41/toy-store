@@ -1230,9 +1230,19 @@ async function send(text) {
     await gRefresh(); // 구글 일정·메일 (3분 안에 받아 둔 게 있으면 그걸 써요)
     const hist = S.chat.slice(-16).map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
     if (file) hist[hist.length - 1].parts.push({ inline_data: { mime_type: file.type || 'application/octet-stream', data: await toB64(file) } });
-    const r = await gemini(hist);
+    let r = await gemini(hist);
+    const looked = [];
+    for (let round = 0; round < 2 && (r.actions || []).some(x => LOOK.has(x.type)); round++) {
+      renderChat('<div class="typing">구글에서 찾아보는 중… 🔎</div>');
+      const outs = [];
+      for (const a of r.actions.filter(x => LOOK.has(x.type)).slice(0, 3)) { const o = await doLook(a); looked.push(o.act); outs.push(o.text); }
+      hist.push({ role: 'model', parts: [{ text: r.reply || '찾아볼게요' }] }, { role: 'user', parts: [{ text: '[찾아본 결과 — 사용자에게는 안 보여. 이걸 바탕으로 처음 질문에 대답해]\n' + outs.join('\n\n') }] });
+      renderChat('<div class="typing">찾은 걸 정리하고 있어요… ✍️</div>');
+      r = await gemini(hist);
+    }
     put('chat', um);
     const res = applyActions(r.actions);
+    res.done.unshift(...looked);
     for (const a of (r.actions || []).filter(x => x.type === 'watch_site')) {
       if (!okUrl(a.url) || !a.text) continue;
       try { await addTask('watch', a.title || `${a.text} ${a.mode === 'disappear' ? '사라지면' : '나오면'} 알림`, { url: a.url.trim(), text: a.text, mode: a.mode === 'disappear' ? 'disappear' : 'appear', every: 60, hours: 12, then_goal: a.goal || undefined }); res.done.push(`👀 PC 일꾼에게 지켜보기 맡김: "${a.text}" ${a.mode === 'disappear' ? '사라지면' : '나오면'} 알림`); }
