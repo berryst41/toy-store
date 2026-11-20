@@ -1164,6 +1164,12 @@ async function send(text) {
       try { await addTask('watch', a.title || `${a.text} ${a.mode === 'disappear' ? '사라지면' : '나오면'} 알림`, { url: a.url.trim(), text: a.text, mode: a.mode === 'disappear' ? 'disappear' : 'appear', every: 60, hours: 12, then_goal: a.goal || undefined }); res.done.push(`👀 PC 일꾼에게 지켜보기 맡김: "${a.text}" ${a.mode === 'disappear' ? '사라지면' : '나오면'} 알림`); }
       catch (err) { res.done.push('⚠️ 지켜보기 못 맡김: ' + err.message); }
     }
+    for (const a of (r.actions || []).filter(x => x.type === 'done_cool')) {
+      const x = C.find(y => y.id === a.id); if (!x || !owner) continue;
+      const ok = await setCoolDone(x.id, true);
+      res.done.push(ok ? `📨 쿨메신저 체크: ${x.text.slice(0, 30)}` : `⚠️ 쿨메신저 체크 못 함: ${x.text.slice(0, 30)}`);
+    }
+    for (const a of (r.actions || []).filter(x => x.type === 'set_brief').slice(0, 1)) res.done.push(await setBrief(a));
     const am = { id: uid('c'), role: 'model', text: r.reply || '(대답이 비어 있어요)', acts: res.done, ts: Date.now() };
     if (res.wait.length) am.ask = { status: 'wait', items: res.wait.map(w => w.d), actions: res.wait.map(w => w.a) };
     put('chat', am); renderChat();
