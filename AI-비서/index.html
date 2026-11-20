@@ -647,7 +647,7 @@ async function verifyOnServer(ids, expectDeleted = []) {
 }
 async function startSession(u) {
   user = u; owner = false;
-  if (!u) { if (chan) { sb.removeChannel(chan); chan = null; } Object.assign(G, { accounts: [], events: [], mails: [], at: 0 }); gSave(); T = []; W = null; if (tchan) { sb.removeChannel(tchan); tchan = null; } setSync('local'); loadUsage(); renderAcct(); return; }
+  if (!u) { if (chan) { sb.removeChannel(chan); chan = null; } Object.assign(G, { accounts: [], events: [], mails: [], at: 0 }); gSave(); T = []; W = null; CW = null; C = []; ls.del('cool'); if (cchan) { sb.removeChannel(cchan); cchan = null; } if (tchan) { sb.removeChannel(tchan); tchan = null; } setSync('local'); loadUsage(); renderAcct(); return; }
   setSync('busy');
   const { data: ok, error } = await sb.rpc('ai_claim_owner');
   if (error) { setSync('off'); renderAcct(); return; }
@@ -679,10 +679,16 @@ async function startSession(u) {
       if (p.eventType === 'DELETE') { T = T.filter(x => x.id !== p.old?.id); renderWork(); } else if (p.new?.id) refreshTask(p.new.id);
     }).subscribe();
   loadTasks();
+  // 쿨메신저 항목 (학교 PC 일꾼이 올리거나 체크하면 바로 보이게)
+  if (cchan) sb.removeChannel(cchan);
+  cchan = sb.channel('ai-cool-' + u.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_cool', filter: `user_id=eq.${u.id}` }, () => { clearTimeout(cchan._t); cchan._t = setTimeout(loadCool, 800); })
+    .subscribe();
+  loadCool();
   if (START_TAB) { document.querySelector(`nav button[data-p=${START_TAB}]`)?.click(); START_TAB = ''; }
 }
 // 다른 기기에서 돌아왔을 때 / 다시 온라인일 때 맞추기
-document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) { pushNow().then(pullNow); loadUsage(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) { pushNow().then(pullNow); loadUsage(); loadCool(); } });
 window.addEventListener('online', () => { if (owner) pushNow().then(pullNow); });
 
 /* ---------- 오늘 AI 사용량 (폰+PC 합계) ---------- */
