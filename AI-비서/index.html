@@ -114,6 +114,21 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 .mail .p{font-size:13px;color:var(--sub);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mail .body{white-space:pre-wrap;font-size:14px;line-height:1.55;margin-top:8px;border-top:1px solid var(--line);padding-top:8px;max-height:50vh;overflow:auto}
 .add select{border:1px solid var(--line);border-radius:10px;padding:9px 8px;font-size:15px;background:#fff}
+.task{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.task.need{border:2px solid #ffc078;background:#fff9f0}
+.task .h{display:flex;gap:8px;align-items:center}
+.task .h b{flex:1;font-size:15px}
+.task .st{font-size:12.5px;white-space:nowrap}
+.task .stp{font-size:13px;color:var(--sub);margin-top:4px}
+.task img{width:100%;max-height:220px;object-fit:cover;object-position:top;border-radius:8px;border:1px solid var(--line);margin-top:6px;cursor:zoom-in}
+.task img.big{max-height:none;object-fit:contain}
+.task details{font-size:12.5px;color:var(--sub);margin-top:4px}
+.task details div{white-space:pre-wrap;max-height:200px;overflow:auto}
+.task .btns{margin-top:8px}
+.task .btns button{padding:7px 12px;font-size:14px}
+.form{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.form input,.form textarea,.form select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:15px;font-family:inherit;margin-top:6px;background:#fff}
+.wk{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--sub)}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:30;opacity:0;transition:.25s;pointer-events:none;max-width:90%;text-align:center}
 .toast.show{opacity:1}
 </style>
@@ -129,6 +144,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
   <button data-p="pChat" class="on">💬 대화</button>
   <button data-p="pPlan">📅 일정</button>
   <button data-p="pMail">📬 메일</button>
+  <button data-p="pWork">🖥️ 일꾼</button>
   <button data-p="pMemo">📒 기억</button>
 </nav>
 <main>
