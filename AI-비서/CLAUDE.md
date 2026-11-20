@@ -4,7 +4,7 @@
 - 작업 시작 전에 꼭 최신 `main`을 받아요. 작업이 끝나면 `main`에 올리고(PR이면 머지까지), 아래 "작업 기록"에 한 줄 남겨요.
 - 사용자는 초등학교 교사, git 비전문가 → 설명은 쉬운 우리말로.
 
-## 지금 상태 (v0.6.0, 2026-11-20)
+## 지금 상태 (v0.7.3, 2026-11-21) — 최신 요약·할 일은 `정리.md` 7~9번
 ### 서버 (v0.2.0~)
 - Supabase 프로젝트 **couple** (aaiplfmwljguzsvgdxit) — 커플 앱(my-own-/couple, 비공개)과 같은 곳. **AI 비서 칸은 모두 `ai_`로 시작**, `couple_*` 칸은 절대 건드리지 않기. 데이터 지우기·칸 지우기 금지(칸 추가 방식으로만 바꾸기).
 - 표: `ai_owner`(주인 1명, 처음 가입자가 `ai_claim_owner()`로 차지), `ai_items`(id, user_id, kind=event|todo|memo|chat|approval, data jsonb, deleted, updated_at 트리거), `ai_profile`(me, settings.limit), `ai_usage`(day, count, limited_at; `ai_bump_usage(day, limited)`). 모두 RLS = 본인이면서 주인일 때만. ai_items는 realtime 켬.
@@ -41,7 +41,9 @@
 - [x] 1단계 (v0.2.0): 서버 저장·동기화, 사용량 표시, 지우기 확인 카드, 저장 재확인
 - [ ] 사용자가 실제로 가입·로그인해서 폰↔PC 동기화 되는지 확인 (가입 후 SQL로 ai_owner·ai_items 확인)
 - [x] 2단계 앞부분 (v0.3.0): 구글 계정 여러 개 연결, 캘린더 합쳐 보기·넣기·지우기, 메일 탭·요약·답장, 허락 후 실행·확인
-- [ ] 사용자가 구글연결-설정.md 따라 GOOGLE_CLIENT_ID/SECRET 넣기 → 실제 연결 시험
+- [x] 사용자가 구글연결-설정.md 따라 GOOGLE_CLIENT_ID/SECRET 넣기 → 앱 게시(프로덕션, 미인증) → 계정 3개 연결됨(2026-11-21)
+- [ ] v0.7.3: 계정 3개 [🔧 범위]로 다시 허락 → `ai_google_accounts.scopes`에 calendar.calendarlist.readonly 있는지 확인
+- [ ] **고민거리: 삼성 캘린더 읽기** — 정리.md 8번(A 구글로 옮기기 / B 캘린더 다리 APK: CalendarContract 읽어 ai_ 표로 업로드, GitHub Actions로 빌드 / C Capacitor 앱 / D 자동화 앱 / E Outlook 연동 확인 필요). 사용자 답 칸 보고 진행. 유료 항목(플레이스토어 등록비 등)은 먼저 묻기.
 - [x] 2단계 나머지 (v0.4.0): 기억 키우기, 아침 브리핑 알림, 먼저 제안
 - [x] 3단계 (v0.5.0): PC 일꾼 — 빈자리 지켜보기·대신 하기·허락·결과 확인
 - [x] **v0.6.0 (2026-11-20): 쿨메신저 연동** — 표 `ai_cool`(user_id+id 기본키, kind/text/due/time/sender/recv/fav/done/done_src(pc|app)/gone, RLS 주인, realtime). 일꾼 `coolSync()` 20초마다: items.json·done.json 읽기 → 체크는 `%LOCALAPPDATA%AI비서일꾼쿨메신저-맞춤.json`의 지난 값(base)과 비교해 바뀐 쪽을 따름(둘 다면 앱) → 앱 체크는 done.json에 원자적 쓰기. 사라진 항목은 gone=true. **upsert 줄은 칸을 모두 같게**(supabase-js가 빠진 칸을 null로 채움). 쿨메신저 비서 window.ps1 v0.2.4가 done.json 바뀌면 다시 읽음(school 저장소). 앱: 📅 탭 아래 📨 쿨메신저, AI 문맥 [쿨메신저]·[아침 브리핑], actions done_cool / set_brief(time, mode on|off, 서버 다시 읽어 확인), 서버 브리핑에 쿨메신저 마감. 시험: `AIW_TEST` json에 `{home, coolDir, cool:[], tasks:[]}`.
@@ -74,3 +76,4 @@
 - 2026-11-20 23:45 · AI 비서: 구글 앱 게시용 개인정보처리방침 페이지 ai/privacy.html 추가
 - 2026-11-21 00:20 · AI 비서 v0.7.2: 구글 계정 [🔧 범위] 버튼(login_hint로 같은 계정 다시 허락, 이름표·색 바꾸기)
 - 2026-11-21 01:35 · AI 비서 v0.7.3: 구글 캘린더 목록(calendarlist.readonly) 받아 보이는 캘린더 모두 읽기, 일정 지우기에 캘린더 id 전달 (ai-google v13)
+- 2026-11-21 02:00 · AI 비서: 정리.md에 오늘 한 일·삼성 캘린더 고민거리(방법 A~E)·지금 할 일 정리 (0.7.3 그대로)
