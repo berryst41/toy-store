@@ -1283,7 +1283,7 @@ function renderPlan() {
   $('tdList').innerHTML = td.length ? td.map(x => {
     const late = !x.done && x.due && x.due < t;
     return `<div class="row ${x.done ? 'done' : ''}"><input type="checkbox" data-chk="${x.id}" ${x.done ? 'checked' : ''}><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small style="${late ? 'color:var(--warn);font-weight:700' : ''}">~ ${dLabel(x.due)}${late ? ' · 마감 지남' : ''}</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
-  }).join('') : '<div class="none">할 일이 없어요 🎉</div>';
+  }).join('') : G.tasks.length ? '' : '<div class="none">할 일이 없어요 🎉</div>';
   // ☑️ 구글 할 일 (연결한 계정에 '할 일' 허락이 있을 때)
   const gt = [...G.tasks].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
   if (gt.length) $('tdList').innerHTML += gt.map(x => {
