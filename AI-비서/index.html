@@ -930,7 +930,7 @@ function askHTML(m) {
   const items = a.items.map((_, i) => askItem(m, i, live)).join('');
   if (live) return `<div class="ask"><b>✋ 이렇게 해도 될까요?</b><ul>${items}</ul><div class="btns"><button class="ok" data-ok="${m.id}">✅ 허락</button><button class="g" data-no="${m.id}">취소</button></div></div>`;
   if (a.status === 'run') return `<div class="ask"><ul>${items}</ul><div style="font-size:13px">⏳ 하는 중…</div></div>`;
-  const res = (a.result || []).map(x => `<div style="font-size:13px">${esc(x)}</div>`).join('');
+  const res = (a.result || []).map(x => `<div style="font-size:13px">${linkify(esc(x))}</div>`).join('');
   const st = a.status === 'yes' ? `✅ 허락해서 했어요${a.check === true ? ' · <span class="chk">✔️ 확인됨</span>' : a.check === false ? ' · <span class="chk no">⚠️ 확인 못 함 — 직접 한 번 봐 주세요</span>' : ''}` : '🚫 취소했어요';
   return `<div class="ask done"><ul>${items}</ul>${res}<div style="font-size:13px">${st}</div></div>`;
 }
