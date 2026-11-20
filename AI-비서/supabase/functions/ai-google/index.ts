@@ -208,6 +208,20 @@ Deno.serve(async req => {
       return json({ ok: true, out });
     }
 
+    // PC 일꾼 연결: 앱에서 만든 10분짜리 코드를 일꾼이 내면, 일꾼 전용 로그인 열쇠(한 번용)를 줘요
+    if (act === 'pair_use') {
+      const code = String(body.code || '').trim().toUpperCase();
+      if (!/^[A-Z2-9]{8}$/.test(code)) return json({ error: '코드 모양이 이상해요' }, 400);
+      const { data: row } = await admin.from('ai_pair').select('*').eq('code', code).gt('expires_at', new Date().toISOString()).maybeSingle();
+      if (!row) return json({ error: '코드가 틀렸거나 10분이 지났어요. 앱에서 새 코드를 만들어 주세요' }, 400);
+      await admin.from('ai_pair').delete().eq('code', code); // 한 번만 쓰기
+      const { data: u } = await admin.auth.admin.getUserById(row.user_id);
+      const email = u?.user?.email; if (!email) return json({ error: '주인 계정을 못 찾았어요' }, 400);
+      const { data: link, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+      if (error) throw error;
+      return json({ token_hash: link.properties.hashed_token, email, gkey: row.gkey });
+    }
+
     // 로그인한 주인만
     const auth = req.headers.get('Authorization') || '';
     const userDb = createClient(SB_URL, SB_ANON, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
