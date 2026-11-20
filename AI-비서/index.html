@@ -813,9 +813,12 @@ async function gemini(contents) {
 /* ---------- AI가 시킨 일 처리 ---------- */
 const okDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const okTime = s => /^\d{2}:\d{2}$/.test(s || '') ? s : '';
-const NEED_OK = new Set(['delete_event', 'delete_todo', 'delete_memo']); // 허락이 필요한 일
+const NEED_OK = new Set(['delete_event', 'delete_todo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail']); // 허락이 필요한 일
 function describe(a) {
   const f = arr => arr.find(x => x.id === a.id);
+  if (a.type === 'add_gcal_event') return okDate(a.date) && a.title ? `📅 구글 캘린더에 넣기: ${dLabel(a.date)} ${okTime(a.time)}${okTime(a.end_time) ? '~' + okTime(a.end_time) : ''} ${a.title}` : null;
+  if (a.type === 'delete_gcal_event') { const e = f(G.events); return e && `🗑️ 구글 일정 지우기 [${e.label}]: ${dLabel(e.date)} ${e.time || ''} ${e.title}`; }
+  if (a.type === 'send_mail') return a.to && (a.subject || a.body) ? `✉️ 메일 보내기` : null;
   if (a.type === 'delete_event') { const e = f(S.events); return e && `🗑️ 일정 지우기: ${dLabel(e.date)} ${e.time || ''} ${e.title}`; }
   if (a.type === 'delete_todo') { const x = f(S.todos); return x && `🗑️ 할 일 지우기: ${x.title}`; }
   if (a.type === 'delete_memo') { const x = f(S.memos); return x && `🗑️ 기억 지우기: ${x.text}`; }
@@ -859,6 +862,7 @@ async function send(text) {
   const um = { id: uid('c'), role: 'user', text, file: file?.name || '', ts: Date.now() };
   S.chat.push(um); renderChat('<div class="typing">비서가 생각하고 있어요… ✍️</div>');
   try {
+    await gRefresh(); // 구글 일정·메일 (3분 안에 받아 둔 게 있으면 그걸 써요)
     const hist = S.chat.slice(-16).map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
     if (file) hist[hist.length - 1].parts.push({ inline_data: { mime_type: file.type || 'application/octet-stream', data: await toB64(file) } });
     const r = await gemini(hist);
