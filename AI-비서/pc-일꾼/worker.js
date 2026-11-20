@@ -79,7 +79,13 @@ async function login() {
   };
   sb = createClient(SB_URL, SB_KEY, { auth: { storage, storageKey: 'aiw.auth', persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
   let { data: { session } } = await sb.auth.getSession();
-  if (session) { const { data, error } = await sb.auth.getUser(); if (error || !data.user) session = null; }
+  if (HIDDEN && !session) { say('⚠️ 아직 앱과 연결하지 않았어요. 일꾼-켜기.bat을 한 번 더블클릭해서 연결 코드를 넣어 주세요'); process.exit(3); }
+  if (session) {
+    const { data, error } = await sb.auth.getUser();
+    // 숨어서 켤 때는 PC가 막 켜져 인터넷이 아직 안 될 수 있어요 → 잠시 뒤 다시 (autostart.ps1이 다시 켜요)
+    if (HIDDEN && (error || !data.user)) { if (error?.status === 401 || error?.status === 403) { say('⚠️ 연결이 풀렸어요. 일꾼-켜기.bat으로 다시 연결해 주세요'); process.exit(3); } throw new Error('서버에 아직 연결이 안 돼요: ' + (error?.message || '')); }
+    if (error || !data.user) session = null;
+  }
   while (!session) {
     console.log('\n📱 앱 ⚙️ 설정 → 🖥️ PC 일꾼 → [연결 코드 만들기]를 누르면 8글자 코드가 나와요.');
     const code = (await ask('   그 코드를 여기에 쓰고 Enter: ')).trim().toUpperCase();
