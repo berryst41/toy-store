@@ -686,12 +686,24 @@ $('msgs').onclick = async e => {
   if (!ok && !no) return;
   const m = S.chat.find(x => x.id === (ok || no).dataset[ok ? 'ok' : 'no']); if (!m?.ask || m.ask.status !== 'wait') return;
   if (no) { m.ask.status = 'no'; put('chat', m); renderChat(); return; }
-  const r = applyActions(m.ask.actions, true);
-  m.ask.status = 'yes'; put('chat', m); renderChat();
+  m.ask.status = 'run'; renderChat();
+  const local = m.ask.actions.filter(a => !G_TYPES.has(a.type)), goog = m.ask.actions.filter(a => G_TYPES.has(a.type));
+  const r = applyActions(local, true);
   // 지운 게 정말 없어졌는지 확인
   let check = r.removedIds.every(id => !Object.values(LIST).some(k => S[k].some(x => x.id === id)));
-  if (check && owner) check = await verifyOnServer(r.addedIds, r.removedIds);
-  m.ask.check = check; put('chat', m); renderChat();
+  if (check && owner && local.length) check = await verifyOnServer(r.addedIds, r.removedIds);
+  const result = [];
+  for (const a of goog) {
+    try { const g = await runG(a); result.push(g.text); if (!g.ok) check = false; }
+    catch (err) { result.push('⚠️ ' + err.message); check = false; }
+  }
+  if (goog.length) gRefresh(true);
+  Object.assign(m.ask, { status: 'yes', check, result }); put('chat', m); renderChat();
+};
+$('msgs').onchange = e => {
+  const s = e.target.closest('select[data-acc]'); if (!s) return;
+  const m = S.chat.find(x => x.id === s.dataset.acc); if (!m?.ask) return;
+  m.ask.actions[+s.dataset.i].account = s.value; put('chat', m);
 };
 const grow = () => { const t = $('inp'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 160) + 'px'; };
 $('inp').addEventListener('input', grow);
