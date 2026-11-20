@@ -18,7 +18,25 @@ const cfg = Object.assign({ model: 'gemini-flash-lite-latest', name: os.hostname
 const saveCfg = () => fs.writeFileSync(CFG_FILE, JSON.stringify(cfg, null, 1));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const now = () => new Date().toLocaleTimeString('ko-KR', { hour12: false });
+// 숨어서 켜기(--hidden): PC를 켤 때 autostart.ps1이 창 없이 켜요. 글은 화면 대신 기록 파일에 남겨요.
+const HIDDEN = process.argv.includes('--hidden');
+const LOG_FILE = path.join(HOME, '일꾼-기록.txt');
+if (HIDDEN) {
+  try { if (fs.statSync(LOG_FILE).size > 1e6) fs.renameSync(LOG_FILE, LOG_FILE + '.old'); } catch (e) {}
+  const w = (...a) => { try { fs.appendFileSync(LOG_FILE, `${new Date().toLocaleDateString('ko-KR')} ${a.map(x => typeof x === 'string' ? x : x instanceof Error ? x.message : JSON.stringify(x)).join(' ')}\n`); } catch (e) {} };
+  console.log = w; console.error = w;
+}
 const say = (...a) => console.log(`[${now()}]`, ...a);
+// 일꾼은 한 PC에 하나만 (숨어서 도는 것 + bat 더블클릭이 겹치지 않게). 30초마다 '켜짐' 표시를 새로 써요.
+const LOCK_FILE = path.join(HOME, '켜짐.json');
+function takeLock() {
+  const l = readJ(LOCK_FILE, null);
+  if (l && l.pid !== process.pid && Date.now() - l.t < 90000) { try { process.kill(l.pid, 0); return l; } catch (e) { /* 이미 꺼진 일꾼 */ } }
+  touchLock(); process.on('exit', () => { try { if (readJ(LOCK_FILE, {}).pid === process.pid) fs.unlinkSync(LOCK_FILE); } catch (e) {} });
+  return null;
+}
+const touchLock = () => { try { fs.writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, t: Date.now(), hidden: HIDDEN })); } catch (e) {} };
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']) process.on(sig, () => process.exit(0));
 
 // 예약·결제처럼 되돌리기 어려운 버튼 (이 말이 들어간 버튼은 AI가 뭐라 해도 허락을 받아요)
 const RISKY = /결제|구매|주문|예매|예약|신청|제출|보내기|전송|발송|확정|완료|등록|삭제|취소|탈퇴|동의|승인|송금|이체|충전|pay|buy|order|checkout|submit|confirm|book|reserve|purchase|send|delete/i;
