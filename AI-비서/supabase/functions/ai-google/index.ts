@@ -153,6 +153,11 @@ async function buildBrief(uid: string) {
   lines.push(ev.length ? `📅 오늘 일정 ${ev.length}개: ` + ev.slice(0, 5).map(e => `${e.time || '종일'} ${e.title}`).join(', ') : '📅 오늘 잡힌 일정 없음');
   if (dueToday.length) lines.push('⏰ 오늘 마감: ' + dueToday.slice(0, 3).map((x: any) => x.title).join(', '));
   if (late.length) lines.push(`⚠️ 마감 지난 할 일 ${late.length}개`);
+  // 📨 쿨메신저 비서 할 일 (v0.6)
+  const { data: cool } = await admin.from('ai_cool').select('text,due').eq('user_id', uid).eq('kind', 'todo').eq('done', false).eq('gone', false);
+  const cT = (cool || []).filter((x: any) => x.due === t), cLate = (cool || []).filter((x: any) => x.due && x.due < t);
+  if (cT.length) lines.push('📨 쿨메신저 오늘 마감: ' + cT.slice(0, 3).map((x: any) => x.text.slice(0, 25)).join(', '));
+  if (cLate.length) lines.push(`📨 쿨메신저 마감 지남 ${cLate.length}개`);
   if (unread) lines.push(`📬 안 읽은 메일 ${unread}통`);
   const tips: string[] = [];
   if (dueTom.length) tips.push(`내일 마감 ${dueTom.length}개 미리 챙기기`);
