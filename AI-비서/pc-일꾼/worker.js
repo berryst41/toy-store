@@ -309,16 +309,17 @@ async function coolSync() {
     st.sig[id] = sig;
   }
   // 쿨메신저 비서에서 없어진 항목은 '사라짐' 표시만 (파일을 잘못 읽어 비어 보일 때는 건너뛰어요)
-  if (seen.size || srv.size < 5) for (const [id, s] of srv) if (!seen.has(id) && !s.gone) { up.push({ id, gone: true }); delete st.sig[id]; }
+  if (seen.size || srv.size < 5) for (const [id, s] of srv) if (!seen.has(id) && !s.gone) { gone.push(id); delete st.sig[id]; }
   if (fromApp) { // 앱에서 체크한 것 → done.json (쿨메신저 비서 창이 2초 안에 다시 읽어요)
     const tmp = doneF + '.aiw.tmp';
     fs.writeFileSync(tmp, JSON.stringify([...pc]), 'utf8');
     fs.renameSync(tmp, doneF);
   }
   if (up.length) await B.coolUpsert(up);
+  if (gone.length) await B.coolGone(gone);
   st.base = base;
   fs.writeFileSync(COOL_STATE, JSON.stringify(st));
-  if (up.length || fromApp) say(`📨 쿨메신저: 올림 ${up.length}개${fromPc ? ` (PC 체크 ${fromPc})` : ''}${fromApp ? ` · 앱 체크 ${fromApp}개를 쿨메신저 비서에 반영` : ''}`);
+  if (up.length || gone.length || fromApp) say(`📨 쿨메신저: 올림 ${up.length}개${gone.length ? ` · 사라짐 ${gone.length}` : ''}${fromPc ? ` (PC 체크 ${fromPc})` : ''}${fromApp ? ` · 앱 체크 ${fromApp}개를 쿨메신저 비서에 반영` : ''}`);
   return (coolInfo = { n: seen.size, at: new Date().toISOString() });
 }
 
