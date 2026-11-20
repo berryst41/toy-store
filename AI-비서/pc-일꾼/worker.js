@@ -101,7 +101,8 @@ async function login() {
   me = (await sb.auth.getUser()).data.user;
   const { data: owner } = await sb.rpc('ai_is_owner');
   if (!owner) throw new Error('이 계정은 AI 비서 주인이 아니에요');
-  if (!cfg.gkey) { cfg.gkey = (await ask('\n🤖 Gemini API 키를 넣어 주세요(앱 ⚙️에 넣은 것과 같은 키): ')).trim(); saveCfg(); }
+  if (!cfg.gkey && HIDDEN) say('⚠️ Gemini 키가 없어서 🖱️ 대신 하기는 못 해요(지켜보기·쿨메신저는 돼요). 일꾼-켜기.bat으로 한 번 넣어 주세요');
+  else if (!cfg.gkey) { cfg.gkey = (await ask('\n🤖 Gemini API 키를 넣어 주세요(앱 ⚙️에 넣은 것과 같은 키): ')).trim(); saveCfg(); }
 }
 function ask(q) { const rl = readline.createInterface({ input: process.stdin, output: process.stdout }); return new Promise(r => rl.question(q, a => { rl.close(); r(a); })); }
 
