@@ -42,6 +42,7 @@ function testBackend() {
   return {
     rows, cool,
     async coolAll() { return cool.map(r => ({ ...r })); },
+    async coolGone(ids) { cool.filter(x => ids.includes(x.id)).forEach(x => x.gone = true); },
     async coolUpsert(list) { for (const r of list) { const o = cool.find(x => x.id === r.id); if (o) Object.assign(o, r); else cool.push({ kind: 'todo', text: '', done: false, gone: false, ...r }); } },
     async tasks(st) { return rows.filter(r => st.includes(r.status)); },
     async get(id) { const r = rows.find(x => x.id === id); if (r && r.status === 'need_ok' && TEST.answer) { r.answer = TEST.answer; r.status = 'running'; } return r; },
@@ -281,7 +282,7 @@ async function coolSync() {
   const pc = new Set(doneArr.map(String));
   const st = readJ(COOL_STATE, { base: {}, sig: {} });
   const srv = new Map((await B.coolAll()).map(r => [r.id, r]));
-  const up = [], seen = new Set(), base = {};
+  const up = [], gone = [], seen = new Set(), base = {};
   let fromApp = 0, fromPc = 0;
   for (const it of items) {
     const id = String(it?.id || ''); if (!id || seen.has(id)) continue; seen.add(id);
@@ -302,7 +303,7 @@ async function coolSync() {
     const sig = JSON.stringify(row);
     const pcChanged = !!s && s.done !== done;
     if (!s || s.gone || pcChanged || st.sig[id] !== sig) {
-      up.push({ ...row, done, gone: false, ...(pcChanged || (!s && done) ? { done_src: 'pc' } : {}) });
+      up.push({ ...row, done, gone: false, done_src: pcChanged || (!s && done) ? 'pc' : s?.done_src ?? null }); // 모든 줄의 칸을 똑같이(빠진 칸은 비워지니까)
       if (pcChanged) fromPc++;
     }
     st.sig[id] = sig;
