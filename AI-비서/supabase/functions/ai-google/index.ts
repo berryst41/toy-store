@@ -169,14 +169,14 @@ async function vapidKey() {
   await admin.from('ai_push_config').update({ vapid_public: k.publicKey, vapid_private: k.privateKey }).eq('id', 1);
   return k.publicKey;
 }
-async function pushTo(uid: string, msg: { title: string; body: string }) {
+async function pushTo(uid: string, msg: { title: string; body: string; url?: string; tag?: string }) {
   const { data: cfg } = await admin.from('ai_push_config').select('*').eq('id', 1).single();
   if (!cfg?.vapid_public) return 0;
   webpush.setVapidDetails('mailto:noreply@ai-secretary.app', cfg.vapid_public, cfg.vapid_private);
   const { data: subs } = await admin.from('ai_push_subs').select('id,sub').eq('user_id', uid);
   let sent = 0;
   for (const s of subs || []) {
-    try { await webpush.sendNotification(s.sub, JSON.stringify({ ...msg, tag: 'ai-brief', url: './?brief=1' }), { TTL: 6 * 3600 }); sent++; }
+    try { await webpush.sendNotification(s.sub, JSON.stringify({ title: msg.title, body: msg.body, tag: msg.tag || 'ai-brief', url: msg.url || './?brief=1' }), { TTL: 6 * 3600 }); sent++; }
     catch (e) { const c = (e as { statusCode?: number }).statusCode; if (c === 404 || c === 410) await admin.from('ai_push_subs').delete().eq('id', s.id); }
   }
   return sent;
