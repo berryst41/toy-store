@@ -26,7 +26,8 @@ const SCOPES: Record<string, string[]> = {
   mail_read: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly'],
   mail_send: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
   // v0.7: 체크하면 위에 더해서 받는 허락 (구글 할 일·드라이브·시트·설문·유튜브·새 문서 만들기)
-  extra: ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/forms.body.readonly', 'https://www.googleapis.com/auth/forms.responses.readonly', 'https://www.googleapis.com/auth/youtube.readonly']
+  extra: ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/forms.body.readonly', 'https://www.googleapis.com/auth/forms.responses.readonly'],
+  youtube: ['https://www.googleapis.com/auth/youtube.readonly'] // 따로 체크 (구글이 일부 허락과 같이 못 받게 막는 경우가 있어서)
 };
 
 /* ---------- 잠그기 / 풀기 ---------- */
