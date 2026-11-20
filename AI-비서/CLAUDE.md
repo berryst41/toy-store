@@ -44,7 +44,10 @@
 - [ ] 사용자가 구글연결-설정.md 따라 GOOGLE_CLIENT_ID/SECRET 넣기 → 실제 연결 시험
 - [x] 2단계 나머지 (v0.4.0): 기억 키우기, 아침 브리핑 알림, 먼저 제안
 - [x] 3단계 (v0.5.0): PC 일꾼 — 빈자리 지켜보기·대신 하기·허락·결과 확인
+- [ ] **다음(v0.6): 쿨메신저 비서 정리 항목 가져오기** — 사용자가 원함(2026-11-20). 계획은 `정리.md` 4번. 방식: PC 일꾼이 1분마다 `%LOCALAPPDATA%\CoolAI\items.json`(+done.json) 읽어 정리된 항목만(kind, text, due, sender, recv, fav, done) 서버에 올림 → 앱 쿨메신저 칸 + AI 문맥·브리핑. 쪽지 원문(msgs.json)·키는 절대 안 올림, cool-ai 프로그램은 안 고침. **시작 전 `정리.md` 5번 질문(학생 이름 올려도 되는지, 체크 양방향인지) 답 확인.**
 - [ ] 4단계: 쇼핑(네이버 쇼핑 검색 API 최저가)·예약 사이트별 다듬기
+
+> 사용자용 정리 문서: `정리.md`(같은 내용 클로드 문서 https://claude.ai/artifact/TvFw971mrsqkGpoukKC3dB). 사용자가 답 칸을 채워 올릴 수 있음 → 작업 시작 전에 꼭 읽기.
 
 ## 고칠 때 규칙
 - 버전을 올려요: `index.html`의 `VERSION`, `sw.js`의 `CACHE`, `README.md` 버전·업데이트 기록 표, 루트 `README.md` 진열장의 "열기 vX.Y.Z" 글자. 커밋 메시지 끝에도 `(X.Y.Z)`.
@@ -56,3 +59,4 @@
 - 2026-11-20 · PC Claude Code: v0.3.0 — ai-google 서버 함수, 구글 계정 여러 개·캘린더·메일
 - 2026-11-20 · PC Claude Code: v0.4.0 — 아침 브리핑 알림(pg_cron+웹 푸시), 먼저 제안, 기억 키우기
 - 2026-11-20 · PC Claude Code: v0.5.0 — PC 일꾼(pc-일꾼/), ai_tasks·ai_workers·ai_pair, 🖥️ 일꾼 탭
+- 2026-11-20 · PC Claude Code: 정리.md(사용자용 현황·쿨메신저 가져오기 계획·정할 것) 추가
