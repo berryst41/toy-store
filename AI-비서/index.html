@@ -485,6 +485,84 @@ $('bTest').onclick = async () => {
   catch (e) { toast('⚠️ ' + e.message, 4000); } finally { $('bTest').disabled = false; }
 };
 
+/* ---------- 🖥️ PC 일꾼 (따로 연 브라우저 창에서 대신 누르기·지켜보기) ---------- */
+let T = [], W = null, tchan = null;
+const ST = { queued: '⏳ 기다리는 중', running: '▶️ 하는 중', need_ok: '✋ 허락 필요', done: '✅ 끝', failed: '❌ 못 함', stopped: '⏹️ 멈춤' };
+const workerOn = () => !!W && Date.now() - new Date(W.last_seen).getTime() < 90000;
+async function loadTasks() {
+  if (!owner) return;
+  const [{ data }, w] = await Promise.all([
+    sb.from('ai_tasks').select('*').order('created_at', { ascending: false }).limit(30),
+    sb.from('ai_workers').select('*').order('last_seen', { ascending: false }).limit(1)
+  ]);
+  T = data || []; W = w.data?.[0] || null; renderWork(); renderWorkerSet(); renderChat();
+}
+async function refreshTask(id) {
+  const { data } = await sb.from('ai_tasks').select('*').eq('id', id).maybeSingle();
+  T = T.filter(x => x.id !== id); if (data) T.unshift(data);
+  T.sort((a, b) => b.created_at.localeCompare(a.created_at)); renderWork(); renderChat();
+}
+async function addTask(kind, title, spec) {
+  if (!owner) throw new Error('먼저 ⚙️에서 로그인해 주세요');
+  const { data, error } = await sb.from('ai_tasks').insert({ user_id: user.id, kind, title: String(title || '').slice(0, 80), spec }).select().single();
+  if (error) throw new Error(error.message);
+  T.unshift(data); renderWork();
+  if (!workerOn()) toast('🖥️ PC 일꾼이 꺼져 있어요. PC에서 일꾼을 켜면 바로 시작해요', 4500);
+  return data;
+}
+function wkBadge() { return W ? (workerOn() ? `🟢 ${esc(W.name)} 켜짐` : `⚪ ${esc(W.name)} 꺼짐 (${fmtWhen(W.last_seen)} 마지막)`) : '⚪ 아직 연결 안 됨'; }
+function renderWorkerSet() { if ($('wkSet')) $('wkSet').innerHTML = owner ? `<span class="wk">${wkBadge()}</span>` : '<div class="hint">먼저 위에서 로그인해 주세요.</div>'; }
+function renderWork() {
+  $('wkBadge').innerHTML = owner ? wkBadge() : '';
+  if (!owner) { $('taskList').innerHTML = '<div class="box"><div class="none">⚙️ 설정에서 로그인하고 PC 일꾼을 연결하면 여기서 일을 맡길 수 있어요</div></div>'; return; }
+  $('taskList').innerHTML = T.length ? T.map(t => {
+    const need = t.status === 'need_ok', live = ['queued', 'running', 'need_ok'].includes(t.status);
+    const res = t.result?.summary ? `<div class="stp">📋 ${esc(t.result.summary)}${t.result.verified === true ? ' · <span class="chk">✔️ 화면에서 확인</span>' : t.result.verified === false ? ' · <span class="chk no">⚠️ 확인 못 함 — 직접 봐 주세요</span>' : ''}</div>` : '';
+    return `<div class="task ${need ? 'need' : ''}">
+      <div class="h"><span>${t.kind === 'watch' ? '👀' : '🖱️'}</span><b>${esc(t.title || (t.kind === 'watch' ? '지켜보기' : '대신 하기'))}</b><span class="st">${ST[t.status] || t.status}</span></div>
+      ${need ? `<div style="margin-top:6px"><b style="color:#d9480f">✋ ${esc(t.need?.action || '허락이 필요해요')}</b></div>` : `<div class="stp">${esc(t.step || '')}</div>`}
+      ${res}
+      ${t.shot ? `<img src="${t.shot}" alt="일꾼 화면" data-timg="1">` : ''}
+      ${need ? `<div class="btns"><button class="ok" data-tok="${t.id}">✅ 허락</button><button class="g" data-tno="${t.id}">🚫 안 함</button></div>` : ''}
+      <details><summary>자세히 · ${fmtWhen(t.created_at)}</summary><div>${esc(t.spec?.url || '')}\n${esc(t.spec?.goal || (t.spec?.text ? `"${t.spec.text}" ${t.spec.mode === 'disappear' ? '사라지면' : '나타나면'} 알림, ${t.spec.every || 60}초마다` : ''))}\n\n${esc((t.log || []).join('\n'))}</div></details>
+      <div class="btns">${live ? `<button class="g" data-tstop="${t.id}">⏹️ 멈추기</button>` : `<button class="g" data-tdel="${t.id}">🗑️ 지우기</button>`}${t.result?.url ? `<a class="g" href="${esc(t.result.url)}" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font-size:14px">🔗 열기</a>` : ''}</div>
+    </div>`;
+  }).join('') : '<div class="box"><div class="none">맡긴 일이 없어요. 아래에서 맡기거나 대화창에서 말해 주세요</div></div>';
+}
+$('taskList').onclick = async e => {
+  const d = e.target.dataset;
+  if (d.timg) return e.target.classList.toggle('big');
+  try {
+    if (d.tok || d.tno) await sb.from('ai_tasks').update({ answer: d.tok ? 'yes' : 'no', status: 'running', need: null }).eq('id', d.tok || d.tno);
+    else if (d.tstop) await sb.from('ai_tasks').update({ status: 'stopped', step: '앱에서 멈췄어요' }).eq('id', d.tstop);
+    else if (d.tdel) { if (!confirm('이 기록을 지울까요?')) return; await sb.from('ai_tasks').delete().eq('id', d.tdel); T = T.filter(x => x.id !== d.tdel); renderWork(); return; }
+    else return;
+    refreshTask(d.tok || d.tno || d.tstop);
+    toast(d.tok ? '✅ 허락했어요. 일꾼이 이어서 해요' : d.tno ? '🚫 하지 말라고 했어요' : '⏹️ 멈추라고 했어요');
+  } catch (err) { toast('⚠️ ' + err.message, 4000); }
+};
+const okUrl = u => /^https?:\/\/\S+$/i.test(String(u || '').trim());
+$('wAdd').onclick = async () => {
+  const url = $('wUrl').value.trim(), text = $('wText').value.trim();
+  if (!okUrl(url) || !text) return toast('주소(https://…)와 찾을 글자를 넣어 주세요');
+  try { await addTask('watch', `${text} ${$('wMode').value === 'disappear' ? '사라지면' : '나오면'} 알림`, { url, text, mode: $('wMode').value, every: +$('wEvery').value, hours: 12, then_goal: $('wThen').value.trim() || undefined }); $('wUrl').value = $('wText').value = $('wThen').value = ''; $('fWatch').open = false; toast('👀 맡겼어요'); }
+  catch (err) { toast('⚠️ ' + err.message, 4000); }
+};
+$('dAdd').onclick = async () => {
+  const url = $('dUrl').value.trim(), goal = $('dGoal').value.trim();
+  if (!goal || (url && !okUrl(url))) return toast('할 일을 적어 주세요 (주소는 https://로 시작)');
+  try { await addTask('do', goal.slice(0, 40), { url, goal }); $('dUrl').value = $('dGoal').value = ''; $('fDo').open = false; toast('🖱️ 맡겼어요'); }
+  catch (err) { toast('⚠️ ' + err.message, 4000); }
+};
+$('wkPair').onclick = async () => {
+  if (!owner) return toast('먼저 위에서 로그인해 주세요');
+  try {
+    const r = await gcall('pair_create', { gkey: ls.get('gkey') });
+    $('wkCode').innerHTML = `<div class="banner" style="cursor:default;text-align:center">PC 일꾼 검은 창에 이 코드를 입력하세요<div style="font-size:28px;font-weight:800;letter-spacing:4px;margin:6px 0;color:var(--main)">${esc(r.code)}</div><span class="hint">10분 안에, 한 번만 쓸 수 있어요</span></div>`;
+  } catch (err) { toast('⚠️ ' + err.message, 4000); }
+};
+setInterval(() => { if (owner && !document.hidden) loadTasks(); }, 30000);
+
 /* ---------- 💡 먼저 제안하기 (규칙으로, AI 사용량 안 씀) ---------- */
 function suggestions() {
   const t = today(), tm = addDays(t, 1), out = [];
