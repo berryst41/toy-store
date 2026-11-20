@@ -844,13 +844,13 @@ $('mailRefresh').onclick = async () => { toast('메일 새로 받는 중…'); a
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === b.dataset.p));
-  if (b.dataset.p === 'pPlan') renderPlan();
+  if (b.dataset.p === 'pPlan') { renderPlan(); renderCool(); }
   if (b.dataset.p === 'pMemo') renderMemo();
   if (b.dataset.p === 'pMail') { renderMail(); gRefresh(); }
   if (b.dataset.p === 'pPlan') gRefresh();
   if (b.dataset.p === 'pWork') { renderWork(); loadTasks(); }
 });
-function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
+function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pPlan').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
 
 /* ---------- 빠른 버튼 ---------- */
 const QUICK = [
