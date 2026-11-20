@@ -778,8 +778,12 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [내 정보] ${ls.get('me') || '(없음)'}
 [기억] ${S.memos.map(m => `(${m.id}) ${m.text}`).join(' / ') || '(없음)'}
 [일정] ${evs.map(e => `(${e.id}) ${e.date} ${e.time || '종일'} ${e.title}`).join(' / ') || '(없음)'}
-[할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}`;
+[할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
+[구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
+[구글 일정] ${G.events.filter(e => e.date >= addDays(t, -1) && e.date <= addDays(t, 30)).map(e => `(${e.id}) [${e.label}] ${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''} ${e.title}`).join(' / ') || '(없음)'}
+[최근 메일] ${G.mails.slice(0, 20).map(m => `[${m.label}] ${m.unread ? '(안 읽음) ' : ''}${fmtWhen(m.date)} 보낸이:${m.from} / 제목:${m.subject} / ${m.snippet.slice(0, 120)}`).join('\n') || '(없음)'}`;
 }
+const allEvents = () => [...S.events, ...G.events.map(e => ({ ...e, g: true }))];
 async function gemini(contents) {
   const key = ls.get('gkey'), model = ls.get('gmodel') || DEFAULT_MODEL;
   if (!key) { openSet(); throw new Error('먼저 ⚙️ 설정에서 무료 Gemini API 키를 넣어 주세요'); }
