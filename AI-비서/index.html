@@ -585,7 +585,7 @@ async function loadCool() {
 function renderCool() {
   const box = $('coolList'); if (!box) return;
   const at = CW?.info?.cool?.at;
-  $('coolAt').textContent = at ? `${esc(CW.name)}에서 ${fmtWhen(at)} 가져옴${workerOn() && CW === W ? '' : ''}` : '';
+  $('coolAt').textContent = at ? `${CW.name}에서 ${fmtWhen(at)} 가져옴` : '';
   if (!owner) { box.innerHTML = '<div class="box"><div class="none">⚙️ 설정에서 로그인하면 쿨메신저 비서가 정리한 할 일을 여기서 볼 수 있어요</div></div>'; return; }
   const live = coolLive();
   if (!live.length) { box.innerHTML = '<div class="box"><div class="none">아직 가져온 항목이 없어요.<br>쿨메신저 비서가 깔린 학교 PC에서 🖥️ PC 일꾼을 켜면 1분 안에 들어와요</div></div>'; return; }
