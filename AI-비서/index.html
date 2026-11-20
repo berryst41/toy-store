@@ -774,12 +774,12 @@ async function gRefresh(force) {
   if (!force && Date.now() - G.at < 180000) return;
   try {
     const d = await gcall('context', { from: addDays(today(), -1), to: addDays(today(), 45), max: 10 });
-    Object.assign(G, { accounts: d.accounts, events: d.events, mails: d.mails, errors: d.errors || [], at: Date.now() });
+    Object.assign(G, { accounts: d.accounts, events: d.events, mails: d.mails, tasks: d.tasks || [], errors: d.errors || [], at: Date.now() });
     gSave(); refreshAll(); renderG();
   } catch (e) { G.errors = [e.message]; }
 }
 function acctOf(k, need) {
-  const ok = a => !need || (need === 'mail_send' ? a.level === 'mail_send' : true);
+  const ok = a => !need || (need === 'mail_send' ? a.level === 'mail_send' : !!a.caps?.[need]);
   const q = String(k || '').trim().toLowerCase(), list = G.accounts.filter(ok);
   return (q && list.find(a => a.id === k || a.email.toLowerCase() === q || (a.label || '').toLowerCase() === q)) || list.find(a => a.is_default) || list[0] || null;
 }
@@ -790,7 +790,7 @@ function renderG() {
   if (!owner) { el.innerHTML = '<div class="hint">먼저 위에서 로그인하면 구글 계정을 연결할 수 있어요.</div>'; $('gAdd').style.display = 'none'; return; }
   $('gAdd').style.display = '';
   if (G.configured === false) $('gHint').innerHTML = '⚠️ <b>구글 연결 준비가 아직 안 됐어요.</b> 처음 한 번 구글 클라우드 설정이 필요해요(GitHub toy-store의 <code>AI-비서/구글연결-설정.md</code> 참고). 준비되면 이 버튼으로 바로 연결돼요.';
-  el.innerHTML = G.accounts.length ? G.accounts.map(a => `<div class="ga">${dotH(a.color)}<div class="t"><b>${esc(aName(a))}</b>${a.is_default ? ' ⭐' : ''}<small>${esc(a.email)} · ${LEVEL_TXT[a.level] || a.level}</small></div>${a.is_default ? '' : `<button data-gdef="${a.id}">⭐ 기본</button>`}<button data-gdel="${a.id}">끊기</button></div>`).join('')
+  el.innerHTML = G.accounts.length ? G.accounts.map(a => `<div class="ga">${dotH(a.color)}<div class="t"><b>${esc(aName(a))}</b>${a.is_default ? ' ⭐' : ''}<small>${esc(a.email)} · ${LEVEL_TXT[a.level] || a.level}${esc(capTxt(a))}</small></div>${a.is_default ? '' : `<button data-gdef="${a.id}">⭐ 기본</button>`}<button data-gdel="${a.id}">끊기</button></div>`).join('')
     : '<div class="hint">아직 연결한 구글 계정이 없어요.</div>';
   // 일정 넣을 곳 고르기
   const sel = $('evWhere'), cur = sel.value;
