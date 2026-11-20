@@ -1167,9 +1167,13 @@ async function gemini(contents) {
 /* ---------- AI가 시킨 일 처리 ---------- */
 const okDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const okTime = s => /^\d{2}:\d{2}$/.test(s || '') ? s : '';
-const NEED_OK = new Set(['delete_event', 'delete_todo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'do_on_site']); // 허락이 필요한 일
+const NEED_OK = new Set(['delete_event', 'delete_todo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'do_on_site', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc']); // 허락이 필요한 일
 function describe(a) {
   const f = arr => arr.find(x => x.id === a.id);
+  if (a.type === 'add_gtask') return a.title ? `☑️ 구글 할 일에 넣기: ${a.title}${okDate(a.date) ? ' (~' + dLabel(a.date) + ')' : ''}` : null;
+  if (a.type === 'done_gtask') { const x = f(G.tasks); return x && `✔️ 구글 할 일 끝내기 [${x.label}]: ${x.title}`; }
+  if (a.type === 'append_sheet') return (a.id || a.url) && a.values?.length ? `📊 구글 시트에 한 줄 더하기: ${a.values.join(' | ')}` : null;
+  if (a.type === 'make_doc') return a.title && a.body ? `📄 새 구글 문서 만들기: ${a.title}` : null;
   if (a.type === 'add_gcal_event') return okDate(a.date) && a.title ? `📅 구글 캘린더에 넣기: ${dLabel(a.date)} ${okTime(a.time)}${okTime(a.end_time) ? '~' + okTime(a.end_time) : ''} ${a.title}` : null;
   if (a.type === 'delete_gcal_event') { const e = f(G.events); return e && `🗑️ 구글 일정 지우기 [${e.label}]: ${dLabel(e.date)} ${e.time || ''} ${e.title}`; }
   if (a.type === 'send_mail') return a.to && (a.subject || a.body) ? `✉️ 메일 보내기` : null;
