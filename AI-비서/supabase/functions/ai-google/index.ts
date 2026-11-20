@@ -22,9 +22,10 @@ const admin = createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false }
 const TZ = 'Asia/Seoul';
 
 const SCOPES: Record<string, string[]> = {
-  calendar: ['https://www.googleapis.com/auth/calendar.events'],
-  mail_read: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly'],
-  mail_send: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
+  // v0.7.3: calendarlist.readonly = 내 캘린더 목록(학교·공유 캘린더 포함)을 알아야 그 일정도 읽을 수 있어요
+  calendar: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'],
+  mail_read: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly', 'https://www.googleapis.com/auth/gmail.readonly'],
+  mail_send: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
   // v0.7: 체크하면 위에 더해서 받는 허락 (구글 할 일·드라이브·시트·설문·유튜브·새 문서 만들기)
   extra: ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/forms.body.readonly', 'https://www.googleapis.com/auth/forms.responses.readonly'],
   youtube: ['https://www.googleapis.com/auth/youtube.readonly'] // 따로 체크 (구글이 일부 허락과 같이 못 받게 막는 경우가 있어서)
@@ -67,7 +68,7 @@ async function g(a: Acct, url: string, init: RequestInit = {}) {
   return d;
 }
 const has = (a: Acct, sc: string) => (a.scopes || '').split(' ').some(x => x === 'https://www.googleapis.com/auth/' + sc);
-const caps = (a: Acct) => ({ tasks: has(a, 'tasks'), drive: has(a, 'drive.readonly'), make: has(a, 'documents'), sheets: has(a, 'spreadsheets'), forms: has(a, 'forms.responses.readonly'), youtube: has(a, 'youtube.readonly') });
+const caps = (a: Acct) => ({ tasks: has(a, 'tasks'), drive: has(a, 'drive.readonly'), make: has(a, 'documents'), sheets: has(a, 'spreadsheets'), forms: has(a, 'forms.responses.readonly'), youtube: has(a, 'youtube.readonly'), allcal: has(a, 'calendar.calendarlist.readonly') });
 type Cap = keyof ReturnType<typeof caps>;
 const pub = (a: Acct) => ({ id: a.id, email: a.email, label: a.label, color: a.color, level: a.level, is_default: a.is_default, caps: caps(a) });
 const canMail = (a: Acct) => a.level === 'mail_read' || a.level === 'mail_send';
@@ -166,14 +167,29 @@ async function docCreate(a: Acct, title: string, text: string) {
 }
 
 /* ---------- 캘린더 ---------- */
-function toEvent(a: Acct, e: any) {
+function toEvent(a: Acct, e: any, cal?: { id: string; name: string }) {
   const s = e.start?.dateTime || e.start?.date || '', en = e.end?.dateTime || e.end?.date || '';
-  return { id: e.id, account: a.id, label: a.label || a.email, color: a.color, title: e.summary || '(제목 없음)', date: s.slice(0, 10), time: e.start?.dateTime ? s.slice(11, 16) : '', end: e.end?.dateTime ? en.slice(11, 16) : '', allDay: !e.start?.dateTime, link: e.htmlLink || '' };
+  return { id: e.id, account: a.id, ...(cal && cal.id !== 'primary' ? { cal: cal.id, calName: cal.name } : {}), label: (a.label || a.email) + (cal && cal.id !== 'primary' && cal.name ? '·' + cal.name : ''), color: a.color, title: e.summary || '(제목 없음)', date: s.slice(0, 10), time: e.start?.dateTime ? s.slice(11, 16) : '', end: e.end?.dateTime ? en.slice(11, 16) : '', allDay: !e.start?.dateTime, link: e.htmlLink || '' };
+}
+// v0.7.3: 기본 캘린더만이 아니라, 구글 캘린더 화면에 체크돼 보이는 캘린더를 모두 읽어요
+async function calIds(a: Acct): Promise<{ id: string; name: string }[]> {
+  const base = [{ id: 'primary', name: '' }];
+  if (!has(a, 'calendar.calendarlist.readonly')) return base;
+  try {
+    const d = await g(a, 'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50');
+    const l = (d.items || []).filter((c: any) => c.selected || c.primary).map((c: any) => ({ id: c.primary ? 'primary' : c.id, name: c.primary ? '' : (c.summaryOverride || c.summary || '') }));
+    return l.length ? l.slice(0, 15) : base;
+  } catch (_) { return base; }
 }
 async function calList(a: Acct, from: string, to: string) {
-  const q = new URLSearchParams({ timeMin: `${from}T00:00:00+09:00`, timeMax: `${to}T23:59:59+09:00`, singleEvents: 'true', orderBy: 'startTime', maxResults: '100' });
-  const d = await g(a, `https://www.googleapis.com/calendar/v3/calendars/primary/events?${q}`);
-  return (d.items || []).filter((e: any) => e.status !== 'cancelled').map((e: any) => toEvent(a, e));
+  const q = new URLSearchParams({ timeMin: `${from}T00:00:00+09:00`, timeMax: `${to}T23:59:59+09:00`, singleEvents: 'true', orderBy: 'startTime', maxResults: '100', timeZone: TZ });
+  const cals = await calIds(a), seen = new Set<string>();
+  const lists = await Promise.all(cals.map(c => g(a, `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(c.id)}/events?${q}`)
+    .then((d: any) => (d.items || []).filter((e: any) => e.status !== 'cancelled').map((e: any) => toEvent(a, e, c)))
+    .catch((e: any) => { if (c.id === 'primary') throw e; return []; })));
+  // 같은 일정이 두 캘린더에 있으면(초대받은 일정 등) 한 번만
+  return lists.flat().filter((e: any) => { const k = e.date + e.time + e.title; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((x: any, y: any) => (x.date + (x.time || '00:00')).localeCompare(y.date + (y.time || '00:00')));
 }
 function addMin(date: string, time: string, min: number) {
   const d = new Date(`${date}T${time}:00+09:00`); d.setMinutes(d.getMinutes() + min);
@@ -194,9 +210,10 @@ async function calInsert(a: Acct, ev: { date: string; time?: string; end?: strin
   const back = await g(a, `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(made.id)}`).catch(() => null);
   return { event: toEvent(a, made), verified: !!back && back.status !== 'cancelled' };
 }
-async function calDelete(a: Acct, id: string) {
-  await g(a, `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  const back = await g(a, `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(id)}`).catch(() => null);
+async function calDelete(a: Acct, id: string, cal = 'primary') {
+  const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal || 'primary')}/events/${encodeURIComponent(id)}`;
+  await g(a, base, { method: 'DELETE' });
+  const back = await g(a, base).catch(() => null);
   return { verified: !back || back.status === 'cancelled' };
 }
 
@@ -403,7 +420,7 @@ Deno.serve(async req => {
 
     // 아래는 앱에서 [허락]을 누른 뒤에만 불러요
     if (act === 'cal_insert') { const a = pick(body.account); if (!a) return json({ error: '연결된 구글 계정이 없어요' }, 400); return json({ account: pub(a), ...(await calInsert(a, body.event)) }); }
-    if (act === 'cal_delete') { const a = pick(body.account); if (!a) return json({ error: '계정을 못 찾았어요' }, 400); return json(await calDelete(a, body.id)); }
+    if (act === 'cal_delete') { const a = pick(body.account); if (!a) return json({ error: '계정을 못 찾았어요' }, 400); return json(await calDelete(a, body.id, body.cal)); }
     if (act === 'mail_send') {
       const a = pick(body.account);
       if (!a || a.level !== 'mail_send') return json({ error: '이 계정은 메일 보내기 허락을 안 받았어요. ⚙️에서 "메일 보내기까지"로 다시 연결해 주세요' }, 400);

@@ -319,7 +319,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.7.2';
+const VERSION = '0.7.3';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
@@ -795,7 +795,7 @@ function renderG() {
   if (!owner) { el.innerHTML = '<div class="hint">먼저 위에서 로그인하면 구글 계정을 연결할 수 있어요.</div>'; $('gAdd').style.display = 'none'; return; }
   $('gAdd').style.display = '';
   if (G.configured === false) $('gHint').innerHTML = '⚠️ <b>구글 연결 준비가 아직 안 됐어요.</b> 처음 한 번 구글 클라우드 설정이 필요해요(GitHub toy-store의 <code>AI-비서/구글연결-설정.md</code> 참고). 준비되면 이 버튼으로 바로 연결돼요.';
-  el.innerHTML = G.accounts.length ? G.accounts.map(a => `<div class="ga">${dotH(a.color)}<div class="t"><b>${esc(aName(a))}</b>${a.is_default ? ' ⭐' : ''}<small>${esc(a.email)} · ${LEVEL_TXT[a.level] || a.level}${esc(capTxt(a))}</small></div>${a.is_default ? '' : `<button data-gdef="${a.id}">⭐ 기본</button>`}<button data-gedit="${a.id}">🔧 범위</button><button data-gdel="${a.id}">끊기</button></div>`).join('')
+  el.innerHTML = G.accounts.length ? G.accounts.map(a => `<div class="ga">${dotH(a.color)}<div class="t"><b>${esc(aName(a))}</b>${a.is_default ? ' ⭐' : ''}<small>${esc(a.email)} · ${LEVEL_TXT[a.level] || a.level}${esc(capTxt(a))}${a.caps && !a.caps.allcal ? "<br>⚠️ 기본 캘린더만 읽어요 — 🔧 범위 → 바꾸기를 한 번 더 하면 학교·공유 캘린더도 읽어요" : ""}</small></div>${a.is_default ? '' : `<button data-gdef="${a.id}">⭐ 기본</button>`}<button data-gedit="${a.id}">🔧 범위</button><button data-gdel="${a.id}">끊기</button></div>`).join('')
     : '<div class="hint">아직 연결한 구글 계정이 없어요.</div>';
   // 일정 넣을 곳 고르기
   const sel = $('evWhere'), cur = sel.value;
@@ -966,7 +966,7 @@ async function runG(a) {
   }
   if (a.type === 'delete_gcal_event') {
     const ev = G.events.find(x => x.id === a.id);
-    const d = await gcall('cal_delete', { account: ev?.account || acctOf(a.account)?.id, id: a.id });
+    const d = await gcall('cal_delete', { account: ev?.account || acctOf(a.account)?.id, id: a.id, cal: ev?.cal });
     return { ok: d.verified, text: `🗑️ 구글 일정을 지웠어요: ${ev?.title || ''}` };
   }
   if (a.type === 'send_mail') {
@@ -1319,7 +1319,7 @@ $('pPlan').onclick = async e => {
   if (dg) {
     const ev = G.events.find(x => x.id === dg); if (!ev) return;
     if (!confirm(`구글 캘린더 [${ev.label}]에서 지울까요?\n${dLabel(ev.date)} ${ev.time || ''} ${ev.title}`)) return;
-    try { const r = await gcall('cal_delete', { account: ev.account, id: dg }); G.events = G.events.filter(x => x.id !== dg); gSave(); renderPlan(); toast(r.verified ? '지웠어요 ✔️ 확인됨' : '지웠는데 확인은 못 했어요'); }
+    try { const r = await gcall('cal_delete', { account: ev.account, id: dg, cal: ev.cal }); G.events = G.events.filter(x => x.id !== dg); gSave(); renderPlan(); toast(r.verified ? '지웠어요 ✔️ 확인됨' : '지웠는데 확인은 못 했어요'); }
     catch (err) { toast('⚠️ ' + err.message, 4000); }
     return;
   }

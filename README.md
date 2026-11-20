@@ -22,7 +22,7 @@
 | 🚌 | [버스 취소표 알리미](버스-취소표-알리미) | 매진된 고속버스를 1분마다 지켜보다가 빈자리가 나면 소리·알림으로 알려 주고, 좌석 고르기까지 도와주는 크롬 확장 프로그램 | [살펴보기](버스-취소표-알리미/README.md) · [⬇️ 받기 v0.3.0](https://github.com/berryst41/toy-store/raw/main/%EB%B2%84%EC%8A%A4-%EC%B7%A8%EC%86%8C%ED%91%9C-%EC%95%8C%EB%A6%AC%EB%AF%B8/%EB%B2%84%EC%8A%A4%EC%B7%A8%EC%86%8C%ED%91%9C%EC%95%8C%EB%A6%AC%EB%AF%B8.zip) |
 | 📌 | [저장 정리 비서](저장-정리-비서) | 인스타에 저장해 둔 릴스·피드를 여러 개 골라 AI가 맛집·레시피·여행·쇼핑으로 정리해 주는 폰 웹앱 | [살펴보기](저장-정리-비서/README.md) · [📌 열기 v0.1.0](https://berryst41.github.io/toy-store/%EC%A0%80%EC%9E%A5-%EC%A0%95%EB%A6%AC-%EB%B9%84%EC%84%9C/) |
 | 📎 | [클로드 공부 노트](클로드-공부-노트) | 인스타·블로그에서 본 클로드 관련 글을 핵심만 정리해서 카드로 쌓아두는 공부 노트 | [살펴보기](클로드-공부-노트/README.md) · [📎 열기](https://berryst41.github.io/toy-store/%ED%81%B4%EB%A1%9C%EB%93%9C-%EA%B3%B5%EB%B6%80-%EB%85%B8%ED%8A%B8/) |
-| 🤖 | [AI 비서](AI-비서) | 일정·할 일 관리, 쿨메신저 할 일 챙기기, 궁금한 것까지 말로 시키는 폰·PC 겸용 AI 비서 | [살펴보기](AI-비서/README.md) · [🍓 열기 v0.7.2](https://berryst41.github.io/toy-store/ai/) |
+| 🤖 | [AI 비서](AI-비서) | 일정·할 일 관리, 쿨메신저 할 일 챙기기, 궁금한 것까지 말로 시키는 폰·PC 겸용 AI 비서 | [살펴보기](AI-비서/README.md) · [🍓 열기 v0.7.3](https://berryst41.github.io/toy-store/ai/) |
 
 <br>
 

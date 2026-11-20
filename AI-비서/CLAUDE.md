@@ -73,3 +73,4 @@
 - 2026-11-20 23:25 · AI 비서 v0.7.1: 딸기 로봇 아이콘(icon.svg→png), drive.file+youtube 동시 요청 막힘 → documents 허락·유튜브 따로 체크 (ai-google 재배포)
 - 2026-11-20 23:45 · AI 비서: 구글 앱 게시용 개인정보처리방침 페이지 ai/privacy.html 추가
 - 2026-11-21 00:20 · AI 비서 v0.7.2: 구글 계정 [🔧 범위] 버튼(login_hint로 같은 계정 다시 허락, 이름표·색 바꾸기)
+- 2026-11-21 01:35 · AI 비서 v0.7.3: 구글 캘린더 목록(calendarlist.readonly) 받아 보이는 캘린더 모두 읽기, 일정 지우기에 캘린더 id 전달 (ai-google v13)
