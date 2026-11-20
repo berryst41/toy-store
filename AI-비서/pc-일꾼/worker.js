@@ -264,6 +264,62 @@ async function runDo(t) {
   } catch (e) { await log(t, '⚠️ ' + e.message.split('\n')[0], { status: 'failed' }); }
 }
 
+/* ============ 📨 쿨메신저 비서 정리 항목 맞추기 (v0.6) ============
+   쿨메신저 비서가 같은 PC에 저장한 items.json(정리된 항목)과 done.json(체크한 것)을 읽어서
+   정리된 항목만 서버에 올리고, 앱에서 체크한 것은 done.json에 적어 쿨메신저 비서 창에도 체크되게 해요.
+   쪽지 원문(msgs.json)과 쿨메신저 비서의 키·설정은 절대 읽지도 올리지도 않아요. */
+const COOL_DIR = process.env.AIW_COOL_DIR || TEST?.coolDir || path.join(process.env.LOCALAPPDATA || os.homedir(), 'CoolAI');
+const COOL_STATE = path.join(HOME, '쿨메신저-맞춤.json'); // 지난번에 맞춘 체크 상태(어느 쪽이 바꿨는지 알려고)
+const COOL_KINDS = ['todo', 'note', 'remember'];
+let coolInfo = null;
+async function coolSync() {
+  const itemsF = path.join(COOL_DIR, 'items.json'), doneF = path.join(COOL_DIR, 'done.json');
+  if (!fs.existsSync(itemsF)) return (coolInfo = null); // 쿨메신저 비서가 없는 PC(예: 집 PC)
+  const items = readJ(itemsF, null), doneArr = readJ(doneF, []);
+  if (!Array.isArray(items) || !Array.isArray(doneArr)) return; // 쓰는 중일 수 있어요 → 다음 번에
+  const pc = new Set(doneArr.map(String));
+  const st = readJ(COOL_STATE, { base: {}, sig: {} });
+  const srv = new Map((await B.coolAll()).map(r => [r.id, r]));
+  const up = [], seen = new Set(), base = {};
+  let fromApp = 0, fromPc = 0;
+  for (const it of items) {
+    const id = String(it?.id || ''); if (!id || seen.has(id)) continue; seen.add(id);
+    const row = {
+      id, kind: COOL_KINDS.includes(it.kind) ? it.kind : 'todo', text: String(it.text || '').slice(0, 500),
+      due: /^\d{4}-\d{2}-\d{2}$/.test(it.due || '') ? it.due : '', time: /^\d{2}:\d{2}$/.test(it.time || '') ? it.time : '',
+      sender: String(it.sender || '').slice(0, 60), recv: String(it.recv || '').slice(0, 20), fav: !!it.fav
+    };
+    const s = srv.get(id), b = st.base[id], p = pc.has(id);
+    // 체크 맞추기: 지난번 맞춘 값(b)과 달라진 쪽을 따라가요. 둘 다 바뀌었으면 앱(폰)이 이겨요.
+    let done = p;
+    if (s) {
+      if (b === undefined) done = p || s.done;
+      else if (s.done !== b) done = s.done;
+    }
+    if (done !== p) { done ? pc.add(id) : pc.delete(id); fromApp++; }
+    base[id] = done;
+    const sig = JSON.stringify(row);
+    const pcChanged = !!s && s.done !== done;
+    if (!s || s.gone || pcChanged || st.sig[id] !== sig) {
+      up.push({ ...row, done, gone: false, ...(pcChanged || (!s && done) ? { done_src: 'pc' } : {}) });
+      if (pcChanged) fromPc++;
+    }
+    st.sig[id] = sig;
+  }
+  // 쿨메신저 비서에서 없어진 항목은 '사라짐' 표시만 (파일을 잘못 읽어 비어 보일 때는 건너뛰어요)
+  if (seen.size || srv.size < 5) for (const [id, s] of srv) if (!seen.has(id) && !s.gone) { up.push({ id, gone: true }); delete st.sig[id]; }
+  if (fromApp) { // 앱에서 체크한 것 → done.json (쿨메신저 비서 창이 2초 안에 다시 읽어요)
+    const tmp = doneF + '.aiw.tmp';
+    fs.writeFileSync(tmp, JSON.stringify([...pc]), 'utf8');
+    fs.renameSync(tmp, doneF);
+  }
+  if (up.length) await B.coolUpsert(up);
+  st.base = base;
+  fs.writeFileSync(COOL_STATE, JSON.stringify(st));
+  if (up.length || fromApp) say(`📨 쿨메신저: 올림 ${up.length}개${fromPc ? ` (PC 체크 ${fromPc})` : ''}${fromApp ? ` · 앱 체크 ${fromApp}개를 쿨메신저 비서에 반영` : ''}`);
+  return (coolInfo = { n: seen.size, at: new Date().toISOString() });
+}
+
 /* ============ 시작 ============ */
 (async () => {
   console.log(`🖥️ AI 비서 PC 일꾼 v${VERSION}\n   이 검은 창을 닫으면 일꾼도 꺼져요. 일꾼이 여는 브라우저 창은 닫지 말고 그대로 두세요.`);
