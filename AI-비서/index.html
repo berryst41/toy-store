@@ -482,6 +482,21 @@ function renderBrief() {
   $('briefBox').style.opacity = owner ? 1 : .5;
 }
 $('bPush').onclick = subscribePush;
+// 대화로 브리핑 시각 바꾸기 ("브리핑 7시 반으로 바꿔 줘") — 서버에 저장된 걸 다시 읽어 확인해요
+async function setBrief(a) {
+  const cur = briefCfg(), off = a.mode === 'off';
+  const time = okTime(a.time) || cur.time || '07:30';
+  const nb = { on: !off, time };
+  ls.set('brief', JSON.stringify(nb)); renderBrief();
+  if (!owner) return `☀️ 아침 브리핑 ${off ? '끔' : time} — ⚠️ 로그인해야 알림이 와요`;
+  await pushProfile();
+  const { data } = await sb.from('ai_profile').select('settings').maybeSingle();
+  const sv = data?.settings?.brief, ok = sv && sv.on === nb.on && sv.time === nb.time;
+  if (!ok) return '⚠️ 아침 브리핑 설정을 서버에 저장하지 못했어요';
+  if (off) return '☀️ 아침 브리핑 알림을 껐어요 ✔️';
+  const pushed = ls.get('pushOn') && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  return `☀️ 아침 브리핑: 매일 ${time} ✔️${pushed ? '' : ' — 이 기기에서 알림을 받으려면 ⚙️ → [🔔 이 기기에서 알림 받기]를 한 번 눌러 주세요'}`;
+}
 $('bTest').onclick = async () => {
   if (!owner) return toast('먼저 위에서 로그인해 주세요');
   try { $('bTest').disabled = true; const r = await gcall('push_test'); toast(r.sent ? `📨 알림 ${r.sent}곳에 보냈어요` : '알림 받을 기기가 아직 없어요. [🔔 알림 받기]부터 눌러 주세요', 4500); }
