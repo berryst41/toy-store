@@ -1292,7 +1292,14 @@ function renderPlan() {
   }).join('');
 }
 $('pPlan').onclick = async e => {
-  const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev;
+  const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev, gtd = e.target.dataset.gtd;
+  if (gtd) {
+    const x = G.tasks.find(y => y.id === gtd); if (!x) return;
+    e.target.disabled = true;
+    try { const r = await gcall('gtask_done', { account: x.account, id: gtd }); G.tasks = G.tasks.filter(y => y.id !== gtd); gSave(); renderPlan(); toast(r.verified ? `✔️ 구글 할 일 끝냄: ${x.title}` : '체크했는데 확인은 못 했어요'); }
+    catch (err) { e.target.checked = false; e.target.disabled = false; toast('⚠️ ' + err.message, 4000); }
+    return;
+  }
   if (dg) {
     const ev = G.events.find(x => x.id === dg); if (!ev) return;
     if (!confirm(`구글 캘린더 [${ev.label}]에서 지울까요?\n${dLabel(ev.date)} ${ev.time || ''} ${ev.title}`)) return;
