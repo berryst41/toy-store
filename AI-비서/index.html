@@ -315,7 +315,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.6.2';
+const VERSION = '0.6.3';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
@@ -1285,12 +1285,13 @@ async function doAuth(signup) {
   const email = $('aEmail').value.trim(), password = $('aPw').value;
   if (!email || password.length < 6) return toast('이메일과 6자 이상 비밀번호를 넣어 주세요');
   $('aLogin').disabled = $('aSignup').disabled = true;
-  const { error } = signup ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+  const { data, error } = signup ? await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } }) : await sb.auth.signInWithPassword({ email, password });
   $('aLogin').disabled = $('aSignup').disabled = false;
   if (error) {
     const m = error.message || '';
-    return toast(/already registered/i.test(m) ? '이미 가입한 이메일이에요. [로그인]을 눌러 주세요' : /Invalid login/i.test(m) ? '이메일이나 비밀번호가 틀렸어요' : '로그인 실패: ' + m, 4500);
+    return toast(/already registered/i.test(m) ? '이미 가입한 이메일이에요. [로그인]을 눌러 주세요' : /not confirmed/i.test(m) ? '아직 메일 확인 전이에요. 메일함(스팸함도)에서 확인 링크를 누른 뒤 [로그인]을 눌러 주세요' : /rate limit/i.test(m) ? '메일을 너무 자주 보냈어요. 1시간쯤 뒤에 다시 해 주세요' : /Invalid login/i.test(m) ? '이메일이나 비밀번호가 틀렸어요' : '로그인 실패: ' + m, 4500);
   }
+  if (signup && !data?.session) return toast('가입 신청했어요! 📧 메일함(스팸함도)에서 확인 링크를 누른 뒤, 여기서 [로그인]을 눌러 주세요', 8000);
   $('aPw').value = ''; toast('로그인했어요. 폰·PC가 이제 저절로 맞춰져요');
 }
 $('aLogin').onclick = () => doAuth(false);
