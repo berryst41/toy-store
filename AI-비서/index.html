@@ -463,6 +463,121 @@ async function bumpUsage(limited) {
 $('usage').onclick = () => toast(usage.limited ? '오늘 무료 한도에 걸렸어요. 1분 뒤 다시 되거나, 내일 오후 5시(한국 시간)쯤 풀려요' : `오늘 AI를 ${usage.count}번 썼어요 (폰·PC 합계). 한도는 ⚙️에서 바꿀 수 있어요`, 4500);
 $('sync').onclick = () => { if (owner) { pushNow().then(pullNow); toast('지금 맞추는 중이에요'); } else openSet(); };
 
+/* ==========================================================
+   구글 계정 여러 개 (서버 함수 ai-google이 열쇠를 갖고 대신 불러요)
+   ========================================================== */
+const REDIRECT = location.origin + location.pathname;
+const LEVEL_TXT = { calendar: '📅 캘린더만', mail_read: '📬 캘린더+메일 읽기', mail_send: '✉️ 캘린더+메일 읽기·보내기' };
+const G_TYPES = new Set(['add_gcal_event', 'delete_gcal_event', 'send_mail']);
+let G = { configured: null, client_id: '', scopes: {}, accounts: [], events: [], mails: [], errors: [], at: 0 };
+try { Object.assign(G, JSON.parse(ls.get('gcache', '{}')), { at: 0 }); } catch (e) {}
+async function gcall(action, extra = {}) {
+  if (!sb) throw new Error('서버에 연결할 수 없어요');
+  const { data, error } = await sb.functions.invoke('ai-google', { body: { action, ...extra } });
+  if (error) { let m = error.message; try { const j = await error.context.json(); m = j.error || m; } catch (e) {} throw new Error(m === 'not_configured' ? '구글 연결 준비가 아직 안 됐어요' : m); }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+async function gConfig() {
+  if (G.configured !== null || !sb) return;
+  try { const d = await gcall('config'); G.configured = d.configured; G.client_id = d.client_id; G.scopes = d.scopes; } catch (e) {}
+}
+const gSave = () => ls.set('gcache', JSON.stringify({ accounts: G.accounts, events: G.events, mails: G.mails }));
+async function gRefresh(force) {
+  if (!owner || !G.configured) return;
+  if (!force && Date.now() - G.at < 180000) return;
+  try {
+    const d = await gcall('context', { from: addDays(today(), -1), to: addDays(today(), 45), max: 10 });
+    Object.assign(G, { accounts: d.accounts, events: d.events, mails: d.mails, errors: d.errors || [], at: Date.now() });
+    gSave(); refreshAll(); renderG();
+  } catch (e) { G.errors = [e.message]; }
+}
+function acctOf(k, need) {
+  const ok = a => !need || (need === 'mail_send' ? a.level === 'mail_send' : true);
+  const q = String(k || '').trim().toLowerCase(), list = G.accounts.filter(ok);
+  return (q && list.find(a => a.id === k || a.email.toLowerCase() === q || (a.label || '').toLowerCase() === q)) || list.find(a => a.is_default) || list[0] || null;
+}
+const aName = a => a ? `${a.label || a.email.split('@')[0]}` : '?';
+const dotH = c => `<span class="dot" style="background:${esc(c || '#ccc')}"></span>`;
+function renderG() {
+  const el = $('gList'); if (!el) return;
+  if (!owner) { el.innerHTML = '<div class="hint">먼저 위에서 로그인하면 구글 계정을 연결할 수 있어요.</div>'; $('gAdd').style.display = 'none'; return; }
+  $('gAdd').style.display = '';
+  if (G.configured === false) $('gHint').innerHTML = '⚠️ <b>구글 연결 준비가 아직 안 됐어요.</b> 처음 한 번 구글 클라우드 설정이 필요해요(<code>AI-비서/구글연결-설정.md</code> 참고). 준비되면 이 버튼으로 바로 연결돼요.';
+  el.innerHTML = G.accounts.length ? G.accounts.map(a => `<div class="ga">${dotH(a.color)}<div class="t"><b>${esc(aName(a))}</b>${a.is_default ? ' ⭐' : ''}<small>${esc(a.email)} · ${LEVEL_TXT[a.level] || a.level}</small></div>${a.is_default ? '' : `<button data-gdef="${a.id}">⭐ 기본</button>`}<button data-gdel="${a.id}">끊기</button></div>`).join('')
+    : '<div class="hint">아직 연결한 구글 계정이 없어요.</div>';
+  // 일정 넣을 곳 고르기
+  const sel = $('evWhere'), cur = sel.value;
+  sel.innerHTML = '<option value="">📱 AI 비서</option>' + G.accounts.map(a => `<option value="${a.id}">📅 ${esc(aName(a))}</option>`).join('');
+  sel.value = G.accounts.some(a => a.id === cur) ? cur : '';
+}
+$('gList').onclick = async e => {
+  const def = e.target.dataset.gdef, del = e.target.dataset.gdel;
+  try {
+    if (def) { await gcall('update', { id: def, is_default: true }); G.accounts.forEach(a => a.is_default = a.id === def); toast('기본 계정으로 정했어요'); }
+    else if (del) {
+      const a = G.accounts.find(x => x.id === del);
+      if (!confirm(`${aName(a)} (${a.email}) 연결을 끊을까요? 구글에 준 허락도 같이 거둬요.`)) return;
+      await gcall('remove', { id: del }); G.accounts = G.accounts.filter(x => x.id !== del); G.events = G.events.filter(x => x.account !== del); G.mails = G.mails.filter(x => x.account !== del); toast('연결을 끊었어요');
+    } else return;
+    gSave(); renderG(); refreshAll();
+  } catch (err) { toast('⚠️ ' + err.message, 4000); }
+};
+$('gConnect').onclick = async () => {
+  if (!owner) return toast('먼저 위에서 로그인해 주세요');
+  await gConfig();
+  if (!G.configured) { renderG(); return toast('구글 연결 준비가 아직 안 됐어요 (처음 한 번 설정 필요)', 4500); }
+  const level = $('gLevel').value, state = uid('s');
+  ls.set('gstate', JSON.stringify({ state, level, label: $('gLabel').value.trim(), color: $('gColor').value }));
+  const p = new URLSearchParams({ client_id: G.client_id, redirect_uri: REDIRECT, response_type: 'code', access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'false', scope: ['openid', 'email', ...(G.scopes[level] || [])].join(' '), state });
+  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + p;
+};
+// 구글에서 돌아왔을 때 (?code=…&state=…)
+const OAUTH = (() => { const q = new URLSearchParams(location.search); if (!q.get('state') || !(q.get('code') || q.get('error'))) return null; history.replaceState(null, '', location.pathname); return { code: q.get('code'), state: q.get('state'), error: q.get('error') }; })();
+async function finishOAuth() {
+  if (!OAUTH || !owner) return;
+  let st = {}; try { st = JSON.parse(ls.get('gstate', '{}')); } catch (e) {}
+  ls.del('gstate');
+  if (OAUTH.error) return toast('구글 연결을 취소했어요');
+  if (st.state !== OAUTH.state) return toast('⚠️ 연결 요청이 맞지 않아요. 다시 해 주세요', 4000);
+  try {
+    toast('구글 계정 연결하는 중…', 8000);
+    const d = await gcall('exchange', { code: OAUTH.code, redirect_uri: REDIRECT, label: st.label, color: st.color, level: st.level });
+    G.accounts = d.accounts; gSave(); renderG();
+    toast(`✅ ${d.email} 연결했어요${d.level !== d.asked ? ' (구글에서 일부 허락만 받았어요: ' + LEVEL_TXT[d.level] + ')' : ''}`, 5000);
+    gRefresh(true);
+  } catch (e) { toast('⚠️ 연결 실패: ' + e.message, 6000); }
+}
+
+/* ---------- 메일 화면 ---------- */
+const fmtWhen = iso => { const d = new Date(iso); return ymd(d) === today() ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : `${d.getMonth() + 1}/${d.getDate()}`; };
+const fromName = f => (f || '').replace(/<.*>/, '').replace(/"/g, '').trim() || f;
+let openMail = null;
+function renderMail() {
+  const box = $('mailList');
+  if (!owner) { box.innerHTML = '<div class="box"><div class="none">⚙️ 설정에서 로그인하고 구글 계정을 연결하면 메일이 여기 모여요</div></div>'; return; }
+  if (!G.accounts.some(a => a.level !== 'calendar')) { box.innerHTML = '<div class="box"><div class="none">메일 읽기를 허락한 구글 계정이 없어요.<br>⚙️ 설정 → 구글 계정 더하기에서 "메일 읽기"로 연결해 주세요</div></div>'; return; }
+  const err = G.errors.length ? `<div class="hint" style="color:var(--warn)">⚠️ ${esc(G.errors.join(' / '))}</div>` : '';
+  box.innerHTML = err + (G.mails.length ? G.mails.map(m => `<div class="mail ${m.unread ? 'unread' : ''}" data-mid="${m.id}" data-acc="${m.account}">
+    <div class="f">${dotH(m.color)}<span>${esc(fromName(m.from))}</span><span class="tag">${esc(m.label)} · ${fmtWhen(m.date)}</span></div>
+    <div class="s">${esc(m.subject || '(제목 없음)')}</div><div class="p">${esc(m.snippet)}</div>
+    ${openMail?.id === m.id ? `<div class="body">${openMail.text == null ? '불러오는 중…' : esc(openMail.text)}</div><div class="btns" style="margin-top:8px"><button class="g" data-msum="1">🤖 요약</button><button class="g" data-mreply="1">✍️ 답장 쓰기</button></div>` : ''}
+  </div>`).join('') : '<div class="box"><div class="none">최근 3일 받은 메일이 없어요</div></div>');
+}
+$('mailList').onclick = async e => {
+  const card = e.target.closest('.mail'); if (!card) return;
+  const m = G.mails.find(x => x.id === card.dataset.mid);
+  const ask = (q) => { document.querySelector('nav button[data-p=pChat]').click(); send(`${q}\n\n[메일] 계정: ${m.label} / 보낸 사람: ${m.from} / 제목: ${m.subject}\n${(openMail?.text || m.snippet).slice(0, 4000)}`); };
+  if (e.target.dataset.msum) return ask('이 메일을 짧게 요약해 줘. 내가 할 일·마감이 있으면 따로 뽑아 주고, 일정이 있으면 캘린더에 넣을지 물어봐 줘.');
+  if (e.target.dataset.mreply) return ask(`이 메일에 보낼 답장 초안을 써 줘. 받는 사람은 보낸 사람 주소, 보내는 계정은 "${m.label}". 초안을 보여 주고 send_mail로 [허락] 카드를 만들어 줘.`);
+  if (openMail?.id === m.id) { openMail = null; return renderMail(); }
+  openMail = { id: m.id, text: null }; renderMail();
+  try { const d = await gcall('mail_read', { account: m.account, id: m.id }); if (openMail?.id === m.id) openMail.text = d.text || '(본문 없음)'; }
+  catch (err) { if (openMail?.id === m.id) openMail.text = '⚠️ ' + err.message; }
+  renderMail();
+};
+$('mailRefresh').onclick = async () => { toast('메일 새로 받는 중…'); await gRefresh(true); renderMail(); };
+
 /* ---------- 탭 ---------- */
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
