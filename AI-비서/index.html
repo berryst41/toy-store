@@ -646,6 +646,10 @@ function suggestions() {
   if (dueT.length) out.push([`⏰ 오늘 마감 ${dueT.length}개`, '오늘 마감인 할 일을 보여 주고, 지금부터 어떤 순서로 하면 좋을지 시간표처럼 짜 줘.']);
   if (evT.length) out.push([`📅 오늘 남은 일정 ${evT.length}개`, '오늘 남은 일정을 정리해 주고, 각각 미리 챙길 것(준비물·자료)이 있으면 알려 줘.']);
   if (dueTm.length || evTm.length) out.push([`🌙 내일 준비 (${evTm.length + dueTm.length}개)`, '내일 일정과 내일 마감 할 일을 보고, 오늘 미리 준비할 것을 체크리스트로 만들어 줘. 필요하면 할 일로 넣어 줘.']);
+  const coolTd = coolOpen().filter(x => x.kind === 'todo'), coolSoon = coolTd.filter(x => x.due && x.due <= tm);
+  if (coolSoon.length) out.push([`📨 쿨메신저 마감 ${coolSoon.length}개`, '쿨메신저 할 일 중 마감이 지났거나 오늘·내일인 것을 보여 주고, 무엇부터 할지 정해 줘. 이미 끝낸 게 있으면 말할 테니 체크해 줘.']);
+  else if (coolTd.length >= 3) out.push([`📨 쿨메신저 할 일 ${coolTd.length}개 정리`, '쿨메신저 할 일을 마감 순서로 정리해 주고, 이번 주에 할 것을 골라 줘.']);
+  if (!briefCfg().on) out.push(['☀️ 아침 브리핑 받기', '아침 브리핑 알림을 받고 싶어. 몇 시에 받을지 물어봐 줘.']);
   if (unread) out.push([`📬 안 읽은 메일 ${unread}통 요약`, '안 읽은 메일을 중요한 순서로 요약해 줘. 답장이 필요한 것과 일정·마감이 있는 것을 먼저 알려 줘.']);
   if (!S.memos.length) out.push(['📒 나에 대해 알려 주기', '나를 더 잘 도와줄 수 있게 나에 대해 물어볼 것 5가지를 하나씩 물어봐 줘. 대답하면 기억해 줘.']);
   return out.slice(0, 4);
