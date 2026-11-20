@@ -752,8 +752,10 @@ const REDIRECT = location.origin + location.pathname;
 let START_TAB = new URLSearchParams(location.search).get('tab') === 'work' ? 'pWork' : '';
 if (START_TAB) history.replaceState(null, '', location.pathname);
 const LEVEL_TXT = { calendar: '📅 캘린더만', mail_read: '📬 캘린더+메일 읽기', mail_send: '✉️ 캘린더+메일 읽기·보내기' };
-const G_TYPES = new Set(['add_gcal_event', 'delete_gcal_event', 'send_mail', 'do_on_site']); // [허락] 뒤 비동기로 하는 일
-let G = { configured: null, client_id: '', scopes: {}, accounts: [], events: [], mails: [], errors: [], at: 0 };
+const G_TYPES = new Set(['add_gcal_event', 'delete_gcal_event', 'send_mail', 'do_on_site', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc']); // [허락] 뒤 비동기로 하는 일
+const CAP_TXT = { tasks: '할 일', drive: '드라이브', sheets: '시트', forms: '설문', youtube: '유튜브', make: '새 문서' };
+const capTxt = a => { const c = Object.keys(CAP_TXT).filter(k => a.caps?.[k]); return c.length ? ' · 📁 ' + c.map(k => CAP_TXT[k]).join('·') : ''; };
+let G = { configured: null, client_id: '', scopes: {}, accounts: [], events: [], mails: [], tasks: [], errors: [], at: 0 };
 try { Object.assign(G, JSON.parse(ls.get('gcache', '{}')), { at: 0 }); } catch (e) {}
 async function gcall(action, extra = {}) {
   if (!sb) throw new Error('서버에 연결할 수 없어요');
@@ -766,7 +768,7 @@ async function gConfig() {
   if (G.configured !== null || !sb) return;
   try { const d = await gcall('config'); G.configured = d.configured; G.client_id = d.client_id; G.scopes = d.scopes; } catch (e) {}
 }
-const gSave = () => ls.set('gcache', JSON.stringify({ accounts: G.accounts, events: G.events, mails: G.mails }));
+const gSave = () => ls.set('gcache', JSON.stringify({ accounts: G.accounts, events: G.events, mails: G.mails, tasks: G.tasks }));
 async function gRefresh(force) {
   if (!owner || !G.configured) return;
   if (!force && Date.now() - G.at < 180000) return;
