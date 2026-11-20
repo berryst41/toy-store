@@ -26,7 +26,7 @@ const SCOPES: Record<string, string[]> = {
 };
 
 /* ---------- 잠그기 / 풀기 ---------- */
-const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
+const b64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s); };
 const unb64 = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 let keyP: Promise<CryptoKey> | null = null;
 const aesKey = () => keyP ??= crypto.subtle.importKey('raw', unb64(TKEY), 'AES-GCM', false, ['encrypt', 'decrypt']);
@@ -147,7 +147,7 @@ Deno.serve(async req => {
 
     const { data: rows } = await admin.from('ai_google_accounts').select('*').eq('user_id', user.id).order('created_at');
     const accts = (rows || []) as Acct[];
-    const pick = (id?: string) => accts.find(a => a.id === id) || accts.find(a => a.is_default) || accts[0];
+    const pick = (k?: string) => { const q = (k || '').trim().toLowerCase(); return (q && accts.find(a => a.id === k || a.email.toLowerCase() === q || a.label.toLowerCase() === q)) || accts.find(a => a.is_default) || accts[0]; };
 
     if (act === 'list') return json({ accounts: accts.map(pub) });
 
