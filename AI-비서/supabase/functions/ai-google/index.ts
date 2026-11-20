@@ -1,5 +1,6 @@
 // AI 비서 — 구글 계정 여러 개 연결 + 캘린더 + 지메일 (Supabase Edge Function, 프로젝트 couple)
-// 비밀값(코드에 없음, Supabase 비밀 설정에만): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AI_TOKEN_KEY(32바이트 base64)
+// 비밀값(코드에 없음, Supabase 비밀 설정에만): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+// (선택) AI_TOKEN_KEY(32바이트 base64). 없으면 서버 비밀키(service role)에서 잠금 열쇠를 만들어요 — 그 키를 바꾸면 구글 계정을 다시 연결해야 해요.
 // 구글 열쇠(refresh token)는 AES-GCM으로 잠가서 ai_google_accounts.token_enc에 두고, 브라우저로는 절대 내보내지 않아요.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
@@ -29,7 +30,7 @@ const SCOPES: Record<string, string[]> = {
 const b64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s); };
 const unb64 = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 let keyP: Promise<CryptoKey> | null = null;
-const aesKey = () => keyP ??= crypto.subtle.importKey('raw', unb64(TKEY), 'AES-GCM', false, ['encrypt', 'decrypt']);
+const aesKey = () => keyP ??= (async () => crypto.subtle.importKey('raw', TKEY ? unb64(TKEY) : new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(SB_SERVICE + ':ai-google-tokens'))), 'AES-GCM', false, ['encrypt', 'decrypt']))();
 async function seal(text: string) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(), new TextEncoder().encode(text)));
@@ -134,7 +135,7 @@ Deno.serve(async req => {
   try {
     const body = await req.json().catch(() => ({}));
     const act = body.action as string;
-    if (act === 'config') return json({ configured: !!(CID && CSECRET && TKEY), client_id: CID, scopes: SCOPES });
+    if (act === 'config') return json({ configured: !!(CID && CSECRET), client_id: CID, scopes: SCOPES });
 
     // 로그인한 주인만
     const auth = req.headers.get('Authorization') || '';
@@ -143,7 +144,7 @@ Deno.serve(async req => {
     if (!user) return json({ error: '로그인이 필요해요' }, 401);
     const { data: isOwner } = await userDb.rpc('ai_is_owner');
     if (!isOwner) return json({ error: '이 AI 비서의 주인만 쓸 수 있어요' }, 403);
-    if (!(CID && CSECRET && TKEY)) return json({ error: 'not_configured' }, 400);
+    if (!(CID && CSECRET)) return json({ error: 'not_configured' }, 400);
 
     const { data: rows } = await admin.from('ai_google_accounts').select('*').eq('user_id', user.id).order('created_at');
     const accts = (rows || []) as Acct[];
