@@ -116,7 +116,7 @@ async function browser() {
   const { chromium } = require('playwright-core');
   const dir = path.join(HOME, 'browser');
   const opts = { headless: !!TEST, viewport: TEST ? { width: 1100, height: 800 } : null, args: TEST ? [] : ['--start-maximized'] };
-  for (const channel of TEST ? [undefined] : ['chrome', 'msedge']) {
+  for (const channel of ['chrome', 'msedge']) {
     try { ctx = await chromium.launchPersistentContext(dir, { ...opts, channel }); break; } catch (e) { say('브라우저 열기 실패', channel, e.message.split('\n')[0]); }
   }
   if (!ctx) throw new Error('크롬이나 엣지를 열 수 없어요. 크롬을 설치해 주세요');
@@ -166,7 +166,7 @@ async function permission(t, why, action, img) {
 }
 
 async function runWatch(t) {
-  const s = t.spec || {}, every = Math.max(30, +s.every || 60) * 1000, until = Date.now() + Math.min(24, +s.hours || 6) * 3600e3;
+  const s = t.spec || {}, every = Math.max(TEST ? 1 : 30, +s.every || 60) * 1000, until = Date.now() + Math.min(24, +s.hours || 6) * 3600e3;
   const want = String(s.text || '').trim();
   if (!s.url || !want) { await B.update(t.id, { status: 'failed', step: '주소나 찾을 글자가 없어요' }); return; }
   await B.update(t.id, { status: 'running' });
