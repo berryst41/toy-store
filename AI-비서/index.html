@@ -265,7 +265,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
     </select>
     <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin-top:8px"><input type="checkbox" id="gExtra" checked style="width:auto;margin:0"> 📁 구글 할 일·드라이브·시트·설문·새 문서 만들기도</label>
     <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin-top:4px"><input type="checkbox" id="gYt" checked style="width:auto;margin:0"> ▶️ 유튜브 영상 찾기도 <small style="color:var(--sub)">(구글이 "같이 요청할 수 없다"고 막으면 이걸 끄고 다시)</small></label>
-    <div class="btns" style="margin-top:8px"><button class="p" id="gConnect">＋ 구글 계정 더하기</button></div>
+    <div class="btns" style="margin-top:8px"><button class="p" id="gConnect">＋ 구글 계정 더하기</button><button class="g" id="gEditCancel" style="display:none">취소</button></div>
     <div class="hint" id="gHint">구글 화면이 열리면 연결할 계정을 고르고 허락해 주세요. 끝나면 이 앱으로 돌아와요. 열쇠는 서버에 잠가서 두고, 이 화면이나 GitHub에는 나오지 않아요. 넣기·지우기·보내기는 언제나 [허락]을 받은 뒤에만 해요.</div>
   </div>
 
@@ -827,9 +827,13 @@ $('gConnect').onclick = async () => {
   if (!owner) return toast('먼저 위에서 로그인해 주세요');
   await gConfig();
   if (!G.configured) { renderG(); return toast('구글 연결 준비가 아직 안 됐어요 (처음 한 번 설정 필요)', 4500); }
-  const level = $('gLevel').value, state = uid('s');
+  const level = $('gLevel').value, state = uid('s'), ed = G.accounts.find(x => x.id === gEdit);
+  if (ed) { // 이름표·색만 바뀌었으면 구글에 다시 안 가요
+    if (ed.label !== $('gLabel').value.trim() || ed.color !== $('gColor').value) { try { await gcall('update', { id: ed.id, label: $('gLabel').value.trim(), color: $('gColor').value }); } catch (e) {} }
+  }
   ls.set('gstate', JSON.stringify({ state, level, label: $('gLabel').value.trim(), color: $('gColor').value }));
-  const p = new URLSearchParams({ client_id: G.client_id, redirect_uri: REDIRECT, response_type: 'code', access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'false', scope: ['openid', 'email', ...(G.scopes[level] || []), ...($('gExtra').checked ? G.scopes.extra || [] : []), ...($('gYt').checked ? G.scopes.youtube || [] : [])].join(' '), state });
+  // 범위를 바꿀 때는 그 계정으로 바로(login_hint). 새로 받은 허락만 쓰고, 빠진 기능은 앱에서 꺼져요.
+  const p = new URLSearchParams({ client_id: G.client_id, redirect_uri: REDIRECT, response_type: 'code', access_type: 'offline', prompt: ed ? 'consent' : 'consent select_account', include_granted_scopes: 'false', scope: ['openid', 'email', ...(G.scopes[level] || []), ...($('gExtra').checked ? G.scopes.extra || [] : []), ...($('gYt').checked ? G.scopes.youtube || [] : [])].join(' '), state, ...(ed ? { login_hint: ed.email } : {}) });
   location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + p;
 };
 // 구글에서 돌아왔을 때 (?code=…&state=…)
