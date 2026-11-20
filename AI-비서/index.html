@@ -1284,6 +1284,12 @@ function renderPlan() {
     const late = !x.done && x.due && x.due < t;
     return `<div class="row ${x.done ? 'done' : ''}"><input type="checkbox" data-chk="${x.id}" ${x.done ? 'checked' : ''}><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small style="${late ? 'color:var(--warn);font-weight:700' : ''}">~ ${dLabel(x.due)}${late ? ' · 마감 지남' : ''}</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
   }).join('') : '<div class="none">할 일이 없어요 🎉</div>';
+  // ☑️ 구글 할 일 (연결한 계정에 '할 일' 허락이 있을 때)
+  const gt = [...G.tasks].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+  if (gt.length) $('tdList').innerHTML += gt.map(x => {
+    const late = x.due && x.due < t;
+    return `<div class="row"><input type="checkbox" data-gtd="${esc(x.id)}"><div class="t"><div>${esc(x.title)}</div><small>${dotH(x.color)}☑️ ${esc(x.label)}${x.due ? ` · <span style="${late ? 'color:var(--warn);font-weight:700' : ''}">~ ${dLabel(x.due)}${late ? ' · 마감 지남' : ''}</span>` : ''}</small></div></div>`;
+  }).join('');
 }
 $('pPlan').onclick = async e => {
   const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev;
