@@ -36,3 +36,4 @@
 - 2026-11-20 22:40 · AI 비서 v0.7.0: 이름 AI berryst(설치 이름 AI 딸기), 구글 할 일·드라이브·시트·설문·유튜브·새 문서(ai-google v6 배포, ai_google_accounts.scopes 칸 추가)
 - 2026-11-20 23:25 · AI 비서 v0.7.1: 딸기 로봇 아이콘(icon.svg→png), drive.file+youtube 동시 요청 막힘 → documents 허락·유튜브 따로 체크 (ai-google 재배포)
 - 2026-11-20 23:45 · AI 비서: 구글 앱 게시용 개인정보처리방침 페이지 ai/privacy.html 추가
+- 2026-11-21 00:20 · AI 비서 v0.7.2: 구글 계정 [🔧 범위] 버튼(login_hint로 같은 계정 다시 허락, 이름표·색 바꾸기)
