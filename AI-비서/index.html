@@ -802,6 +802,8 @@ function renderG() {
   sel.innerHTML = '<option value="">📱 AI 비서</option>' + G.accounts.map(a => `<option value="${a.id}">📅 ${esc(aName(a))}</option>`).join('');
   sel.value = G.accounts.some(a => a.id === cur) ? cur : '';
 }
+let gEdit = ''; // 🔧 범위를 바꾸는 중인 계정 id
+$('gEditCancel').onclick = () => { gEdit = ''; $('gConnect').textContent = '＋ 구글 계정 더하기'; $('gEditCancel').style.display = 'none'; $('gLabel').value = ''; };
 $('gList').onclick = async e => {
   const def = e.target.dataset.gdef, del = e.target.dataset.gdel, edit = e.target.dataset.gedit;
   if (edit) { // 🔧 범위 바꾸기: 아래 칸을 이 계정 값으로 채우고, 버튼을 "범위 바꾸기"로
