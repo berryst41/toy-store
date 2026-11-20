@@ -26,7 +26,7 @@ const SCOPES: Record<string, string[]> = {
   mail_read: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly'],
   mail_send: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
   // v0.7: 체크하면 위에 더해서 받는 허락 (구글 할 일·드라이브·시트·설문·유튜브·새 문서 만들기)
-  extra: ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/forms.body.readonly', 'https://www.googleapis.com/auth/forms.responses.readonly', 'https://www.googleapis.com/auth/youtube.readonly']
+  extra: ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/forms.body.readonly', 'https://www.googleapis.com/auth/forms.responses.readonly', 'https://www.googleapis.com/auth/youtube.readonly']
 };
 
 /* ---------- 잠그기 / 풀기 ---------- */
@@ -66,7 +66,7 @@ async function g(a: Acct, url: string, init: RequestInit = {}) {
   return d;
 }
 const has = (a: Acct, sc: string) => (a.scopes || '').split(' ').some(x => x === 'https://www.googleapis.com/auth/' + sc);
-const caps = (a: Acct) => ({ tasks: has(a, 'tasks'), drive: has(a, 'drive.readonly'), make: has(a, 'drive.file'), sheets: has(a, 'spreadsheets'), forms: has(a, 'forms.responses.readonly'), youtube: has(a, 'youtube.readonly') });
+const caps = (a: Acct) => ({ tasks: has(a, 'tasks'), drive: has(a, 'drive.readonly'), make: has(a, 'documents'), sheets: has(a, 'spreadsheets'), forms: has(a, 'forms.responses.readonly'), youtube: has(a, 'youtube.readonly') });
 type Cap = keyof ReturnType<typeof caps>;
 const pub = (a: Acct) => ({ id: a.id, email: a.email, label: a.label, color: a.color, level: a.level, is_default: a.is_default, caps: caps(a) });
 const canMail = (a: Acct) => a.level === 'mail_read' || a.level === 'mail_send';
