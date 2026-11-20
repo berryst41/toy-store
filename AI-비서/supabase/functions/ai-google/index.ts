@@ -1,4 +1,4 @@
-// AI 비서 — 구글 계정 여러 개 연결 + 캘린더 + 지메일 (Supabase Edge Function, 프로젝트 couple)
+// AI 비서 — 구글 계정 여러 개 연결 + 캘린더 + 지메일 + (v0.7) 구글 할 일·드라이브·시트·설문·유튜브·새 문서 (Supabase Edge Function, 프로젝트 couple)
 // 비밀값(코드에 없음, Supabase 비밀 설정에만): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 // (선택) AI_TOKEN_KEY(32바이트 base64). 없으면 서버 비밀키(service role)에서 잠금 열쇠를 만들어요 — 그 키를 바꾸면 구글 계정을 다시 연결해야 해요.
 // 구글 열쇠(refresh token)는 AES-GCM으로 잠가서 ai_google_accounts.token_enc에 두고, 브라우저로는 절대 내보내지 않아요.
@@ -24,7 +24,9 @@ const TZ = 'Asia/Seoul';
 const SCOPES: Record<string, string[]> = {
   calendar: ['https://www.googleapis.com/auth/calendar.events'],
   mail_read: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly'],
-  mail_send: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
+  mail_send: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
+  // v0.7: 체크하면 위에 더해서 받는 허락 (구글 할 일·드라이브·시트·설문·유튜브·새 문서 만들기)
+  extra: ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/forms.body.readonly', 'https://www.googleapis.com/auth/forms.responses.readonly', 'https://www.googleapis.com/auth/youtube.readonly']
 };
 
 /* ---------- 잠그기 / 풀기 ---------- */
@@ -49,7 +51,7 @@ async function tokenCall(params: Record<string, string>) {
   if (!r.ok) throw new Error('google_token: ' + (d.error_description || d.error || r.status));
   return d;
 }
-type Acct = { id: string; email: string; label: string; color: string; level: string; token_enc: string; is_default: boolean };
+type Acct = { id: string; email: string; label: string; color: string; level: string; token_enc: string; is_default: boolean; scopes?: string };
 const access = new Map<string, string>();
 async function at(a: Acct) {
   if (access.has(a.id)) return access.get(a.id)!;
@@ -63,8 +65,104 @@ async function g(a: Acct, url: string, init: RequestInit = {}) {
   if (!r.ok) throw new Error(`google ${r.status}: ${d.error?.message || ''}`.slice(0, 200));
   return d;
 }
-const pub = (a: Acct) => ({ id: a.id, email: a.email, label: a.label, color: a.color, level: a.level, is_default: a.is_default });
+const has = (a: Acct, sc: string) => (a.scopes || '').split(' ').some(x => x === 'https://www.googleapis.com/auth/' + sc);
+const caps = (a: Acct) => ({ tasks: has(a, 'tasks'), drive: has(a, 'drive.readonly'), make: has(a, 'drive.file'), sheets: has(a, 'spreadsheets'), forms: has(a, 'forms.responses.readonly'), youtube: has(a, 'youtube.readonly') });
+type Cap = keyof ReturnType<typeof caps>;
+const pub = (a: Acct) => ({ id: a.id, email: a.email, label: a.label, color: a.color, level: a.level, is_default: a.is_default, caps: caps(a) });
 const canMail = (a: Acct) => a.level === 'mail_read' || a.level === 'mail_send';
+
+/* ---------- 구글 할 일 (Tasks) ---------- */
+const TK = 'https://tasks.googleapis.com/tasks/v1/lists/@default/tasks';
+async function taskList(a: Acct) {
+  const d = await g(a, TK + '?' + new URLSearchParams({ showCompleted: 'false', showHidden: 'false', maxResults: '100' }));
+  return (d.items || []).filter((t: any) => t.title).map((t: any) => ({ id: t.id, account: a.id, label: a.label || a.email, color: a.color, title: t.title, due: (t.due || '').slice(0, 10), notes: (t.notes || '').slice(0, 200) }));
+}
+async function taskAdd(a: Acct, title: string, due: string) {
+  const body: any = { title: String(title || '').slice(0, 200) };
+  if (/^\d{4}-\d{2}-\d{2}$/.test(due || '')) body.due = due + 'T00:00:00.000Z';
+  const t = await g(a, TK, { method: 'POST', body: JSON.stringify(body) });
+  const back = await g(a, `${TK}/${encodeURIComponent(t.id)}`).catch(() => null);
+  return { id: t.id, verified: !!back && back.title === body.title };
+}
+async function taskDone(a: Acct, id: string) {
+  await g(a, `${TK}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ status: 'completed' }) });
+  const back = await g(a, `${TK}/${encodeURIComponent(id)}`).catch(() => null);
+  return { verified: back?.status === 'completed' };
+}
+
+/* ---------- 드라이브·문서·시트·설문·유튜브 ---------- */
+const KIND: Record<string, string> = { 'application/vnd.google-apps.document': '문서', 'application/vnd.google-apps.spreadsheet': '시트', 'application/vnd.google-apps.presentation': '슬라이드', 'application/vnd.google-apps.form': '설문', 'application/vnd.google-apps.folder': '폴더', 'application/pdf': 'PDF' };
+const fileId = (s: string) => (String(s || '').match(/\/d\/([\w-]{20,})/) || [])[1] || (String(s || '').match(/[?&]id=([\w-]{20,})/) || [])[1] || String(s || '').trim();
+async function gText(a: Acct, url: string) {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + await at(a) } });
+  if (!r.ok) throw new Error(`google ${r.status}: ${(await r.text()).slice(0, 150)}`);
+  return await r.text();
+}
+async function driveFind(a: Acct, q: string, max = 8) {
+  const w = String(q || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").trim();
+  const p: Record<string, string> = { pageSize: String(max), fields: 'files(id,name,mimeType,modifiedTime,webViewLink)', q: w ? `(name contains '${w}' or fullText contains '${w}') and trashed = false` : 'trashed = false' };
+  if (!w) p.orderBy = 'modifiedTime desc';
+  const d = await g(a, 'https://www.googleapis.com/drive/v3/files?' + new URLSearchParams(p));
+  return (d.files || []).map((x: any) => ({ id: x.id, account: a.id, label: a.label || a.email, name: x.name, kind: KIND[x.mimeType] || '파일', modified: (x.modifiedTime || '').slice(0, 10), link: x.webViewLink || '' }));
+}
+async function formRead(a: Acct, id: string) {
+  const f = await g(a, `https://forms.googleapis.com/v1/forms/${encodeURIComponent(id)}`);
+  const qs: [string, string][] = [];
+  for (const it of f.items || []) {
+    const qid = it.questionItem?.question?.questionId; if (qid) qs.push([qid, it.title || '(질문)']);
+    for (const q of it.questionGroupItem?.questions || []) qs.push([q.questionId, `${it.title || ''} - ${q.rowQuestion?.title || ''}`]);
+  }
+  const r = await g(a, `https://forms.googleapis.com/v1/forms/${encodeURIComponent(id)}/responses?pageSize=1000`);
+  const resp = r.responses || [], vals: Record<string, string[]> = {};
+  for (const x of resp) for (const [qid, ans] of Object.entries<any>(x.answers || {})) (vals[qid] ??= []).push(...(ans.textAnswers?.answers || []).map((y: any) => String(y.value)));
+  let out = `설문 "${f.info?.title || ''}" — 응답 ${resp.length}개\n`;
+  for (const [qid, title] of qs) {
+    const v = vals[qid] || [], cnt = new Map<string, number>(); v.forEach(x => cnt.set(x, (cnt.get(x) || 0) + 1));
+    out += `\n■ ${title} (${v.length}개 답)\n` + (cnt.size <= 15 ? [...cnt].sort((p, q) => q[1] - p[1]).map(([k, n]) => `- ${k}: ${n}명`).join('\n') : v.slice(0, 40).map(x => '- ' + x.slice(0, 200)).join('\n'));
+  }
+  return out;
+}
+async function fileRead(a: Acct, raw: string) {
+  const id = fileId(raw);
+  const f = await g(a, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=id,name,mimeType,webViewLink`);
+  const m = f.mimeType as string, base = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`;
+  let text = '';
+  if (m === 'application/vnd.google-apps.document' || m === 'application/vnd.google-apps.presentation') text = await gText(a, base + '/export?mimeType=text/plain');
+  else if (m === 'application/vnd.google-apps.spreadsheet') {
+    if (has(a, 'spreadsheets')) {
+      const meta = await g(a, `https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties.title`);
+      for (const sh of (meta.sheets || []).slice(0, 5)) {
+        const t = sh.properties.title as string;
+        const v = await g(a, `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${t.replace(/'/g, "''")}'!A1:Z300`)}`);
+        text += `## 탭: ${t}\n` + (v.values || []).map((r: string[]) => r.join(' | ')).join('\n') + '\n\n';
+      }
+    } else text = await gText(a, base + '/export?mimeType=text/csv');
+  } else if (m === 'application/vnd.google-apps.form') text = has(a, 'forms.responses.readonly') ? await formRead(a, id) : '(설문 결과를 읽는 허락이 없어요)';
+  else if (/^text\/|json|csv|xml/.test(m)) text = await gText(a, base + '?alt=media');
+  else text = `(이 파일 종류(${KIND[m] || m})는 내용을 읽을 수 없어요. 파일을 받아서 📎로 붙여 주면 읽을 수 있어요)`;
+  return { id, name: f.name, kind: KIND[m] || '파일', link: f.webViewLink || '', text: text.slice(0, 15000), cut: text.length > 15000 };
+}
+const unent = (s: string) => String(s || '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+async function ytFind(a: Acct, q: string) {
+  const d = await g(a, 'https://www.googleapis.com/youtube/v3/search?' + new URLSearchParams({ part: 'snippet', q: String(q || '').slice(0, 100), type: 'video', maxResults: '6', regionCode: 'KR', relevanceLanguage: 'ko', safeSearch: 'moderate' }));
+  return (d.items || []).filter((v: any) => v.id?.videoId).map((v: any) => ({ title: unent(v.snippet.title), channel: unent(v.snippet.channelTitle), date: (v.snippet.publishedAt || '').slice(0, 10), link: 'https://www.youtube.com/watch?v=' + v.id.videoId }));
+}
+async function sheetAppend(a: Acct, raw: string, values: unknown) {
+  const id = fileId(raw), row = (Array.isArray(values) ? values : [values]).slice(0, 26).map(v => String(v ?? '').slice(0, 500));
+  if (!row.length || !row.some(x => x)) throw new Error('더할 내용이 없어요');
+  const d = await g(a, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}/values/A1:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, { method: 'POST', body: JSON.stringify({ values: [row] }) });
+  const meta = await g(a, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(id)}?fields=properties.title,spreadsheetUrl`).catch(() => ({} as any));
+  return { verified: d.updates?.updatedRows === 1, range: d.updates?.updatedRange || '', name: meta.properties?.title || '', link: meta.spreadsheetUrl || '' };
+}
+async function docCreate(a: Acct, title: string, text: string) {
+  const bd = 'aib' + crypto.randomUUID().replace(/-/g, '');
+  const body = `--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: String(title || '새 문서').slice(0, 120), mimeType: 'application/vnd.google-apps.document' })}\r\n--${bd}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${String(text || '')}\r\n--${bd}--`;
+  const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', { method: 'POST', headers: { Authorization: 'Bearer ' + await at(a), 'Content-Type': `multipart/related; boundary=${bd}` }, body });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`google ${r.status}: ${d.error?.message || ''}`.slice(0, 200));
+  const back = await g(a, `https://www.googleapis.com/drive/v3/files/${d.id}?fields=id,trashed`).catch(() => null);
+  return { verified: !!back && !back.trashed, name: d.name, link: d.webViewLink || '' };
+}
 
 /* ---------- 캘린더 ---------- */
 function toEvent(a: Acct, e: any) {
@@ -265,7 +363,7 @@ Deno.serve(async req => {
       if (!refresh) return json({ error: '구글이 열쇠를 주지 않았어요. 한 번 더 시도해 주세요' }, 400);
       const granted = String(d.scope || '');
       const real = granted.includes('gmail.send') ? 'mail_send' : granted.includes('gmail.readonly') ? 'mail_read' : 'calendar';
-      const row = { user_id: user.id, email, label: label || old?.label || email.split('@')[0], color: color || old?.color || '#5b4fd6', level: real, token_enc: await seal(refresh), is_default: old ? old.is_default : accts.length === 0 };
+      const row = { user_id: user.id, email, label: label || old?.label || email.split('@')[0], color: color || old?.color || '#5b4fd6', level: real, scopes: granted, token_enc: await seal(refresh), is_default: old ? old.is_default : accts.length === 0 };
       const { error } = await admin.from('ai_google_accounts').upsert(row, { onConflict: 'user_id,email' });
       if (error) throw error;
       return json({ ok: true, email, level: real, asked: level, accounts: ((await admin.from('ai_google_accounts').select('*').eq('user_id', user.id).order('created_at')).data || []).map(pub) });
@@ -295,7 +393,8 @@ Deno.serve(async req => {
       const evs = (await Promise.all(accts.map(a => calList(a, body.from, body.to).catch(e => { errors.push(`${a.label || a.email}: ${e.message}`); return []; })))).flat();
       const mails = body.mail === false ? [] : (await Promise.all(accts.filter(canMail).map(a => mailList(a, body.q || 'in:inbox newer_than:3d', body.max || 10).catch(e => { errors.push(`${a.label || a.email}: ${e.message}`); return []; })))).flat();
       mails.sort((x, y) => y.date.localeCompare(x.date));
-      return json({ accounts: accts.map(pub), events: evs, mails, errors });
+      const tasks = (await Promise.all(accts.filter(a => caps(a).tasks).map(a => taskList(a).catch(e => { errors.push(`${a.label || a.email} 할 일: ${e.message}`); return []; })))).flat();
+      return json({ accounts: accts.map(pub), events: evs, mails, tasks, errors });
     }
 
     if (act === 'mail_read') { const a = pick(body.account); if (!a || !canMail(a)) return json({ error: '메일 읽기 권한이 있는 계정이 아니에요' }, 400); return json(await mailRead(a, body.id)); }
@@ -310,6 +409,33 @@ Deno.serve(async req => {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.to || '')) return json({ error: '받는 사람 메일 주소가 이상해요' }, 400);
       return json({ account: pub(a), ...(await mailSend(a, body.to, body.subject || '', body.body || '')) });
     }
+    // v0.7: 찾아보기(읽기만)
+    const withCap = (k: Cap) => accts.filter(a => caps(a)[k]);
+    const pickCap = (k: Cap, want?: string) => { const l = withCap(k), q = (want || '').trim().toLowerCase(); return (q && l.find(a => a.id === want || a.email.toLowerCase() === q || a.label.toLowerCase() === q)) || l.find(a => a.is_default) || l[0]; };
+    const noCap = (what: string) => json({ error: `${what} 허락을 받은 구글 계정이 없어요. ⚙️에서 "📁 드라이브·시트…도"를 켜고 계정을 다시 연결해 주세요` }, 400);
+    if (act === 'drive_find') {
+      const l = withCap('drive'); if (!l.length) return noCap('드라이브');
+      const errs: string[] = [];
+      const files = (await Promise.all(l.map(a => driveFind(a, body.q, 8).catch(e => { errs.push(`${a.label}: ${e.message}`); return []; })))).flat();
+      return json({ files, errors: errs });
+    }
+    if (act === 'file_read') {
+      const l = body.account ? accts.filter(a => a.id === body.account && caps(a).drive) : withCap('drive'); if (!l.length) return noCap('드라이브');
+      let last = '';
+      for (const a of l) { try { return json({ account: pub(a), ...(await fileRead(a, body.id)) }); } catch (e) { last = (e as Error).message; } }
+      return json({ error: /404/.test(last) ? '그 파일을 찾지 못했어요(주소나 계정을 확인해 주세요)' : last }, 400);
+    }
+    if (act === 'yt_find') { const a = pickCap('youtube'); if (!a) return noCap('유튜브'); return json({ videos: await ytFind(a, body.q) }); }
+    // 아래는 앱에서 [허락]을 누른 뒤에만 불러요
+    if (act === 'gtask_add') { const a = pickCap('tasks', body.account); if (!a) return noCap('구글 할 일'); return json({ account: pub(a), ...(await taskAdd(a, body.title, body.due)) }); }
+    if (act === 'gtask_done') { const a = accts.find(x => x.id === body.account && caps(x).tasks) || pickCap('tasks'); if (!a) return noCap('구글 할 일'); return json(await taskDone(a, body.id)); }
+    if (act === 'sheet_append') {
+      const l = body.account ? accts.filter(a => a.id === body.account && caps(a).sheets) : withCap('sheets'); if (!l.length) return noCap('시트');
+      let last = '';
+      for (const a of l) { try { return json({ account: pub(a), ...(await sheetAppend(a, body.id, body.values)) }); } catch (e) { last = (e as Error).message; } }
+      return json({ error: last }, 400);
+    }
+    if (act === 'doc_create') { const a = pickCap('make', body.account); if (!a) return noCap('문서 만들기'); return json({ account: pub(a), ...(await docCreate(a, body.title, body.text)) }); }
     return json({ error: 'unknown action' }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e).slice(0, 300) }, 500);
