@@ -669,7 +669,7 @@ async function verifyOnServer(ids, expectDeleted = []) {
 }
 async function startSession(u) {
   user = u; owner = false;
-  if (!u) { if (chan) { sb.removeChannel(chan); chan = null; } Object.assign(G, { accounts: [], events: [], mails: [], at: 0 }); gSave(); T = []; W = null; CW = null; C = []; ls.del('cool'); if (cchan) { sb.removeChannel(cchan); cchan = null; } if (tchan) { sb.removeChannel(tchan); tchan = null; } setSync('local'); loadUsage(); renderAcct(); return; }
+  if (!u) { if (chan) { sb.removeChannel(chan); chan = null; } Object.assign(G, { accounts: [], events: [], mails: [], tasks: [], at: 0 }); gSave(); T = []; W = null; CW = null; C = []; ls.del('cool'); if (cchan) { sb.removeChannel(cchan); cchan = null; } if (tchan) { sb.removeChannel(tchan); tchan = null; } setSync('local'); loadUsage(); renderAcct(); return; }
   setSync('busy');
   const { data: ok, error } = await sb.rpc('ai_claim_owner');
   if (error) { setSync('off'); renderAcct(); return; }
@@ -804,7 +804,7 @@ $('gList').onclick = async e => {
     else if (del) {
       const a = G.accounts.find(x => x.id === del);
       if (!confirm(`${aName(a)} (${a.email}) 연결을 끊을까요? 구글에 준 허락도 같이 거둬요.`)) return;
-      await gcall('remove', { id: del }); G.accounts = G.accounts.filter(x => x.id !== del); G.events = G.events.filter(x => x.account !== del); G.mails = G.mails.filter(x => x.account !== del); toast('연결을 끊었어요');
+      await gcall('remove', { id: del }); G.accounts = G.accounts.filter(x => x.id !== del); G.events = G.events.filter(x => x.account !== del); G.mails = G.mails.filter(x => x.account !== del); G.tasks = G.tasks.filter(x => x.account !== del); toast('연결을 끊었어요');
     } else return;
     gSave(); renderG(); refreshAll();
   } catch (err) { toast('⚠️ ' + err.message, 4000); }
@@ -815,7 +815,7 @@ $('gConnect').onclick = async () => {
   if (!G.configured) { renderG(); return toast('구글 연결 준비가 아직 안 됐어요 (처음 한 번 설정 필요)', 4500); }
   const level = $('gLevel').value, state = uid('s');
   ls.set('gstate', JSON.stringify({ state, level, label: $('gLabel').value.trim(), color: $('gColor').value }));
-  const p = new URLSearchParams({ client_id: G.client_id, redirect_uri: REDIRECT, response_type: 'code', access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'false', scope: ['openid', 'email', ...(G.scopes[level] || [])].join(' '), state });
+  const p = new URLSearchParams({ client_id: G.client_id, redirect_uri: REDIRECT, response_type: 'code', access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'false', scope: ['openid', 'email', ...(G.scopes[level] || []), ...($('gExtra').checked ? G.scopes.extra || [] : [])].join(' '), state });
   location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + p;
 };
 // 구글에서 돌아왔을 때 (?code=…&state=…)
