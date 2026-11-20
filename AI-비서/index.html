@@ -1060,6 +1060,8 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [기억] ${S.memos.map(m => `(${m.id}) ${m.text}`).join(' / ') || '(없음)'}
 [일정] ${evs.map(e => `(${e.id}) ${e.date} ${e.time || '종일'} ${e.title}`).join(' / ') || '(없음)'}
 [할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
+[쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '적을 것', remember: '기억' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
+[아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
 [PC 일꾼] ${W ? (workerOn() ? '켜짐' : '꺼짐') : '연결 안 됨'} / 맡긴 일: ${T.slice(0, 5).map(t => `${t.title}(${ST[t.status] || t.status})`).join(', ') || '(없음)'}
 [구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
 [구글 일정] ${G.events.filter(e => e.date >= addDays(t, -1) && e.date <= addDays(t, 30)).map(e => `(${e.id}) [${e.label}] ${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''} ${e.title}`).join(' / ') || '(없음)'}
