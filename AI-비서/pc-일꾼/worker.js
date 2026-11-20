@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.6.0';
+const VERSION = '0.6.1';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST?.home || (TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼'));
 fs.mkdirSync(HOME, { recursive: true });

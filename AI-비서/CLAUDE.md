@@ -46,7 +46,8 @@
 - [x] 3단계 (v0.5.0): PC 일꾼 — 빈자리 지켜보기·대신 하기·허락·결과 확인
 - [x] **v0.6.0 (2026-11-20): 쿨메신저 연동** — 표 `ai_cool`(user_id+id 기본키, kind/text/due/time/sender/recv/fav/done/done_src(pc|app)/gone, RLS 주인, realtime). 일꾼 `coolSync()` 20초마다: items.json·done.json 읽기 → 체크는 `%LOCALAPPDATA%AI비서일꾼쿨메신저-맞춤.json`의 지난 값(base)과 비교해 바뀐 쪽을 따름(둘 다면 앱) → 앱 체크는 done.json에 원자적 쓰기. 사라진 항목은 gone=true. **upsert 줄은 칸을 모두 같게**(supabase-js가 빠진 칸을 null로 채움). 쿨메신저 비서 window.ps1 v0.2.4가 done.json 바뀌면 다시 읽음(school 저장소). 앱: 📅 탭 아래 📨 쿨메신저, AI 문맥 [쿨메신저]·[아침 브리핑], actions done_cool / set_brief(time, mode on|off, 서버 다시 읽어 확인), 서버 브리핑에 쿨메신저 마감. 시험: `AIW_TEST` json에 `{home, coolDir, cool:[], tasks:[]}`.
   - 사용자 답(정리.md 5번): 학생 이름 올려도 됨 / 체크 양방향 / 일꾼은 학교·집 둘 다 / 브리핑 시각은 대화로 정함 / 예약은 코레일·네이버 예약·고속·시외버스 순.
-- [ ] 학교 PC에서 진짜 시험(쿨메신저 비서 v0.2.4 + 일꾼 v0.6.0)
+- [x] v0.6.1: 숨어서 자동 켜기 — `autostart.ps1`(-Install: 시작프로그램 바로가기 `AI 비서 PC 일꾼.lnk` → powershell -WindowStyle Hidden, 쿨메신저 비서와 같은 방식 / -Uninstall: 바로가기 지우고 켜짐.json의 node pid 종료 / 없음: `node worker.js --hidden`을 돌리고 꺼지면 60초 뒤 다시, 종료코드 0·3(연결 필요)·4(이미 켜짐)면 멈춤). worker `--hidden`: 글은 `일꾼-기록.txt`로, 입력 안 물음, 브라우저는 일이 올 때만. 한 PC에 하나: `켜짐.json`{pid,t} 30초마다 갱신, 90초 넘으면 죽은 걸로 봄. bat 2개(`PC-켤때-자동켜기.bat`, `자동켜기-끄기.bat`)는 autostart.ps1만 부름. ps1은 UTF-8 BOM.
+- [ ] 학교 PC에서 진짜 시험(쿨메신저 비서 v0.2.4 + 일꾼 v0.6.1, 자동 켜기 포함)
 - [ ] 다음: 예약 사이트 맞추기 — 코레일 → 네이버 예약 → 고속·시외버스
 - [ ] 4단계: 쇼핑(네이버 쇼핑 검색 API 최저가)·예약 사이트별 다듬기
 
@@ -64,3 +65,5 @@
 - 2026-11-20 · PC Claude Code: v0.5.0 — PC 일꾼(pc-일꾼/), ai_tasks·ai_workers·ai_pair, 🖥️ 일꾼 탭
 - 2026-11-20 · PC Claude Code: 정리.md(사용자용 현황·쿨메신저 가져오기 계획·정할 것) 추가
 - 2026-11-20 · PC Claude Code: v0.6.0 — 쿨메신저 비서 연동(ai_cool, 양방향 체크), 대화로 브리핑 시각
+- 2026-11-20 · PC Claude Code: v0.6.1 — PC 일꾼 숨어서 자동 켜기(autostart.ps1), 일꾼 하나만
+- 2026-11-20 20:30 · AI 비서 짧은 주소: /toy-store/ai/ 로 들어오면 AI-비서 앱으로 넘겨 주는 페이지 추가 (v0.6.1 그대로)
