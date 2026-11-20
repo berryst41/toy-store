@@ -567,6 +567,59 @@ $('wkPair').onclick = async () => {
 };
 setInterval(() => { if (owner && !document.hidden) loadTasks(); }, 30000);
 
+/* ---------- 📨 쿨메신저 비서 정리 항목 (학교 PC 일꾼이 올려 줘요. 쪽지 원문은 없어요) ---------- */
+let C = [], CW = null, coolShowDone = false, cchan = null;
+try { C = JSON.parse(ls.get('cool', '[]')); } catch (e) {}
+const COOL_K = { todo: '✅ 해야 할 일', note: '📝 적어야 할 것', remember: '💡 기억할 것' };
+const coolLive = () => C.filter(x => !x.gone);
+// 쿨메신저 비서 창처럼: 기한 지난 '적을 것·기억할 것'은 숨겨요(할 일은 '마감 지남'으로 보여요)
+const coolOpen = () => coolLive().filter(x => !x.done && (x.kind === 'todo' || !x.due || x.due >= today()));
+async function loadCool() {
+  if (!owner) return;
+  const { data, error } = await sb.from('ai_cool').select('id,kind,text,due,time,sender,recv,fav,done,done_src,gone,updated_at').eq('gone', false);
+  if (error) return;
+  C = data || []; ls.set('cool', JSON.stringify(C));
+  if ($('pPlan').classList.contains('on')) renderCool();
+  renderChat();
+}
+function renderCool() {
+  const box = $('coolList'); if (!box) return;
+  const at = CW?.info?.cool?.at;
+  $('coolAt').textContent = at ? `${esc(CW.name)}에서 ${fmtWhen(at)} 가져옴${workerOn() && CW === W ? '' : ''}` : '';
+  if (!owner) { box.innerHTML = '<div class="box"><div class="none">⚙️ 설정에서 로그인하면 쿨메신저 비서가 정리한 할 일을 여기서 볼 수 있어요</div></div>'; return; }
+  const live = coolLive();
+  if (!live.length) { box.innerHTML = '<div class="box"><div class="none">아직 가져온 항목이 없어요.<br>쿨메신저 비서가 깔린 학교 PC에서 🖥️ PC 일꾼을 켜면 1분 안에 들어와요</div></div>'; return; }
+  const t = today(), open = coolOpen(), done = live.filter(x => x.done);
+  const row = x => {
+    const late = !x.done && x.kind === 'todo' && x.due && x.due < t;
+    const when = x.due ? `~ ${dLabel(x.due)}${x.time ? ' ' + x.time : ''}${late ? ' · 마감 지남' : ''}` : '';
+    return `<div class="row ${x.done ? 'done' : ''}"><input type="checkbox" data-cool="${esc(x.id)}" ${x.done ? 'checked' : ''}><div class="t"><div>${x.fav ? '⭐ ' : ''}${esc(x.text)}</div><small${late ? ' style="color:var(--warn);font-weight:700"' : ''}>${esc([when, x.sender].filter(Boolean).join(' · '))}</small></div></div>`;
+  };
+  const sort = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (b.recv || '').localeCompare(a.recv || '');
+  let h = '';
+  for (const k of Object.keys(COOL_K)) {
+    const list = open.filter(x => x.kind === k).sort(sort);
+    if (list.length) h += `<div class="dhead">${COOL_K[k]} ${list.length}</div><div class="box">${list.map(row).join('')}</div>`;
+  }
+  if (!h) h = '<div class="box"><div class="none">쿨메신저 할 일을 다 했어요 🎉</div></div>';
+  if (done.length) h += `<div class="hint" style="margin-top:8px"><a href="#" data-cool-done="1">${coolShowDone ? '끝낸 것 숨기기' : `끝낸 것 ${done.length}개 보기`}</a></div>` + (coolShowDone ? `<div class="box">${done.sort(sort).map(row).join('')}</div>` : '');
+  box.innerHTML = h + '<p class="hint">여기서 체크하면 학교 PC의 쿨메신저 비서 창에도 1분 안에 체크돼요(학교 PC 일꾼이 켜져 있을 때). 반대로도 돼요.</p>';
+}
+async function setCoolDone(id, done) {
+  const x = C.find(y => y.id === id); if (!x) return false;
+  x.done = done; ls.set('cool', JSON.stringify(C));
+  const { data, error } = await sb.from('ai_cool').update({ done, done_src: 'app' }).eq('id', id).select('done');
+  return !error && data?.[0]?.done === done; // 서버에 정말 바뀌었는지 확인
+}
+$('coolList').onclick = async e => {
+  if (e.target.dataset.coolDone) { e.preventDefault(); coolShowDone = !coolShowDone; return renderCool(); }
+  const id = e.target.dataset.cool; if (!id) return;
+  const ok = await setCoolDone(id, e.target.checked);
+  if (!ok) { toast('⚠️ 서버에 저장하지 못했어요. 인터넷을 확인해 주세요', 4000); loadCool(); return; }
+  setTimeout(renderCool, 250);
+  if (!CW || Date.now() - new Date(CW.last_seen).getTime() > 90000) toast('저장했어요. 학교 PC 일꾼이 켜지면 쿨메신저 비서에도 체크돼요', 4000);
+};
+
 /* ---------- 💡 먼저 제안하기 (규칙으로, AI 사용량 안 씀) ---------- */
 function suggestions() {
   const t = today(), tm = addDays(t, 1), out = [];
