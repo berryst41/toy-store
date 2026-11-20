@@ -350,8 +350,17 @@ async function coolSync() {
 
 /* ============ 시작 ============ */
 (async () => {
-  console.log(`🖥️ AI 비서 PC 일꾼 v${VERSION}\n   이 검은 창을 닫으면 일꾼도 꺼져요. 일꾼이 여는 브라우저 창은 닫지 말고 그대로 두세요.`);
-  if (!TEST) await login();
+  console.log(HIDDEN ? `🖥️ AI 비서 PC 일꾼 v${VERSION} — 숨어서 켜졌어요` : `🖥️ AI 비서 PC 일꾼 v${VERSION}\n   이 검은 창을 닫으면 일꾼도 꺼져요. 일꾼이 여는 브라우저 창은 닫지 말고 그대로 두세요.`);
+  if (!TEST) {
+    const other = takeLock();
+    if (other) {
+      if (HIDDEN) process.exit(4);
+      console.log(`\n✅ 일꾼이 이미 켜져 있어요${other.hidden ? '(작업 표시줄에 안 보이게 숨어서 도는 중)' : '(다른 검은 창)'}. 이 창은 닫아도 돼요.\n   숨어서 도는 일꾼을 끄려면 '자동켜기-끄기.bat'을 더블클릭하세요.`);
+      await ask('Enter를 누르면 닫혀요'); process.exit(4);
+    }
+    setInterval(touchLock, 30000);
+    await login();
+  }
   // 일꾼이 꺼져 있는 동안 "하는 중"이던 일 정리: 지켜보기는 다시 시작, 대신 하기는 멈춤 표시
   for (const t of await B.tasks(['running', 'need_ok'])) {
     if (t.kind === 'watch') await B.update(t.id, { status: 'queued' });
