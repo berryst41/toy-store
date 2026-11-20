@@ -272,6 +272,15 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
     <div class="hint" id="bHint">정한 시각에 오늘 일정·마감·안 읽은 메일·💡 제안을 알림으로 보내요(AI 사용량은 안 써요). 알림을 누르면 앱이 열리고 브리핑을 자세히 해 줘요. 알림 받을 기기마다 [🔔 알림 받기]를 한 번씩 눌러 주세요.</div>
   </div>
 
+  <h4>🖥️ PC 일꾼 <small style="font-weight:400;color:var(--sub)">대신 누르기·빈자리 지켜보기</small></h4>
+  <div id="wkSet" style="margin-top:6px"></div>
+  <div class="btns" style="margin-top:8px">
+    <button class="g" id="wkPair">🔑 연결 코드 만들기</button>
+    <a class="g" id="wkDown" href="https://github.com/berryst41/toy-store/raw/main/AI-%EB%B9%84%EC%84%9C/pc-%EC%9D%BC%EA%BE%BC.zip" style="text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px">⬇️ 일꾼 받기 (PC용)</a>
+  </div>
+  <div id="wkCode"></div>
+  <div class="hint">웹 앱은 보안 때문에 다른 사이트를 대신 누를 수 없어서, <b>PC에서 도는 작은 일꾼 프로그램</b>이 따로 연 브라우저 창에서 대신 해요. ① PC에서 받은 zip을 풀고 <code>일꾼-켜기.bat</code> 더블클릭 ② [🔑 연결 코드 만들기]로 나온 8글자를 검은 창에 입력 ③ 일꾼이 연 창에서 자주 쓰는 사이트에 한 번 로그인해 두기. (이 기기의 AI 키도 일꾼에게 같이 건네요)</div>
+
   <h4>🤖 AI</h4>
   <label>Gemini API 키 (무료)</label>
   <input type="password" id="sKey" placeholder="AIza로 시작하는 키" autocomplete="off">
