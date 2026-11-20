@@ -4,7 +4,7 @@
 - 작업 시작 전에 꼭 최신 `main`을 받아요. 작업이 끝나면 `main`에 올리고(PR이면 머지까지), 아래 "작업 기록"에 한 줄 남겨요.
 - 사용자는 초등학교 교사, git 비전문가 → 설명은 쉬운 우리말로.
 
-## 지금 상태 (v0.4.0, 2026-11-20)
+## 지금 상태 (v0.5.0, 2026-11-20)
 ### 서버 (v0.2.0~)
 - Supabase 프로젝트 **couple** (aaiplfmwljguzsvgdxit) — 커플 앱(my-own-/couple, 비공개)과 같은 곳. **AI 비서 칸은 모두 `ai_`로 시작**, `couple_*` 칸은 절대 건드리지 않기. 데이터 지우기·칸 지우기 금지(칸 추가 방식으로만 바꾸기).
 - 표: `ai_owner`(주인 1명, 처음 가입자가 `ai_claim_owner()`로 차지), `ai_items`(id, user_id, kind=event|todo|memo|chat|approval, data jsonb, deleted, updated_at 트리거), `ai_profile`(me, settings.limit), `ai_usage`(day, count, limited_at; `ai_bump_usage(day, limited)`). 모두 RLS = 본인이면서 주인일 때만. ai_items는 realtime 켬.
@@ -16,6 +16,8 @@
   - 앱 시험법: Playwright에서 `owner=true; G.accounts=[…]; gcall=async()=>…`로 흉내(최상위 let/function이라 바꿀 수 있음).
 - **아침 브리핑(v0.4.0~):** 같은 함수 ai-google 안에 있음. pg_cron 작업 `ai-brief`가 5분마다 `{action:cron_brief}` + x-cron-secret(ai_push_config.cron_secret) 으로 부름 → ai_profile.settings.brief {on,time} 보고, 정한 시각~3시간 안 + ai_profile.brief_sent≠오늘이면 규칙으로 만든 브리핑을 web-push로 보냄(AI 안 씀). VAPID는 ai_push_config(서버가 처음 한 번 만듦), 구독은 ai_push_subs(RLS 주인). 앱 동작: push_key / push_test / brief. 알림 누르면 ./?brief=1 → 앱이 오늘 브리핑 대화를 자동으로 보냄.
 - **먼저 제안:** 앱 suggestions()가 규칙으로 첫 화면 칩을 만듦(AI 안 씀). **기억 키우기:** 프롬프트 규칙 + add_memo(auto, 중복 건너뜀)/update_memo, 할 일 update_todo.
+- **PC 일꾼(v0.5.0~):** `pc-일꾼/worker.js`(Node + playwright-core, 설치된 크롬/엣지를 channel로 띄움, 프로필 %LOCALAPPDATA%AI비서일꾼rowser). 표 ai_tasks(kind watch|do, status queued→running→need_ok→done/failed/stopped, need, answer yes|no, log, result{summary,verified,url}, shot=jpeg dataURL), ai_workers(30초 하트비트), ai_pair(10분 코드). 연결: 앱 pair_create(코드+이 기기 Gemini 키) → 일꾼 pair_use → generateLink(magiclink) token_hash → verifyOtp로 일꾼 전용 세션(login.json). 일꾼 알림은 ai-google notify. 위험 버튼 정규식 RISKY + AI risky면 need_ok. done은 evidence 글자가 화면에 있어야 verified. 시험: AIW_TEST=test.json (가짜 서버·가짜 AI, 로컬 html).
+  - zip(`pc-일꾼.zip`)은 worker 파일 바꾸면 다시 만들기. bat은 CRLF(.gitattributes). 학교망: node --use-system-ca.
 - 이 기기 저장 이름은 `ai.`로 시작(berryst41.github.io의 다른 장난감과 localStorage를 같이 쓰기 때문).
 
 ### 앱
@@ -41,7 +43,8 @@
 - [x] 2단계 앞부분 (v0.3.0): 구글 계정 여러 개 연결, 캘린더 합쳐 보기·넣기·지우기, 메일 탭·요약·답장, 허락 후 실행·확인
 - [ ] 사용자가 구글연결-설정.md 따라 GOOGLE_CLIENT_ID/SECRET 넣기 → 실제 연결 시험
 - [x] 2단계 나머지 (v0.4.0): 기억 키우기, 아침 브리핑 알림, 먼저 제안
-- [ ] 3단계: PC 일꾼 (빈자리 감시·대신 누르기, 허락 받기)
+- [x] 3단계 (v0.5.0): PC 일꾼 — 빈자리 지켜보기·대신 하기·허락·결과 확인
+- [ ] 4단계: 쇼핑(네이버 쇼핑 검색 API 최저가)·예약 사이트별 다듬기
 
 ## 고칠 때 규칙
 - 버전을 올려요: `index.html`의 `VERSION`, `sw.js`의 `CACHE`, `README.md` 버전·업데이트 기록 표, 루트 `README.md` 진열장의 "열기 vX.Y.Z" 글자. 커밋 메시지 끝에도 `(X.Y.Z)`.
@@ -52,3 +55,4 @@
 - 2026-11-20 · PC Claude Code: v0.2.0 1단계 — couple Supabase에 ai_ 칸, 로그인·동기화·사용량·확인 카드
 - 2026-11-20 · PC Claude Code: v0.3.0 — ai-google 서버 함수, 구글 계정 여러 개·캘린더·메일
 - 2026-11-20 · PC Claude Code: v0.4.0 — 아침 브리핑 알림(pg_cron+웹 푸시), 먼저 제안, 기억 키우기
+- 2026-11-20 · PC Claude Code: v0.5.0 — PC 일꾼(pc-일꾼/), ai_tasks·ai_workers·ai_pair, 🖥️ 일꾼 탭
