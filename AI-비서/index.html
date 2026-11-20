@@ -1018,10 +1018,21 @@ $('tdTitle').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) $('tdAd
 
 /* ---------- 기억 화면 ---------- */
 function renderMemo() {
-  $('memoList').innerHTML = S.memos.length ? S.memos.map(m => `<div class="memo"><div>${esc(m.text)}<small>${esc(m.created || '')}</small></div><button class="del" data-del-m="${m.id}">✕</button></div>`).join('')
-    : '<div class="box"><div class="none">아직 기억하는 게 없어요</div></div>';
+  $('memoList').innerHTML = S.memos.length ? S.memos.map(m => `<div class="memo"><div data-edit-m="${m.id}" title="눌러서 고치기" style="cursor:pointer">${esc(m.text)}<small>${m.auto ? '🧠 대화에서 비서가 기억함 · ' : ''}${esc(m.updated || m.created || '')} · ✏️ 눌러서 고치기</small></div><button class="del" data-del-m="${m.id}">✕</button></div>`).join('')
+    : '<div class="box"><div class="none">아직 기억하는 게 없어요<br>대화하다 보면 비서가 알아서 기억해요 🧠</div></div>';
 }
-$('memoList').onclick = e => { const id = e.target.dataset.delM; if (!id) return; remove('memo', id); renderMemo(); };
+$('memoList').onclick = e => {
+  const ed = e.target.closest('[data-edit-m]');
+  if (ed) {
+    const m = S.memos.find(x => x.id === ed.dataset.editM); if (!m) return;
+    const v = prompt('기억 고치기 (비우면 그대로 둬요)', m.text);
+    if (v && v.trim() && v.trim() !== m.text) { put('memo', { ...m, text: v.trim(), updated: today(), auto: false }); renderMemo(); toast('고쳤어요'); }
+    return;
+  }
+  const id = e.target.dataset.delM; if (!id) return;
+  const m = S.memos.find(x => x.id === id); if (m && !confirm(`이 기억을 지울까요?\n${m.text}`)) return;
+  remove('memo', id); renderMemo();
+};
 $('memoAdd').onclick = () => { const v = $('memoText').value.trim(); if (!v) return; put('memo', { id: uid('m'), text: v, created: today() }); $('memoText').value = ''; renderMemo(); };
 $('memoText').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) $('memoAdd').click(); };
 
@@ -1052,7 +1063,7 @@ $('aSyncNow').onclick = async () => { await pushNow(); await pullNow(); toast('�
 /* ---------- 설정 ---------- */
 function openSet() {
   $('sKey').value = ls.get('gkey'); $('sModel').value = ls.get('gmodel') || DEFAULT_MODEL; $('sMe').value = ls.get('me');
-  $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); renderG(); $('mSet').classList.add('show');
+  $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); renderG(); renderBrief(); $('mSet').classList.add('show');
   if (owner) gConfig().then(renderG);
 }
 $('bSet').onclick = openSet;
