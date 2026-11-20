@@ -207,6 +207,25 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
     <div class="btns" style="margin-top:8px"><button class="g" id="aSyncNow">🔄 지금 맞추기</button><button class="g" id="aLogout">로그아웃</button></div>
   </div>
 
+  <h4>🔗 구글 계정 (캘린더·메일) <small style="font-weight:400;color:var(--sub)">여러 개 연결할 수 있어요</small></h4>
+  <div id="gList"></div>
+  <div id="gAdd">
+    <div class="add" style="margin-top:8px">
+      <input class="grow" id="gLabel" placeholder="이름표 (예: 개인, 학교, 가족)" maxlength="20">
+      <select id="gColor" title="색">
+        <option value="#5b4fd6">🟣</option><option value="#1c7ed6">🔵</option><option value="#2f9e44">🟢</option><option value="#e8590c">🟠</option><option value="#e03131">🔴</option><option value="#f08c00">🟡</option><option value="#868e96">⚪</option>
+      </select>
+    </div>
+    <label>허락 범위</label>
+    <select id="gLevel">
+      <option value="calendar">📅 캘린더만</option>
+      <option value="mail_read" selected>📬 캘린더 + 메일 읽기</option>
+      <option value="mail_send">✉️ 캘린더 + 메일 읽기·보내기</option>
+    </select>
+    <div class="btns" style="margin-top:8px"><button class="p" id="gConnect">＋ 구글 계정 더하기</button></div>
+    <div class="hint" id="gHint">구글 화면이 열리면 연결할 계정을 고르고 허락해 주세요. 끝나면 이 앱으로 돌아와요. 열쇠는 서버에 잠가서 두고, 이 화면이나 GitHub에는 나오지 않아요. 넣기·지우기·보내기는 언제나 [허락]을 받은 뒤에만 해요.</div>
+  </div>
+
   <h4>🤖 AI</h4>
   <label>Gemini API 키 (무료)</label>
   <input type="password" id="sKey" placeholder="AIza로 시작하는 키" autocomplete="off">
@@ -238,7 +257,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
