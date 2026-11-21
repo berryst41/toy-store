@@ -278,7 +278,7 @@ async function buildBrief(uid: string) {
     }
   }
   ev.sort((x, y) => (x.time || '00:00').localeCompare(y.time || '00:00'));
-  const late =todos.filter((x: any) => x.due && x.due < t), dueToday = todos.filter((x: any) => x.due === t), dueTom = todos.filter((x: any) => x.due === tm);
+  const late = todos.filter((x: any) => x.due && x.due < t), dueToday = todos.filter((x: any) => x.due === t), dueTom = todos.filter((x: any) => x.due === tm);
   const lines: string[] = [];
   lines.push(ev.length ? `📅 오늘 일정 ${ev.length}개: ` + ev.slice(0, 5).map(e => `${e.time || '종일'} ${e.title}`).join(', ') : '📅 오늘 잡힌 일정 없음');
   if (dueToday.length) lines.push('⏰ 오늘 마감: ' + dueToday.slice(0, 3).map((x: any) => x.title).join(', '));

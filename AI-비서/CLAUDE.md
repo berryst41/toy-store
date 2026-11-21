@@ -4,7 +4,7 @@
 - 작업 시작 전에 꼭 최신 `main`을 받아요. 작업이 끝나면 `main`에 올리고(PR이면 머지까지), 아래 "작업 기록"에 한 줄 남겨요.
 - 사용자는 초등학교 교사, git 비전문가 → 설명은 쉬운 우리말로.
 
-## 지금 상태 (v0.7.3, 2026-11-21) — 최신 요약·할 일은 `정리.md` 7~9번
+## 지금 상태 (v0.8.0, 2026-11-21) — 최신 요약·할 일은 `정리.md` 7~9번
 ### 서버 (v0.2.0~)
 - Supabase 프로젝트 **couple** (aaiplfmwljguzsvgdxit) — 커플 앱(my-own-/couple, 비공개)과 같은 곳. **AI 비서 칸은 모두 `ai_`로 시작**, `couple_*` 칸은 절대 건드리지 않기. 데이터 지우기·칸 지우기 금지(칸 추가 방식으로만 바꾸기).
 - 표: `ai_owner`(주인 1명, 처음 가입자가 `ai_claim_owner()`로 차지), `ai_items`(id, user_id, kind=event|todo|memo|chat|approval, data jsonb, deleted, updated_at 트리거), `ai_profile`(me, settings.limit), `ai_usage`(day, count, limited_at; `ai_bump_usage(day, limited)`). 모두 RLS = 본인이면서 주인일 때만. ai_items는 realtime 켬.
@@ -18,6 +18,10 @@
 - **먼저 제안:** 앱 suggestions()가 규칙으로 첫 화면 칩을 만듦(AI 안 씀). **기억 키우기:** 프롬프트 규칙 + add_memo(auto, 중복 건너뜀)/update_memo, 할 일 update_todo.
 - **PC 일꾼(v0.5.0~):** `pc-일꾼/worker.js`(Node + playwright-core, 설치된 크롬/엣지를 channel로 띄움, 프로필 %LOCALAPPDATA%AI비서일꾼rowser). 표 ai_tasks(kind watch|do, status queued→running→need_ok→done/failed/stopped, need, answer yes|no, log, result{summary,verified,url}, shot=jpeg dataURL), ai_workers(30초 하트비트), ai_pair(10분 코드). 연결: 앱 pair_create(코드+이 기기 Gemini 키) → 일꾼 pair_use → generateLink(magiclink) token_hash → verifyOtp로 일꾼 전용 세션(login.json). 일꾼 알림은 ai-google notify. 위험 버튼 정규식 RISKY + AI risky면 need_ok. done은 evidence 글자가 화면에 있어야 verified. 시험: AIW_TEST=test.json (가짜 서버·가짜 AI, 로컬 html).
   - zip(`pc-일꾼.zip`)은 worker 파일 바꾸면 다시 만들기. bat은 CRLF(.gitattributes). 학교망: node --use-system-ca.
+- **📱 캘린더 다리(v0.8.0~, 앱 v0.1.0):** 안드로이드 APK `calendar-bridge/`(순수 Java, 라이브러리 없음, 패키지 app.berryst.calbridge, minSdk 26/targetSdk 34). 로그인 = AI 딸기와 같은 이메일·비밀번호로 `/auth/v1/token?grant_type=password` → refresh token만 SharedPreferences에 저장, `ai_is_owner` RPC로 주인 확인. CalendarContract Calendars+Instances(어제~60일 뒤, 취소·거절 빼고, 최대 1500개) → 표 `ai_phone_cal`(PK user_id+device, calendars jsonb[{id,name,account,type,color,visible}], events jsonb[{id,cal,date,time,end,end_date,title,loc,all_day}], synced_at, RLS 주인, realtime) 에 기기 한 줄 통째 upsert. JobScheduler: 30분 주기(persisted) + 캘린더 바뀜 트리거(TriggerContentUri, 매번 다시 걸기), BootReceiver로 다시 걸기. **읽기만**(사용자 결정 2026-11-21, 넣기는 원하면 나중에 WRITE_CALENDAR).
+  - 겹침 빼기(앱 `phoneEvents()`·서버 buildBrief 같은 규칙): 숨긴 캘린더 빼기 / type=com.google 이고 account가 연결한 구글 계정 메일이면 빼기 / 같은 날짜·시각·제목이 이미 있으면 빼기. 폰 일정은 id `p_…`, `e.p=true`, 지우기 버튼 없음. AI 문맥 `[폰 캘린더]`.
+  - 빌드: `.github/workflows/calendar-bridge.yml` — 한글 경로 피하려 `$RUNNER_TEMP/cb`로 복사해 gradle 8.7. 시크릿 `CALBRIDGE_KEYSTORE`(PKCS12 base64, alias calbridge, 비밀번호 calbridge-store는 build.gradle에 공개) 있으면 release 서명 + main이면 릴리스 태그 `calendar-bridge`에 `calendar-bridge.apk` --clobber. 없으면 debug만(시험). 열쇠 원본은 프로젝트 파일 `calendar-bridge-key/`(공개 저장소에 열쇠 넣지 말 것). 앱 버전은 `app/build.gradle`의 versionName, versionCode=run_number.
+  - 로컬 컴파일 확인: 안드로이드 SDK 없음 → `org.robolectric:android-all` jar를 maven에서 받아 `javac -cp`로 문법만 확인(한글 경로면 ASCII 폴더로 복사).
 - 이 기기 저장 이름은 `ai.`로 시작(berryst41.github.io의 다른 장난감과 localStorage를 같이 쓰기 때문).
 
 ### 앱
@@ -43,7 +47,9 @@
 - [x] 2단계 앞부분 (v0.3.0): 구글 계정 여러 개 연결, 캘린더 합쳐 보기·넣기·지우기, 메일 탭·요약·답장, 허락 후 실행·확인
 - [x] 사용자가 구글연결-설정.md 따라 GOOGLE_CLIENT_ID/SECRET 넣기 → 앱 게시(프로덕션, 미인증) → 계정 3개 연결됨(2026-11-21)
 - [ ] v0.7.3: 계정 3개 [🔧 범위]로 다시 허락 → `ai_google_accounts.scopes`에 calendar.calendarlist.readonly 있는지 확인
-- [ ] **고민거리: 삼성 캘린더 읽기** — 정리.md 8번(A 구글로 옮기기 / B 캘린더 다리 APK: CalendarContract 읽어 ai_ 표로 업로드, GitHub Actions로 빌드 / C Capacitor 앱 / D 자동화 앱 / E Outlook 연동 확인 필요). 사용자 답 칸 보고 진행. 유료 항목(플레이스토어 등록비 등)은 먼저 묻기.
+- [x] 삼성 캘린더 읽기 = B안 캘린더 다리 (v0.8.0, 2026-11-21). 사용자: 갤럭시 S26·안드로이드 17, APK 직접 설치 OK, 읽기만.
+- [ ] 사용자가 GitHub 시크릿 `CALBRIDGE_KEYSTORE` 넣기 → workflow_dispatch로 다시 빌드 → 릴리스 주소 확인
+- [ ] 실제 S26에 설치 후 `ai_phone_cal`에 줄이 생기는지, 삼성 캘린더 type 이름 확인
 - [x] 2단계 나머지 (v0.4.0): 기억 키우기, 아침 브리핑 알림, 먼저 제안
 - [x] 3단계 (v0.5.0): PC 일꾼 — 빈자리 지켜보기·대신 하기·허락·결과 확인
 - [x] **v0.6.0 (2026-11-20): 쿨메신저 연동** — 표 `ai_cool`(user_id+id 기본키, kind/text/due/time/sender/recv/fav/done/done_src(pc|app)/gone, RLS 주인, realtime). 일꾼 `coolSync()` 20초마다: items.json·done.json 읽기 → 체크는 `%LOCALAPPDATA%AI비서일꾼쿨메신저-맞춤.json`의 지난 값(base)과 비교해 바뀐 쪽을 따름(둘 다면 앱) → 앱 체크는 done.json에 원자적 쓰기. 사라진 항목은 gone=true. **upsert 줄은 칸을 모두 같게**(supabase-js가 빠진 칸을 null로 채움). 쿨메신저 비서 window.ps1 v0.2.4가 done.json 바뀌면 다시 읽음(school 저장소). 앱: 📅 탭 아래 📨 쿨메신저, AI 문맥 [쿨메신저]·[아침 브리핑], actions done_cool / set_brief(time, mode on|off, 서버 다시 읽어 확인), 서버 브리핑에 쿨메신저 마감. 시험: `AIW_TEST` json에 `{home, coolDir, cool:[], tasks:[]}`.
@@ -78,3 +84,4 @@
 - 2026-11-21 01:35 · AI 비서 v0.7.3: 구글 캘린더 목록(calendarlist.readonly) 받아 보이는 캘린더 모두 읽기, 일정 지우기에 캘린더 id 전달 (ai-google v13)
 - 2026-11-21 02:00 · AI 비서: 정리.md에 오늘 한 일·삼성 캘린더 고민거리(방법 A~E)·지금 할 일 정리 (0.7.3 그대로)
 - 2026-11-21 02:10 · AI 비서: 정리.md 위에 "다음에 이어서 시작하는 법" 추가 — 멈춘 곳: 계정 3개 [🔧 범위] 다시 허락 전 (0.7.3 그대로)
+- 2026-11-21 17:40 · AI 비서 v0.8.0: 캘린더 다리 안드로이드 앱(v0.1.0, ai_phone_cal) — 폰의 삼성·구글·내 폰 캘린더를 일정 탭·AI·아침 브리핑에 함께, 구글과 겹치면 한 번만 (ai-google v14)
