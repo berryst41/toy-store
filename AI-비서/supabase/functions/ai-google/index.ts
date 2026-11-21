@@ -263,8 +263,22 @@ async function buildBrief(uid: string) {
     try { (await calList(a, t, t)).forEach((e: any) => ev.push({ time: e.time, title: e.title })); } catch (_) { /* 계정 하나가 안 돼도 계속 */ }
     if (canMail(a)) try { const d = await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + new URLSearchParams({ q: 'is:unread in:inbox newer_than:1d', maxResults: '50' })); unread += (d.messages || []).length; } catch (_) { /* */ }
   }
+  // 📱 캘린더 다리 앱이 올린 폰 캘린더(삼성·내 폰 등) 일정 (v0.8) — 이미 연결한 구글 계정 캘린더와 같은 일정은 한 번만
+  const gmails = new Set(((rows || []) as Acct[]).map(a => a.email.toLowerCase()));
+  const seen = new Set(ev.map(e => (e.time || '') + '|' + e.title.trim()));
+  const { data: phones } = await admin.from('ai_phone_cal').select('calendars,events').eq('user_id', uid);
+  for (const p of phones || []) {
+    const cals = new Map<string, any>((p.calendars || []).map((c: any) => [String(c.id), c]));
+    for (const e of (p.events || []) as any[]) {
+      const c = cals.get(String(e.cal));
+      if (e.date !== t || (c && c.visible === false)) continue;
+      if (c && c.type === 'com.google' && gmails.has(String(c.account || '').toLowerCase())) continue;
+      const k = (e.time || '') + '|' + String(e.title || '').trim(); if (seen.has(k)) continue; seen.add(k);
+      ev.push({ time: e.time || '', title: e.title || '(제목 없음)' });
+    }
+  }
   ev.sort((x, y) => (x.time || '00:00').localeCompare(y.time || '00:00'));
-  const late = todos.filter((x: any) => x.due && x.due < t), dueToday = todos.filter((x: any) => x.due === t), dueTom = todos.filter((x: any) => x.due === tm);
+  const late =todos.filter((x: any) => x.due && x.due < t), dueToday = todos.filter((x: any) => x.due === t), dueTom = todos.filter((x: any) => x.due === tm);
   const lines: string[] = [];
   lines.push(ev.length ? `📅 오늘 일정 ${ev.length}개: ` + ev.slice(0, 5).map(e => `${e.time || '종일'} ${e.title}`).join(', ') : '📅 오늘 잡힌 일정 없음');
   if (dueToday.length) lines.push('⏰ 오늘 마감: ' + dueToday.slice(0, 3).map((x: any) => x.title).join(', '));

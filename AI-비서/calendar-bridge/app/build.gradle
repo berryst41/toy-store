@@ -1,0 +1,32 @@
+// 🍓 캘린더 다리: 폰 안의 모든 캘린더(삼성·구글·내 폰)를 읽어서 AI 딸기 서버(ai_phone_cal)에 올려요. 읽기만 해요.
+// 라이브러리 없이 안드로이드 기본 기능만 써요. 서명 열쇠·번호는 GitHub Actions(.github/workflows/calendar-bridge.yml)가 넣어 줘요.
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.berryst.calbridge'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'app.berryst.calbridge'
+        minSdk 26
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName '0.1.0' // ← 앱을 고치면 이 버전을 올리고 README 버전 기록에도 적어요
+    }
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('KEYSTORE_FILE') ?: 'none.p12')
+            storePassword 'calbridge-store' // 열쇠 파일 자체가 비밀(GitHub Secrets)이라 이 글자는 공개돼도 돼요
+            keyAlias 'calbridge'
+            keyPassword 'calbridge-store'
+            storeType 'pkcs12'
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.release }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    lint { checkReleaseBuilds false; abortOnError false }
+}
