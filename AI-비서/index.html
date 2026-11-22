@@ -1243,9 +1243,10 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   if (b.dataset.p === 'pMemo') renderMemo();
   if (b.dataset.p === 'pMail') { renderMail(); gRefresh().then(() => { renderMail(); sortMails(); }); }
   if (b.dataset.p === 'pPlan') gRefresh();
+  if (b.dataset.p === 'pTodo') { renderPlan(); gRefresh().then(renderTodo); }
   if (b.dataset.p === 'pWork') { renderWork(); loadTasks(); }
 });
-function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pPlan').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
+function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pTodo').classList.contains('on')) renderPlan(); if ($('pPlan').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
 
 /* ---------- 빠른 버튼 ---------- */
 const QUICK = [
@@ -1732,9 +1733,7 @@ async function send(text) {
   } finally { busy = false; }
 }
 
-/* ---------- 일정·할 일 화면 ---------- */
-$('planJump').onclick = e => { const b = e.target.closest('[data-jump]'); if (b) $(b.dataset.jump).scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-function renderPlan() {
+/* ---------- 일정·할 일 화면 ---------- */function renderPlan() {
   const t = today();
   fillEvWhere();
   const evs = allEvents().filter(e => e.date >= addDays(t, -1)).sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
@@ -1828,6 +1827,7 @@ $('pPlan').onclick = async e => {
   else return;
   renderPlan();
 };
+$('pTodo').onclick = $('pPlan').onclick; // 체크·지우기는 같은 처리
 $('evAdd').onclick = async () => {
   const title = $('evTitle').value.trim(), date = $('evD').value, where = $('evWhere').value;
   if (!title || !date) return toast('날짜와 일정 이름을 넣어 주세요');
