@@ -28,6 +28,10 @@ public class Sync {
     static boolean hasPermission(Context c) {
         return c.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED;
     }
+    /** 쓰기 권한 (AI 딸기가 부탁한 일정 넣기·고치기·지우기용) */
+    static boolean hasWrite(Context c) {
+        return c.checkSelfPermission(Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED;
+    }
 
     /** 기기 이름표: 처음 한 번 만들어 계속 써요 (폰을 바꾸면 새 줄이 생겨요) */
     static String device(Context c) {
@@ -47,13 +51,14 @@ public class Sync {
         try {
             if (!Api.loggedIn(c)) throw new Exception("로그인이 필요해요");
             if (!hasPermission(c)) throw new Exception("캘린더 읽기 권한이 없어요. 앱을 열어 [캘린더 권한 허용]을 눌러 주세요");
+            Cmd.process(c); // 0) AI 딸기가 남긴 쪽지(넣기·고치기·지우기)부터 처리해요
 
             // 1) 캘린더 목록 (삼성 계정, 구글, 내 폰 …)
             JSONArray cals = new JSONArray();
             Map<Long, Boolean> visible = new HashMap<>();
             java.util.Set<String> skip = skipped(c); // 사용자가 체크를 끈 캘린더(안 보내요)
             String[] cc = { CalendarContract.Calendars._ID, CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, CalendarContract.Calendars.ACCOUNT_NAME,
-                CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.Calendars.CALENDAR_COLOR, CalendarContract.Calendars.VISIBLE };
+                CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.Calendars.CALENDAR_COLOR, CalendarContract.Calendars.VISIBLE, CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL };
             try (Cursor q = c.getContentResolver().query(CalendarContract.Calendars.CONTENT_URI, cc, null, null, null)) {
                 while (q != null && q.moveToNext()) {
                     long id = q.getLong(0);
@@ -62,7 +67,8 @@ public class Sync {
                     visible.put(id, vis);
                     cals.put(new JSONObject().put("id", String.valueOf(id)).put("name", nz(q.getString(1)))
                         .put("account", nz(q.getString(2))).put("type", nz(q.getString(3)))
-                        .put("color", String.format("#%06X", 0xFFFFFF & q.getInt(4))).put("visible", vis));
+                        .put("color", String.format("#%06X", 0xFFFFFF & q.getInt(4))).put("visible", vis)
+                        .put("can_write", q.getInt(6) >= CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR)); // 일정을 넣을 수 있는 캘린더인지
                 }
             }
 
@@ -77,7 +83,8 @@ public class Sync {
             ContentUris.appendId(ub, to.getTimeInMillis());
             String[] ic = { CalendarContract.Instances.EVENT_ID, CalendarContract.Instances.BEGIN, CalendarContract.Instances.END,
                 CalendarContract.Instances.TITLE, CalendarContract.Instances.EVENT_LOCATION, CalendarContract.Instances.ALL_DAY,
-                CalendarContract.Instances.CALENDAR_ID, CalendarContract.Instances.STATUS, CalendarContract.Instances.SELF_ATTENDEE_STATUS };
+                CalendarContract.Instances.CALENDAR_ID, CalendarContract.Instances.STATUS, CalendarContract.Instances.SELF_ATTENDEE_STATUS,
+                CalendarContract.Instances.RRULE, CalendarContract.Instances.ORIGINAL_ID };
 
             SimpleDateFormat dLocal = fmt("yyyy-MM-dd", TimeZone.getDefault()), tLocal = fmt("HH:mm", TimeZone.getDefault());
             SimpleDateFormat dUtc = fmt("yyyy-MM-dd", TimeZone.getTimeZone("UTC"));
@@ -94,6 +101,7 @@ public class Sync {
                         .put("cal", String.valueOf(cal))
                         .put("title", nz(q.getString(3)).isEmpty() ? "(제목 없음)" : q.getString(3))
                         .put("all_day", allDay);
+                    if (!nz(q.getString(9)).isEmpty() || !nz(q.getString(10)).isEmpty()) e.put("rec", true); // 반복 일정(고치기·지우기는 폰에서 직접)
                     String loc = nz(q.getString(4));
                     if (!loc.isEmpty()) e.put("loc", loc);
                     if (allDay) {

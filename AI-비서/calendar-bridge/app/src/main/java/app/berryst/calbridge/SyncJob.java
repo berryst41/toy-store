@@ -10,18 +10,20 @@ import android.provider.CalendarContract;
 
 /**
  * 폰이 알아서 깨워 주는 일꾼.
- *  - 30분마다 한 번 (인터넷이 될 때)
+ *  - 15분마다 한 번 (인터넷이 될 때) — AI 딸기가 남긴 넣기·고치기·지우기 쪽지도 이때 처리해요
  *  - 폰 캘린더가 바뀌면 1~2분 안에 한 번 더 (삼성 캘린더에서 일정을 넣거나 고쳤을 때)
  */
 public class SyncJob extends JobService {
     static final int JOB_PERIODIC = 1, JOB_CHANGED = 2;
+    static final long PERIOD = 15 * 60 * 1000L; // 안드로이드가 허락하는 가장 짧은 간격
 
     static void schedule(Context c) {
         JobScheduler js = c.getSystemService(JobScheduler.class);
         ComponentName me = new ComponentName(c, SyncJob.class);
-        if (js.getPendingJob(JOB_PERIODIC) == null) {
+        JobInfo old = js.getPendingJob(JOB_PERIODIC);
+        if (old == null || old.getIntervalMillis() != PERIOD) { // 예전 30분 주기였으면 15분으로 바꿔 걸어요
             js.schedule(new JobInfo.Builder(JOB_PERIODIC, me)
-                .setPeriodic(30 * 60 * 1000L, 10 * 60 * 1000L)
+                .setPeriodic(PERIOD, 5 * 60 * 1000L)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setPersisted(true) // 폰을 다시 켜도 이어서
                 .build());

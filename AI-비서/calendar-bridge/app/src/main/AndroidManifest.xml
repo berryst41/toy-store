@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 캘린더는 읽기만 해요 (쓰기 권한은 일부러 안 받아요) -->
+    <!-- 캘린더 읽기 + (v0.3.0~) AI 딸기에서 [허락]한 일정 넣기·고치기·지우기 -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- 폰을 다시 켜도 30분마다 보내기가 이어지게 -->
+    <!-- 폰을 다시 켜도 15분마다 보내기가 이어지게 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- "배터리 사용 제한 없음" 허락 창을 띄우기 위해 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -18,6 +19,17 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- AI 딸기가 calbridge://run 으로 깨우면 투명하게 열려서 바로 처리하고 닫혀요 -->
+        <activity android:name=".WakeActivity" android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="calbridge" android:host="run" />
             </intent-filter>
         </activity>
         <service android:name=".SyncJob"

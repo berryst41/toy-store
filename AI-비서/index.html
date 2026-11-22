@@ -172,7 +172,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <input type="date" id="evD">
       <input type="time" id="evT">
       <input class="grow" id="evTitle" placeholder="일정 이름">
-      <select id="evWhere" title="어디에 넣을까요?"><option value="">📱 AI 비서</option></select>
+      <select id="evWhere" title="어디에 넣을까요?"><option value="">🍓 AI 비서</option></select>
       <button class="p" id="evAdd">추가</button>
     </div>
 
@@ -275,7 +275,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
     <a class="g" href="https://github.com/berryst41/toy-store/releases/download/calendar-bridge/calendar-bridge.apk" style="text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px">⬇️ 캘린더 다리 앱 받기</a>
     <a class="g" href="https://github.com/berryst41/toy-store/blob/main/AI-%EB%B9%84%EC%84%9C/calendar-bridge/README.md" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px">📖 설치 방법</a>
   </div>
-  <div class="hint">웹 앱은 폰 안의 삼성 캘린더를 직접 못 읽어서, 폰에 깐 <b>🍓 캘린더 다리</b> 앱이 30분마다(일정을 바꾸면 1~2분 안에) 폰의 모든 캘린더(삼성 계정·구글·내 폰)를 읽어 보내 줘요. 이 앱과 같은 이메일·비밀번호로 로그인해요. 폰 일정은 <b>읽기만</b> 해요. 구글 계정으로 이미 연결한 캘린더와 겹치는 일정은 한 번만 보여요.</div>
+  <div class="hint">웹 앱은 폰 안의 삼성 캘린더를 직접 못 읽어서, 폰에 깐 <b>🍓 캘린더 다리</b> 앱이 15분마다(일정을 바꾸면 1~2분 안에) 폰의 모든 캘린더(삼성 계정·구글·내 폰)를 읽어 보내 줘요. 이 앱과 같은 이메일·비밀번호로 로그인해요. 구글 계정으로 이미 연결한 캘린더와 겹치는 일정은 한 번만 보여요. <b>넣기·고치기·지우기</b>는 [허락]을 누른 것만 폰이 해요 — 폰의 AI 딸기에서 허락하면 바로, PC에서 허락하면 15분 안에 들어가요.</div>
 
   <h4>☀️ 아침 브리핑 알림</h4>
   <div id="briefBox">
@@ -327,7 +327,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.8.0';
+const VERSION = '0.9.0';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
@@ -598,15 +598,15 @@ $('wkPair').onclick = async () => {
 };
 setInterval(() => { if (owner && !document.hidden) loadTasks(); }, 30000);
 
-/* ---------- 📱 폰 캘린더 (캘린더 다리 앱이 올려 줘요. 읽기만) ---------- */
-let P = [], pchan = null;
+/* ---------- 📱 폰 캘린더 (캘린더 다리 앱이 올려 줘요. 넣기·고치기·지우기는 [허락] 뒤 쪽지로 부탁) ---------- */
+let P = [], pchan = null, PQ = [], qchan = null; // PQ = 폰에 보낸 쪽지(ai_phone_cmd)
 try { P = JSON.parse(ls.get('phone', '[]')); } catch (e) {}
 async function loadPhone() {
   if (!owner) return;
-  const { data, error } = await sb.from('ai_phone_cal').select('device,name,calendars,events,synced_at,app_version');
+  const { data, error } = await sb.from('ai_phone_cal').select('device,name,calendars,events,synced_at,app_version,write_cal').order('synced_at', { ascending: false });
   if (error) return;
   P = data || []; ls.set('phone', JSON.stringify(P));
-  refreshAll(); renderPhoneSet();
+  refreshAll(); renderPhoneSet(); fillEvWhere();
 }
 // 폰 일정 → 앱 일정 모양으로. 구글 계정으로 이미 읽는 캘린더, 앱·구글에 이미 있는 같은 일정(날짜·시각·제목)은 빼요
 function phoneEvents() {
@@ -620,10 +620,57 @@ function phoneEvents() {
       if (c.visible === false) continue;
       if (c.type === 'com.google' && gm.has(String(c.account || '').toLowerCase())) continue;
       const k = key(e); if (seen.has(k)) continue; seen.add(k);
-      out.push({ id: `p_${e.id}`, date: e.date, time: e.time || '', end: e.end || '', endDate: e.end_date || '', title: e.title, loc: e.loc || '', label: c.name || '폰 캘린더', color: c.color || '#868e96', p: true });
+      out.push({ id: `p_${e.id}`, date: e.date, time: e.time || '', end: e.end || '', endDate: e.end_date || '', title: e.title, loc: e.loc || '', label: c.name || '폰 캘린더', color: c.color || '#868e96', p: true, rec: !!e.rec, cal: String(e.cal), device: r.device });
     }
   }
   return out;
+}
+// 일정을 넣을 수 있는 폰 캘린더 (가장 최근에 보낸 폰 기준)
+const phoneRow = () => P[0] || null;
+function phoneCals() {
+  const r = phoneRow(); if (!r) return [];
+  return (r.calendars || []).filter(c => c.can_write !== false && c.visible !== false).map(c => ({ ...c, id: String(c.id) }));
+}
+// 기본으로 넣을 캘린더: ⚙️에서 고른 것 → 없으면 이름이 '공유용'인 것 → 첫 번째
+function phoneDefault() {
+  const cs = phoneCals(), r = phoneRow();
+  return cs.find(c => c.id === String(r?.write_cal || '')) || cs.find(c => c.name === '공유용') || cs[0] || null;
+}
+// 이름(또는 id)으로 폰 캘린더 찾기. 못 찾으면 기본
+function phoneCalOf(k) {
+  const cs = phoneCals(), t = String(k || '').trim().toLowerCase();
+  return (t && (cs.find(c => c.id === t) || cs.find(c => c.name.toLowerCase() === t) || cs.find(c => c.name.toLowerCase().includes(t)))) || phoneDefault();
+}
+const phoneEv = id => phoneEvents().find(e => e.id === id);
+const isAndroid = /Android/i.test(navigator.userAgent);
+async function loadPQ() {
+  if (!owner) return;
+  const { data, error } = await sb.from('ai_phone_cmd').select('id,op,label,status,result,created_at,done_at').gte('created_at', new Date(Date.now() - 3 * 86400e3).toISOString()).order('created_at', { ascending: false }).limit(30);
+  if (error) return;
+  // 방금 끝난 쪽지는 알려 줘요
+  const before = Object.fromEntries(PQ.map(x => [x.id, x.status]));
+  for (const x of data || []) if (['wait', 'run'].includes(before[x.id]) && ['done', 'fail'].includes(x.status)) toast(`📱 ${x.result || x.label}`, 4000);
+  PQ = data || [];
+  if ($('pPlan').classList.contains('on')) renderPlan();
+}
+// [허락] 뒤: 서버에 쪽지를 남기고, 폰이면 캘린더 다리를 바로 깨워요
+async function phoneCmd(op, { cal, eventId, data, label, device }) {
+  if (!owner) throw new Error('먼저 로그인해 주세요');
+  const r = phoneRow(); if (!r) throw new Error('연결된 폰이 없어요. 캘린더 다리 앱을 먼저 설치해 주세요');
+  const { data: row, error } = await sb.from('ai_phone_cmd').insert({ device: device || r.device, op, cal: cal || null, event_id: eventId || null, data: data || {}, label }).select('id,op,label,status,result,created_at,done_at').single();
+  if (error) throw new Error('폰에 부탁을 못 남겼어요: ' + error.message);
+  PQ.unshift(row);
+  return row;
+}
+function wakeBridge() {
+  // 같은 폰이면 캘린더 다리를 투명하게 잠깐 열어서 바로 처리해요(설치돼 있을 때만 열려요)
+  if (isAndroid) setTimeout(() => { location.href = 'intent://run#Intent;scheme=calbridge;package=app.berryst.calbridge;end'; }, 50);
+}
+async function setPhoneDefault(id) {
+  const r = phoneRow(); if (!r) return;
+  const { error } = await sb.from('ai_phone_cal').update({ write_cal: id }).eq('device', r.device);
+  if (error) return toast('⚠️ ' + error.message, 4000);
+  r.write_cal = id; ls.set('phone', JSON.stringify(P)); toast('새 일정을 넣을 기본 캘린더를 바꿨어요');
 }
 function renderPhoneSet() {
   const el = $('pcSet'); if (!el) return;
@@ -631,7 +678,14 @@ function renderPhoneSet() {
   el.innerHTML = P.length ? P.map(r => {
     const old = Date.now() - new Date(r.synced_at).getTime() > 3 * 3600e3;
     return `<div>${old ? '⚠️' : '✅'} <b>${esc(r.name || '폰')}</b> · ${fmtWhen(r.synced_at)}에 보냄 · 캘린더 ${(r.calendars || []).length}개, 일정 ${(r.events || []).length}개${old ? '<br><small style="color:var(--warn)">3시간 넘게 소식이 없어요. 폰에서 캘린더 다리 앱을 한 번 열어 주세요(배터리 설정도 확인)</small>' : ''}</div>`;
-  }).join('') : '<div class="hint">아직 연결된 폰이 없어요. 아래에서 앱을 받아 설치하고 로그인해 주세요.</div>';
+  }).join('') + phoneWriteSet() : '<div class="hint">아직 연결된 폰이 없어요. 아래에서 앱을 받아 설치하고 로그인해 주세요.</div>';
+  const sel = $('pcDef'); if (sel) sel.onchange = () => setPhoneDefault(sel.value);
+}
+function phoneWriteSet() {
+  const cs = phoneCals(), d = phoneDefault(), r = phoneRow();
+  if (!r.calendars?.some(c => 'can_write' in c)) return '<div class="hint" style="margin-top:6px">📝 폰 캘린더에 일정을 넣으려면 캘린더 다리 앱을 <b>v0.3.0 이상</b>으로 업데이트해 주세요(아래 [앱 받기]로 덮어 설치).</div>';
+  if (!cs.length) return '<div class="hint">넣을 수 있는 폰 캘린더가 없어요.</div>';
+  return `<label style="display:block;margin-top:8px">📝 새 일정을 넣을 기본 캘린더 <select id="pcDef">${cs.map(c => `<option value="${esc(c.id)}" ${d && c.id === d.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label><div class="hint">AI 딸기에서 "일정 넣어 줘"라고 할 때 캘린더를 말하지 않으면 여기로 들어가요. "공유용-민규에 넣어 줘"처럼 말하면 그 캘린더로 들어가요.</div>`;
 }
 
 /* ---------- 📨 쿨메신저 비서 정리 항목 (학교 PC 일꾼이 올려 줘요. 쪽지 원문은 없어요) ---------- */
@@ -718,7 +772,7 @@ async function verifyOnServer(ids, expectDeleted = []) {
 }
 async function startSession(u) {
   user = u; owner = false;
-  if (!u) { if (chan) { sb.removeChannel(chan); chan = null; } Object.assign(G, { accounts: [], events: [], mails: [], tasks: [], at: 0 }); gSave(); T = []; W = null; CW = null; C = []; ls.del('cool'); if (cchan) { sb.removeChannel(cchan); cchan = null; } P = []; ls.del('phone'); if (pchan) { sb.removeChannel(pchan); pchan = null; } if (tchan) { sb.removeChannel(tchan); tchan = null; } setSync('local'); loadUsage(); renderAcct(); return; }
+  if (!u) { if (chan) { sb.removeChannel(chan); chan = null; } Object.assign(G, { accounts: [], events: [], mails: [], tasks: [], at: 0 }); gSave(); T = []; W = null; CW = null; C = []; ls.del('cool'); if (cchan) { sb.removeChannel(cchan); cchan = null; } P = []; PQ = []; ls.del('phone'); if (pchan) { sb.removeChannel(pchan); pchan = null; } if (qchan) { sb.removeChannel(qchan); qchan = null; } if (tchan) { sb.removeChannel(tchan); tchan = null; } setSync('local'); loadUsage(); renderAcct(); return; }
   setSync('busy');
   const { data: ok, error } = await sb.rpc('ai_claim_owner');
   if (error) { setSync('off'); renderAcct(); return; }
@@ -762,10 +816,15 @@ async function startSession(u) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_phone_cal', filter: `user_id=eq.${u.id}` }, () => { clearTimeout(pchan._t); pchan._t = setTimeout(loadPhone, 800); })
     .subscribe();
   loadPhone();
+  if (qchan) sb.removeChannel(qchan);
+  qchan = sb.channel('ai-pcmd-' + u.id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_phone_cmd', filter: `user_id=eq.${u.id}` }, () => { clearTimeout(qchan._t); qchan._t = setTimeout(loadPQ, 500); })
+    .subscribe();
+  loadPQ();
   if (START_TAB) { document.querySelector(`nav button[data-p=${START_TAB}]`)?.click(); START_TAB = ''; }
 }
 // 다른 기기에서 돌아왔을 때 / 다시 온라인일 때 맞추기
-document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) { pushNow().then(pullNow); loadUsage(); loadCool(); loadPhone(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && owner) { pushNow().then(pullNow); loadUsage(); loadCool(); loadPhone(); loadPQ(); } });
 window.addEventListener('online', () => { if (owner) pushNow().then(pullNow); });
 
 /* ---------- 오늘 AI 사용량 (폰+PC 합계) ---------- */
@@ -849,8 +908,15 @@ function renderG() {
     : '<div class="hint">아직 연결한 구글 계정이 없어요.</div>';
   // 일정 넣을 곳 고르기
   const sel = $('evWhere'), cur = sel.value;
-  sel.innerHTML = '<option value="">📱 AI 비서</option>' + G.accounts.map(a => `<option value="${a.id}">📅 ${esc(aName(a))}</option>`).join('');
-  sel.value = G.accounts.some(a => a.id === cur) ? cur : '';
+  fillEvWhere(cur);
+}
+// 일정 넣을 곳: 🍓 AI 비서 / 📅 구글 계정 / 📱 폰 캘린더 (처음엔 폰 기본 캘린더)
+function fillEvWhere(cur) {
+  const sel = $('evWhere'); if (!sel) return;
+  cur = cur ?? sel.value;
+  const pcs = phoneCals().filter(c => phoneRow()?.calendars?.some(x => 'can_write' in x)), pd = phoneDefault();
+  sel.innerHTML = '<option value="">🍓 AI 비서</option>' + G.accounts.map(a => `<option value="${a.id}">📅 ${esc(aName(a))}</option>`).join('') + pcs.map(c => `<option value="ph:${esc(c.id)}">📱 ${esc(c.name)}</option>`).join('');
+  sel.value = [...sel.options].some(o => o.value === cur && cur) ? cur : pcs.length && pd ? 'ph:' + pd.id : '';
 }
 let gEdit = ''; // 🔧 범위를 바꾸는 중인 계정 id
 $('gEditCancel').onclick = () => { gEdit = ''; $('gConnect').textContent = '＋ 구글 계정 더하기'; $('gEditCancel').style.display = 'none'; $('gLabel').value = ''; };
@@ -985,6 +1051,10 @@ function welcomeHTML() {
 // 확인 카드 한 줄 (구글 일은 계정 고르기·메일 내용까지 보여 줘요)
 function askItem(m, i, live) {
   const a = m.ask.actions[i], d = m.ask.items[i];
+  if (a.type === 'add_phone_event') {
+    const cs = phoneCals(), cur = phoneCalOf(a.account);
+    return `<li>${esc(d)}${live && cs.length > 1 ? `<select data-pcal="${m.id}" data-i="${i}">${cs.map(c => `<option value="${esc(c.id)}" ${cur && c.id === cur.id ? 'selected' : ''}>넣을 캘린더: ${esc(c.name)}</option>`).join('')}</select>` : ''}</li>`;
+  }
   if (!G_TYPES.has(a.type) || ['delete_gcal_event', 'do_on_site', 'done_gtask'].includes(a.type)) return `<li>${esc(d)}</li>`;
   const need = a.type === 'send_mail' ? 'mail_send' : { add_gtask: 'tasks', append_sheet: 'sheets', make_doc: 'make' }[a.type] || '';
   const cur = acctOf(a.account, need), list = G.accounts.filter(x => !need || (need === 'mail_send' ? x.level === 'mail_send' : x.caps?.[need]));
@@ -1090,7 +1160,7 @@ $('msgs').onclick = async e => {
   const m = S.chat.find(x => x.id === (ok || no).dataset[ok ? 'ok' : 'no']); if (!m?.ask || m.ask.status !== 'wait') return;
   if (no) { m.ask.status = 'no'; put('chat', m); renderChat(); return; }
   m.ask.status = 'run'; renderChat();
-  const local = m.ask.actions.filter(a => !G_TYPES.has(a.type)), goog = m.ask.actions.filter(a => G_TYPES.has(a.type));
+  const local = m.ask.actions.filter(a => !G_TYPES.has(a.type) && !PH_TYPES.has(a.type)), goog = m.ask.actions.filter(a => G_TYPES.has(a.type)), phone = m.ask.actions.filter(a => PH_TYPES.has(a.type));
   const r = applyActions(local, true);
   // 지운 게 정말 없어졌는지 확인
   let check = r.removedIds.every(id => !Object.values(LIST).some(k => S[k].some(x => x.id === id)));
@@ -1101,9 +1171,22 @@ $('msgs').onclick = async e => {
     catch (err) { result.push('⚠️ ' + err.message); check = false; }
   }
   if (goog.length) gRefresh(true);
-  Object.assign(m.ask, { status: 'yes', check, result }); put('chat', m); renderChat();
+  let woke = false;
+  for (const a of phone) {
+    try { result.push(await runPhone(a)); woke = true; }
+    catch (err) { result.push('⚠️ ' + err.message); check = false; }
+  }
+  if (woke) result.push(isAndroid ? '📱 캘린더 다리를 깨워서 바로 넣어요(잠깐 화면이 깜빡여요)' : '📱 폰이 15분 안에 처리해요. 급하면 폰에서 캘린더 다리 앱을 한 번 열어 주세요');
+  Object.assign(m.ask, { status: 'yes', check: phone.length && check ? null : check, result }); put('chat', m); renderChat();
+  if (woke) wakeBridge();
 };
 $('msgs').onchange = e => {
+  const pc = e.target.closest('select[data-pcal]');
+  if (pc) { // 폰 캘린더 바꾸기 → 카드 글도 바꿔요
+    const m = S.chat.find(x => x.id === pc.dataset.pcal); if (!m?.ask) return;
+    const a = m.ask.actions[+pc.dataset.i]; a.account = pc.value; m.ask.items[+pc.dataset.i] = describe(a) || m.ask.items[+pc.dataset.i];
+    put('chat', m); renderChat(); return;
+  }
   const s = e.target.closest('select[data-acc]'); if (!s) return;
   const m = S.chat.find(x => x.id === s.dataset.acc); if (!m?.ask) return;
   m.ask.actions[+s.dataset.i].account = s.value; put('chat', m);
@@ -1150,7 +1233,7 @@ const SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc'] },
+          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event'] },
           values: { type: 'ARRAY', items: { type: 'STRING' } },
           id: { type: 'STRING' }, date: { type: 'STRING' }, time: { type: 'STRING' }, end_time: { type: 'STRING' }, title: { type: 'STRING' },
           account: { type: 'STRING' }, to: { type: 'STRING' }, subject: { type: 'STRING' }, body: { type: 'STRING' },
@@ -1178,7 +1261,8 @@ function systemPrompt() {
    🧠 기억 키우기: 사용자가 대화 중에 오래 쓸 정보(나·가족·반·학교·담당 업무·좋아하는 것·싫어하는 것·습관·자주 하는 일·연락처 이름 등)를 말하면 묻지 말고 add_memo(title=짧은 한 줄)로 기억해. [기억]에 이미 비슷한 게 있으면 새로 넣지 말고 update_memo(id, title)로 고쳐. 한 번만 쓸 일시적인 내용은 기억하지 마. 기억했으면 reply 끝에 "(기억해 둘게요)"라고 짧게 붙여.
    대답할 때 [기억]을 적극적으로 써서 사용자에게 맞춰 줘(예: 반 학생 수, 좋아하는 음식).
    🖥️ PC 일꾼(사용자 PC에서 따로 연 브라우저로 사이트를 대신 다룸): 빈자리·취소표·예약 가능·재입고를 지켜봐 달라면 watch_site(url, text=찾을 글자, mode=appear 또는 disappear(예: "매진"이 사라지면), title=짧은 이름, goal=나타나면 이어서 할 일(선택)). 사이트에서 대신 눌러/예약/신청/장바구니 담기를 해 달라면 do_on_site(url, goal=날짜·시간·인원·옵션까지 자세히, title). 주소(url)를 모르면 물어봐. 일꾼은 예약·결제·신청·보내기 버튼 앞에서 멈추고 허락을 받는다고 알려 줘. do_on_site는 [허락] 카드가 먼저 떠. [PC 일꾼]이 꺼져 있으면 PC에서 켜 달라고 말해.
-   📱 [폰 캘린더]는 사용자 갤럭시 폰의 삼성 캘린더 등에서 읽어 온 일정이야([구글 일정]과 겹치는 건 이미 뺐어). 일정을 물어보면 [일정]·[구글 일정]·[폰 캘린더]를 모두 합쳐서 시간 순서로 대답해. [폰 캘린더]는 읽기만 돼서 지우거나 고칠 수 없어 — 그런 부탁을 받으면 폰의 삼성 캘린더에서 직접 고쳐 달라고 말해.
+   📱 [폰 캘린더]는 사용자 갤럭시 폰의 삼성 캘린더 등에서 읽어 온 일정이야([구글 일정]과 겹치는 건 이미 뺐어). 일정을 물어보면 [일정]·[구글 일정]·[폰 캘린더]를 모두 합쳐서 시간 순서로 대답해.
+   📱 폰 캘린더 쓰기([넣을 수 있는 폰 캘린더]가 있을 때): 사용자가 새 일정을 넣어 달라고 하면 구글 계정이나 캘린더를 따로 말하지 않는 한 add_phone_event(account=폰 캘린더 이름, 말하지 않으면 ⭐기본, date, time, end_time, title, text=장소(있으면))로 폰 캘린더에 넣어. [폰 캘린더] 일정을 고치려면 update_phone_event(id=[폰 캘린더]의 id, 바뀌는 것만 date·time·end_time·title), 지우려면 delete_phone_event(id). (반복)이 붙은 일정은 고치거나 지울 수 없으니 폰 삼성 캘린더에서 직접 하라고 말해. 이것들도 [허락] 버튼을 눌러야 실행되고, 폰이 처리하는 데 잠깐(폰에서 허락하면 바로, PC에서 허락하면 최대 15분쯤) 걸린다고 알려 줘.
    📨 [쿨메신저]는 학교 쿨메신저 쪽지에서 쿨메신저 비서가 뽑아 둔 할 일·적을 것·기억할 것이야. 오늘 할 일·마감·브리핑을 말할 때 [할 일]과 함께 챙겨(학생 이름이 있으면 그대로 써도 돼). 사용자가 그중 하나를 끝냈다고 하면 done_cool(id=[쿨메신저]의 id)로 체크해(학교 PC 쿨메신저 비서 창에도 체크돼). 쿨메신저 항목은 add_todo로 따로 넣지 마.
    ☀️ 아침 브리핑 알림: 사용자가 브리핑 시각을 바꾸거나 켜고 끄라고 하면 set_brief(time=HH:MM 24시간, mode=on 또는 off). "7시 반"은 07:30, "저녁 9시"는 21:00. 시각을 말하지 않고 켜 달라고만 하면 몇 시에 받을지 먼저 물어봐. 지금 설정은 [아침 브리핑]을 봐.
    📁 구글 더 쓰기([구글 계정]에 📁로 적힌 허락이 있을 때만):
@@ -1202,7 +1286,8 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${capTxt(a)}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
 [구글 할 일] ${G.tasks.slice(0, 40).map(x => `(${x.id}) [${x.label}] ${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
 [구글 일정] ${G.events.filter(e => e.date >= addDays(t, -1) && e.date <= addDays(t, 30)).map(e => `(${e.id}) [${e.label}] ${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''} ${e.title}`).join(' / ') || '(없음)'}
-[폰 캘린더] ${phoneEvents().filter(e => e.date >= addDays(t, -1) && e.date <= addDays(t, 30)).slice(0, 150).map(e => `[${e.label}] ${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''}${e.endDate ? '(~' + e.endDate + ')' : ''} ${e.title}${e.loc ? ' @' + e.loc : ''}`).join(' / ') || (P.length ? '(없음)' : '(폰 연결 안 됨)')}
+[넣을 수 있는 폰 캘린더] ${phoneCals().map(c => c.name + (phoneDefault()?.id === c.id ? '(⭐기본)' : '')).join(', ') || '(없음)'}
+[폰 캘린더] ${phoneEvents().filter(e => e.date >= addDays(t, -1) && e.date <= addDays(t, 30)).slice(0, 150).map(e => `(${e.id}) [${e.label}]${e.rec ? '(반복)' : ''} ${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''}${e.endDate ? '(~' + e.endDate + ')' : ''} ${e.title}${e.loc ? ' @' + e.loc : ''}`).join(' / ') || (P.length ? '(없음)' : '(폰 연결 안 됨)')}
 [최근 메일] ${G.mails.slice(0, 20).map(m => `[${m.label}] ${m.unread ? '(안 읽음) ' : ''}${fmtWhen(m.date)} 보낸이:${m.from} / 제목:${m.subject} / ${m.snippet.slice(0, 120)}`).join('\n') || '(없음)'}`;
 }
 const allEvents = () => [...S.events, ...G.events.map(e => ({ ...e, g: true })), ...phoneEvents()];
@@ -1235,9 +1320,12 @@ async function gemini(contents) {
 /* ---------- AI가 시킨 일 처리 ---------- */
 const okDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const okTime = s => /^\d{2}:\d{2}$/.test(s || '') ? s : '';
-const NEED_OK = new Set(['delete_event', 'delete_todo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'do_on_site', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc']); // 허락이 필요한 일
+const NEED_OK = new Set(['delete_event', 'delete_todo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'do_on_site', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event']); // 허락이 필요한 일
 function describe(a) {
   const f = arr => arr.find(x => x.id === a.id);
+  if (a.type === 'add_phone_event') { const c = phoneCalOf(a.account); return okDate(a.date) && a.title && c ? `📱 폰 캘린더 [${c.name}]에 넣기: ${dLabel(a.date)} ${okTime(a.time)}${okTime(a.end_time) ? '~' + okTime(a.end_time) : ''} ${a.title}${a.text ? ' @' + a.text : ''}` : null; }
+  if (a.type === 'update_phone_event') { const e = phoneEv(a.id); if (!e || e.rec) return null; const n = phoneMerge(e, a); return `✏️ 폰 일정 고치기 [${e.label}]: ${dLabel(e.date)} ${e.time || ''} ${e.title} → ${dLabel(n.date)} ${n.time || '종일'}${n.end ? '~' + n.end : ''} ${n.title}`; }
+  if (a.type === 'delete_phone_event') { const e = phoneEv(a.id); return e && !e.rec && `🗑️ 폰 일정 지우기 [${e.label}]: ${dLabel(e.date)} ${e.time || ''} ${e.title}`; }
   if (a.type === 'add_gtask') return a.title ? `☑️ 구글 할 일에 넣기: ${a.title}${okDate(a.date) ? ' (~' + dLabel(a.date) + ')' : ''}` : null;
   if (a.type === 'done_gtask') { const x = f(G.tasks); return x && `✔️ 구글 할 일 끝내기 [${x.label}]: ${x.title}`; }
   if (a.type === 'append_sheet') return (a.id || a.url) && a.values?.length ? `📊 구글 시트에 한 줄 더하기: ${a.values.join(' | ')}` : null;
@@ -1250,6 +1338,32 @@ function describe(a) {
   if (a.type === 'delete_todo') { const x = f(S.todos); return x && `🗑️ 할 일 지우기: ${x.title}`; }
   if (a.type === 'delete_memo') { const x = f(S.memos); return x && `🗑️ 기억 지우기: ${x.text}`; }
 }
+// 고칠 때: 말한 것만 바꾸고 나머지는 그대로
+function phoneMerge(e, a) {
+  const date = okDate(a.date) ? a.date : e.date, time = a.time !== undefined && a.time !== null && a.time !== '' ? okTime(a.time) : e.time;
+  const sameDay = date === e.date;
+  return { date, time, end: okTime(a.end_time) || (time === e.time ? e.end : ''), end_date: sameDay ? (e.endDate || '') : '', title: (a.title || '').trim() || e.title, all_day: !time };
+}
+// [허락] 뒤 폰 캘린더 일 (쪽지만 남기고, 결과는 폰이 처리하면 알림으로 와요)
+async function runPhone(a) {
+  if (a.type === 'add_phone_event') {
+    const c = phoneCalOf(a.account); if (!c) throw new Error('넣을 폰 캘린더가 없어요');
+    const data = { date: a.date, time: okTime(a.time), end: okTime(a.end_time), title: a.title.trim(), all_day: !okTime(a.time) };
+    if (a.text) data.loc = String(a.text);
+    await phoneCmd('add', { cal: c.id, data, label: `📱 [${c.name}]에 넣기: ${dLabel(a.date)} ${data.time} ${data.title}` });
+    return `📱 폰에 넣기 부탁함 → [${c.name}] ${data.title}`;
+  }
+  const e = phoneEv(a.id); if (!e) throw new Error('그 폰 일정을 못 찾았어요');
+  const raw = e.id.replace(/^p_/, '');
+  if (a.type === 'delete_phone_event') {
+    await phoneCmd('delete', { eventId: raw, device: e.device, label: `🗑️ 폰 일정 지우기: ${e.title}` });
+    return `📱 폰에 지우기 부탁함 → ${e.title}`;
+  }
+  const n = phoneMerge(e, a);
+  await phoneCmd('update', { eventId: raw, device: e.device, data: n, label: `✏️ 폰 일정 고치기: ${n.title}` });
+  return `📱 폰에 고치기 부탁함 → ${n.title}`;
+}
+const PH_TYPES = new Set(['add_phone_event', 'update_phone_event', 'delete_phone_event']);
 function applyActions(actions = [], approved = false) {
   const done = [], addedIds = [], removedIds = [], wait = [];
   for (const a of actions) {
@@ -1336,14 +1450,18 @@ async function send(text) {
 /* ---------- 일정·할 일 화면 ---------- */
 function renderPlan() {
   const t = today();
+  fillEvWhere();
   const evs = allEvents().filter(e => e.date >= addDays(t, -1)).sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
   let h = '', last = '';
   for (const e of evs) {
     if (e.date !== last) { if (last) h += '</div>'; h += `<div class="dhead ${e.date === t ? 'today' : ''}">${dLabel(e.date)}</div><div class="box">`; last = e.date; }
     const src = e.p ? `<small>${dotH(e.color)}📱 ${esc(e.label)}${e.loc ? ' · ' + esc(e.loc) : ''}</small>` : e.g ? `<small>${dotH(e.color)}${esc(e.label)}</small>` : '<small>🍓 AI 비서</small>';
-    h += `<div class="row"><span class="when">${esc(e.time || '종일')}${e.end ? `<br><span class="tag">~${esc(e.end)}</span>` : ''}</span><div class="t"><div>${esc(e.title)}${e.endDate ? ` <span class="tag">~${esc(dLabel(e.endDate))}</span>` : ''}</div>${G.accounts.length || P.length ? src : ''}</div>${e.p ? '' : `<button class="del" ${e.g ? `data-del-gev="${e.id}"` : `data-del-ev="${e.id}"`} title="삭제">✕</button>`}</div>`;
+    h += `<div class="row"><span class="when">${esc(e.time || '종일')}${e.end ? `<br><span class="tag">~${esc(e.end)}</span>` : ''}</span><div class="t"><div>${esc(e.title)}${e.endDate ? ` <span class="tag">~${esc(dLabel(e.endDate))}</span>` : ''}</div>${G.accounts.length || P.length ? src : ''}</div>${e.p ? (e.rec ? '' : `<button class="del" data-del-pev="${esc(e.id)}" title="폰에서 지우기">✕</button>`) : `<button class="del" ${e.g ? `data-del-gev="${e.id}"` : `data-del-ev="${e.id}"`} title="삭제">✕</button>`}</div>`;
   }
   if (last) h += '</div>';
+  // 📱 폰에 부탁한 일(넣기·고치기·지우기) — 처리 중이거나 막 끝난 것
+  const pq = PQ.filter(x => ['wait', 'run'].includes(x.status) || (x.status === 'fail' && Date.now() - new Date(x.done_at || x.created_at).getTime() < 86400e3));
+  if (pq.length) h = `<div class="box">${pq.map(x => `<div class="row"><span class="when">${x.status === 'fail' ? '⚠️' : '⏳'}</span><div class="t"><div>${esc(x.label || '')}</div><small>${x.status === 'fail' ? esc(x.result || '안 됐어요') : `폰이 처리하길 기다리는 중 · ${fmtWhen(x.created_at)}${isAndroid ? '' : ' (급하면 폰에서 캘린더 다리 앱 열기)'}`}</small></div>${x.status === 'wait' ? `<button class="del" data-cancel-pq="${x.id}" title="부탁 취소">✕</button>` : ''}</div>`).join('')}</div>` + h;
   const old = S.events.filter(e => e.date < addDays(t, -1)).length;
   $('evList').innerHTML = (h || '<div class="box"><div class="none">앞으로 잡힌 일정이 없어요</div></div>') + (old ? `<div class="hint">지난 일정 ${old}개는 숨겨 뒀어요</div>` : '');
 
@@ -1360,7 +1478,18 @@ function renderPlan() {
   }).join('');
 }
 $('pPlan').onclick = async e => {
-  const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev, gtd = e.target.dataset.gtd;
+  const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev, gtd = e.target.dataset.gtd, dp = e.target.dataset.delPev, cq = e.target.dataset.cancelPq;
+  if (cq) { // 아직 폰이 안 가져간 부탁 취소
+    const { data } = await sb.from('ai_phone_cmd').delete().eq('id', cq).eq('status', 'wait').select('id');
+    toast(data?.length ? '부탁을 취소했어요' : '폰이 벌써 처리 중이라 취소 못 했어요'); loadPQ(); return;
+  }
+  if (dp) {
+    const ev = phoneEv(dp); if (!ev) return;
+    if (!confirm(`폰 캘린더 [${ev.label}]에서 지울까요?\n${dLabel(ev.date)} ${ev.time || ''} ${ev.title}`)) return;
+    try { await runPhone({ type: 'delete_phone_event', id: dp }); renderPlan(); toast(isAndroid ? '📱 캘린더 다리를 깨워서 지워요' : '📱 폰에 지우기를 부탁했어요(15분 안)', 3500); wakeBridge(); }
+    catch (err) { toast('⚠️ ' + err.message, 4000); }
+    return;
+  }
   if (gtd) {
     const x = G.tasks.find(y => y.id === gtd); if (!x) return;
     e.target.disabled = true;
@@ -1384,6 +1513,16 @@ $('pPlan').onclick = async e => {
 $('evAdd').onclick = async () => {
   const title = $('evTitle').value.trim(), date = $('evD').value, where = $('evWhere').value;
   if (!title || !date) return toast('날짜와 일정 이름을 넣어 주세요');
+  if (where.startsWith('ph:')) { // 📱 폰 캘린더에 넣기
+    try {
+      $('evAdd').disabled = true;
+      const c = phoneCals().find(x => x.id === where.slice(3));
+      await runPhone({ type: 'add_phone_event', account: c?.id, date, time: $('evT').value, title });
+      $('evTitle').value = ''; $('evT').value = ''; renderPlan();
+      toast(isAndroid ? '📱 캘린더 다리를 깨워서 넣어요' : `📱 폰 [${c?.name}]에 넣기를 부탁했어요(15분 안)`, 3500); wakeBridge();
+    } catch (err) { toast('⚠️ ' + err.message, 4000); } finally { $('evAdd').disabled = false; }
+    return;
+  }
   if (where) {
     try {
       $('evAdd').disabled = true;
