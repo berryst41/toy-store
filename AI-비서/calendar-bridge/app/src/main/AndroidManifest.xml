@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
+        android:name=".App"
         android:label="🍓 캘린더 다리"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
@@ -35,6 +36,12 @@
         <service android:name=".SyncJob"
             android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="false" />
+        <!-- ⚡ 바로 깨우기: PC에서 [허락]하면 서버가 보내는 조용한 신호(FCM)를 받아요 -->
+        <service android:name=".PushService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

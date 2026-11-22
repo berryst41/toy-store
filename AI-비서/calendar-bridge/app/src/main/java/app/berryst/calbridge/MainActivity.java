@@ -101,7 +101,12 @@ public class MainActivity extends Activity {
         if (pr.getInt("cmd_count", 0) > 0) small("📝 AI 딸기 부탁으로 폰 캘린더에 반영한 것: " + pr.getInt("cmd_count", 0) + "개 (마지막 " + DateUtils.getRelativeTimeSpanString(pr.getLong("cmd_last", 0)) + ")");
         button(busy ? "보내는 중…" : "지금 보내기", v -> sendNow());
 
-        // ④ 보낼 캘린더 고르기 — 체크를 끄면 그 캘린더 일정은 AI 딸기로 안 보내요
+        // ④ 바로 깨우기 (PC에서 허락해도 몇 초 안에)
+        String ps = pr.getString("push_state", "");
+        step("④ ⚡ 바로 깨우기", ps.isEmpty() ? "[지금 보내기]를 한 번 누르면 준비돼요" : ps
+            + (pr.getLong("push_last", 0) > 0 ? "\n(마지막 신호 " + DateUtils.getRelativeTimeSpanString(pr.getLong("push_last", 0)) + ")" : ""), ps.startsWith("✅"));
+
+        // ⑤ 보낼 캘린더 고르기 — 체크를 끄면 그 캘린더 일정은 AI 딸기로 안 보내요
         if (perm) {
             gap(12);
             text("📚 AI 딸기로 보낼 캘린더", 17, Color.BLACK, true);
