@@ -1450,6 +1450,7 @@ async function send(text) {
 /* ---------- 일정·할 일 화면 ---------- */
 function renderPlan() {
   const t = today();
+  fillEvWhere();
   const evs = allEvents().filter(e => e.date >= addDays(t, -1)).sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
   let h = '', last = '';
   for (const e of evs) {
