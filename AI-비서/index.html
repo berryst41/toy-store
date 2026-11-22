@@ -1730,6 +1730,7 @@ async function send(text) {
 }
 
 /* ---------- 일정·할 일 화면 ---------- */
+$('planJump').onclick = e => { const b = e.target.closest('[data-jump]'); if (b) $(b.dataset.jump).scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 function renderPlan() {
   const t = today();
   fillEvWhere();
