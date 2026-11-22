@@ -1,5 +1,5 @@
-// 🍓 캘린더 다리: 폰 안의 모든 캘린더(삼성·구글·내 폰)를 읽어서 AI 딸기 서버(ai_phone_cal)에 올려요. 읽기만 해요.
-// 라이브러리 없이 안드로이드 기본 기능만 써요. 서명 열쇠·번호는 GitHub Actions(.github/workflows/calendar-bridge.yml)가 넣어 줘요.
+// 🍓 캘린더 다리: 폰 안의 모든 캘린더(삼성·구글·내 폰)를 읽어서 AI 딸기 서버(ai_phone_cal)에 올리고, AI 딸기에서 [허락]한 일정만 넣기·고치기·지우기를 해요.
+// 안드로이드 기본 기능 + (v0.4.0~) 바로 깨우기용 Firebase 알림 라이브러리 하나만 써요. 서명 열쇠·번호는 GitHub Actions(.github/workflows/calendar-bridge.yml)가 넣어 줘요.
 plugins { id 'com.android.application' }
 
 android {
@@ -10,7 +10,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
-        versionName '0.3.0' // ← 앱을 고치면 이 버전을 올리고 README 버전 기록에도 적어요
+        versionName '0.4.0' // ← 앱을 고치면 이 버전을 올리고 README 버전 기록에도 적어요
     }
     signingConfigs {
         release {
@@ -29,4 +29,9 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     lint { checkReleaseBuilds false; abortOnError false }
+}
+
+dependencies {
+    // ⚡ 바로 깨우기(FCM). 설정(google-services.json)은 앱에 넣지 않고 서버에서 받아요 (Push.java)
+    implementation 'com.google.firebase:firebase-messaging:24.0.0'
 }
