@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-/** 폰의 캘린더를 읽어서 서버에 보내요. 폰 캘린더는 절대 고치지 않아요(읽기만). */
+/** 폰의 캘린더를 읽어서 서버에 보내요. (고치기는 AI 딸기에서 [허락]한 쪽지만 Cmd가 해요) */
 public class Sync {
     static final int DAYS_BACK = 1, DAYS_AHEAD = 60, MAX_EVENTS = 1500;
 
@@ -130,6 +130,8 @@ public class Sync {
                 .put("app_version", BuildConfigVersion.name(c))
                 .put("synced_at", iso(System.currentTimeMillis()));
             Api.http("POST", "/rest/v1/ai_phone_cal?on_conflict=user_id,device", Api.token(c), new JSONArray().put(row).toString(), "resolution=merge-duplicates,return=minimal");
+
+            Push.ensure(c); // ⚡ 바로 깨우기 준비 (서버에 이 폰의 알림 열쇠 적기)
 
             String msg = "✅ 캘린더 " + cals.length() + "개 · 일정 " + evs.length() + "개 보냄";
             p.edit().putLong("last_ok", System.currentTimeMillis()).putString("last_msg", msg).remove("last_err").apply();

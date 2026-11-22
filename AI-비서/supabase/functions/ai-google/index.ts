@@ -4,6 +4,7 @@
 // 구글 열쇠(refresh token)는 AES-GCM으로 잠가서 ai_google_accounts.token_enc에 두고, 브라우저로는 절대 내보내지 않아요.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import webpush from 'npm:web-push@3.6.7';
+import { fcmAccount, sendFcm } from './fcm.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -316,11 +317,22 @@ async function buildBrief(uid: string) {
   const cT = (cool || []).filter((x: any) => x.due === t), cLate = (cool || []).filter((x: any) => x.due && x.due < t);
   if (cT.length) lines.push('📨 쿨메신저 오늘 마감: ' + cT.slice(0, 3).map((x: any) => x.text.slice(0, 25)).join(', '));
   if (cLate.length) lines.push(`📨 쿨메신저 마감 지남 ${cLate.length}개`);
+  // 📬 메일 요약 (v0.11): AI 딸기 앱이 메일을 나눈 결과(ai_profile.mail)를 써요 — 36시간 안의 것만
+  const { data: pm } = await admin.from('ai_profile').select('mail').eq('user_id', uid).maybeSingle();
+  const mail = pm?.mail && Date.now() - new Date(pm.mail.at).getTime() < 36 * 3600e3 ? pm.mail : null;
+  let replyN = 0;
+  if (mail) {
+    const rp = (mail.reply || []) as any[], tdm = (mail.todo || []) as any[];
+    replyN = rp.length;
+    if (rp.length) lines.push(`✍️ 답장할 메일 ${rp.length}통: ` + rp.slice(0, 2).map(x => `${x.f ? x.f + ' · ' : ''}${x.s}`).join(', '));
+    if (tdm.length) lines.push(`✅ 할 일 있는 메일 ${tdm.length}통: ` + tdm.slice(0, 2).map(x => x.s + (x.due ? `(~${x.due.slice(5).replace('-', '/')})` : '')).join(', '));
+  }
   if (unread) lines.push(`📬 안 읽은 메일 ${unread}통`);
   const tips: string[] = [];
   if (dueTom.length) tips.push(`내일 마감 ${dueTom.length}개 미리 챙기기`);
   if (late.length) tips.push('마감 지난 할 일 정리하기');
-  if (unread >= 3) tips.push('메일 요약 받아 보기');
+  if (replyN) tips.push('답장할 메일 먼저 보내기');
+  else if (unread >= 3) tips.push('메일 요약 받아 보기');
   if (tips.length) lines.push('💡 ' + tips.join(' · '));
   const d = kst();
   return { title: `☀️ ${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WD[d.getUTCDay()]}) 아침 브리핑`, body: lines.join('\n') };
@@ -404,6 +416,19 @@ Deno.serve(async req => {
       return json({ code, expires_at });
     }
     if (act === 'notify') return json({ sent: await pushTo(user.id, { title: String(body.title || 'AI 비서').slice(0, 60), body: String(body.body || '').slice(0, 300), url: './?tab=work', tag: String(body.tag || 'ai-work').slice(0, 40) }) });
+    // ⚡ 캘린더 다리 바로 깨우기 (v0.11): 앱이 Firebase 설정을 받아 가고, PC에서 [허락]하면 조용한 신호를 보내요
+    if (act === 'bridge_fcm') { const { data: cfg } = await admin.from('ai_push_config').select('bridge_fcm').eq('id', 1).single(); return json({ config: cfg?.bridge_fcm || null }); }
+    if (act === 'phone_wake') {
+      const sa = fcmAccount(); if (!sa) return json({ sent: 0, why: 'no_fcm_secret' });
+      const { data: ph } = await admin.from('ai_phone_cal').select('device,fcm').eq('user_id', user.id).not('fcm', 'is', null);
+      let sent = 0;
+      for (const p of ph || []) {
+        if (body.device && p.device !== body.device) continue;
+        const r = await sendFcm(sa, p.fcm, { wake: '1' }, 900);
+        if (r === 'ok') sent++; else if (r === 'gone') await admin.from('ai_phone_cal').update({ fcm: null }).eq('user_id', user.id).eq('device', p.device);
+      }
+      return json({ sent });
+    }
     if (act === 'push_test') { await vapidKey(); const msg = await buildBrief(user.id); return json({ sent: await pushTo(user.id, msg), ...msg }); }
     if (!(CID && CSECRET)) return json({ error: 'not_configured' }, 400);
 
