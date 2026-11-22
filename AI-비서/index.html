@@ -364,7 +364,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.13.1';
+const VERSION = '0.13.2';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -669,6 +669,27 @@ async function addBus(b) {
   const title = `${b.dep}→${b.arr} ${dLabel(b.date)} ${okTime(b.from) || ''}${okTime(b.to) ? '~' + okTime(b.to) : ''} ${n}석`.replace(/\s+/g, ' ').trim();
   await addTask('watch', title, { bus: { dep: b.dep, arr: b.arr, date: b.date, from: okTime(b.from), to: okTime(b.to), n }, every });
   return title;
+}
+// AI가 칸을 비워 보내도 사용자 말에서 출발·도착·시간·날짜를 채워요
+function busFrom(a, said = '') {
+  const all = [a.dep && a.arr ? '' : [a.title, a.text, a.goal].filter(Boolean).join(' '), said].join(' ');
+  let dep = String(a.dep || '').trim(), arr = String(a.arr || '').trim();
+  if (!dep || !arr) {
+    const m = /([가-힣A-Za-z]{2,10}?)\s*(?:에서|→|->)\s*([가-힣A-Za-z]{2,10}?)(?=\s|으로|로|가는|오는|행|까지|버스|$)/.exec(all);
+    if (m) { dep = dep || m[1]; arr = arr || m[2]; }
+  }
+  let from = okTime(a.time), to = okTime(a.end_time);
+  const pm = /오후|저녁|밤/.test(all);
+  const hm = (h, mi) => `${String(+h + (pm && +h < 12 ? 12 : 0)).padStart(2, '0')}:${String(+mi || 0).padStart(2, '0')}`;
+  const tm = /(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분|반)?\s*(이전|전|까지|부터|이후|넘어)/.exec(all);
+  if (tm && !from && !to) { const v = hm(tm[1], /반/.test(tm[0]) ? 30 : tm[2]); if (/부터|이후|넘어/.test(tm[3])) from = v; else to = v; }
+  let date = okDate(a.date) ? a.date : '';
+  if (!date) { // 날짜를 안 말했으면: 그 시각이 오늘 아직 안 지났으면 오늘, 지났으면 내일
+    const now = new Date(), cur = `${pad(now.getHours())}:${pad(now.getMinutes())}`, last = to || from || '23:59';
+    date = /내일/.test(all) ? addDays(today(), 1) : /모레/.test(all) ? addDays(today(), 2) : last > cur ? today() : addDays(today(), 1);
+  }
+  const nm = /(\d)\s*(?:자리|석|명|장)/.exec(all);
+  return { dep, arr, date, from, to, n: a.n || (nm ? +nm[1] : 1), every: 5 };
 }
 $('uAdd').onclick = async () => {
   try {
@@ -1486,6 +1507,7 @@ function systemPrompt() {
    🧠 기억 키우기: 사용자가 대화 중에 오래 쓸 정보(나·가족·반·학교·담당 업무·좋아하는 것·싫어하는 것·습관·자주 하는 일·연락처 이름 등)를 말하면 묻지 말고 add_memo(title=짧은 한 줄)로 기억해. [기억]에 이미 비슷한 게 있으면 새로 넣지 말고 update_memo(id, title)로 고쳐. 한 번만 쓸 일시적인 내용은 기억하지 마. 기억했으면 reply 끝에 "(기억해 둘게요)"라고 짧게 붙여.
    대답할 때 [기억]을 적극적으로 써서 사용자에게 맞춰 줘(예: 반 학생 수, 좋아하는 음식).
    🖥️ PC 일꾼(사용자 PC에서 따로 연 브라우저로 사이트를 대신 다룸): 빈자리·취소표·예약 가능·재입고를 지켜봐 달라면 watch_site(url, text=찾을 글자, mode=appear 또는 disappear(예: "매진"이 사라지면), title=짧은 이름, goal=나타나면 이어서 할 일(선택)). 사이트에서 대신 눌러/예약/신청/장바구니 담기를 해 달라면 do_on_site(url, goal=날짜·시간·인원·옵션까지 자세히, title). 주소(url)를 모르면 물어봐. 일꾼은 예약·결제·신청·보내기 버튼 앞에서 멈추고 허락을 받는다고 알려 줘. do_on_site는 [허락] 카드가 먼저 떠. [PC 일꾼]이 꺼져 있으면 PC에서 켜 달라고 말해.
+   🚌 (watch_bus는 [허락] 없이 바로 맡겨져. "허락해 주세요"라고 하지 말고 "맡겼어요"라고 해. 예: {"type":"watch_bus","dep":"서울","arr":"세종","date":"2026-11-23","end_time":"09:40","n":1})
    🚌 고속버스 빈자리·취소표를 알려 달라면(예: "25일 서울에서 대전 저녁 5~7시 버스 자리 나면 알려 줘", "9시 40분 전 서울→세종 버스 취소표 알림") **거절하지 말고 꼭** watch_bus를 담아. 이건 예매를 대신 하는 매크로가 아니라 빈자리를 보고 알려 주기만 하는 거라 괜찮아(기차 금지 규칙과 상관없음). "~전/~까지"면 end_time만, "~부터/이후"면 time만 넣어. 날짜를 말하지 않았으면 지금 시각 기준으로 그 시간이 아직 안 지났으면 오늘, 지났으면 내일로 하고 reply에 날짜를 밝혀. watch_bus(dep=출발 터미널·도시, arr=도착, date=YYYY-MM-DD, time=시간대 시작 HH:MM, end_time=시간대 끝 HH:MM, n=필요한 좌석 수(말 안 하면 1)). 주소는 필요 없어. PC 일꾼이 5분마다 고속버스 배차를 보고 자리가 나면 폰 알림만 보내고, 예매는 사용자가 직접 한다고 알려 줘. 시외버스·기차는 안 돼.
    📅 예약을 잡아 달라면(병원·미용실·식당 같은 네이버 예약, 방탈출, 고속·시외버스) do_on_site 대신 book_site(url=예약 페이지 주소, title=무엇(가게·테마 이름과 할 것), date=YYYY-MM-DD, time=원하는 시간대 시작 HH:MM, end_time=시간대 끝 HH:MM, text=인원·옵션, goal=안 되면 괜찮은 대안(사용자가 말했을 때만), mode=ask(기본: 마지막 확정 버튼 앞에서 물어봄) 또는 auto(사용자가 "알아서 끝까지·묻지 말고"라고 할 때만. 돈이 안 드는 예약만 자동이고 결제는 언제나 물어봄), at=예약이 열리는 시각 YYYY-MM-DDTHH:MM(사용자가 "몇 시에 열리면 바로 잡아 줘"라고 할 때), retry=자리 없으면 다시 볼 간격(분, 사용자가 "자리 날 때까지"라고 하면 30, 30보다 작게 하지 마)). 코레일·SRT(기차)만 매크로 예매가 금지돼 계정이 정지될 수 있으니 기차는 book_site·do_on_site·watch_site 모두 하지 말고 직접 예매하라고 말해(버스는 해당 없음 — 버스 알림은 watch_bus). 정각 예약(at)은 마지막 확정을 꼭 물어본다고 알려 줘. 주소를 모르면 네이버 지도·예약 페이지 링크를 달라고 물어봐. 예약되면 폰 기본 캘린더에 저절로 들어간다고 알려 줘. book_site도 [허락] 카드가 먼저 떠.
    📱 [폰 캘린더]는 사용자 갤럭시 폰의 삼성 캘린더 등에서 읽어 온 일정이야([구글 일정]과 겹치는 건 이미 뺐어). 일정을 물어보면 [일정]·[구글 일정]·[폰 캘린더]를 모두 합쳐서 시간 순서로 대답해.
@@ -1682,7 +1704,7 @@ async function send(text) {
       catch (err) { res.done.push('⚠️ 지켜보기 못 맡김: ' + err.message); }
     }
     for (const a of (r.actions || []).filter(x => x.type === 'watch_bus').slice(0, 3)) {
-      try { res.done.push('🚌 PC 일꾼에게 버스 빈자리 알림 맡김: ' + await addBus({ dep: a.dep, arr: a.arr, date: a.date, from: a.time, to: a.end_time, n: a.n, every: 5 })); }
+      try { res.done.push('🚌 PC 일꾼에게 버스 빈자리 알림 맡김: ' + await addBus(busFrom(a, text))); }
       catch (err) { res.done.push('⚠️ 버스 알림 못 맡김: ' + err.message); }
     }
     for (const a of (r.actions || []).filter(x => x.type === 'done_cool')) {
