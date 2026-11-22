@@ -94,6 +94,14 @@ button:disabled{opacity:.5}
 .modal.show{display:flex}
 .sheet{background:#fff;width:100%;max-width:560px;max-height:90dvh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
 @media(min-width:700px){.modal{align-items:center}.sheet{border-radius:18px}}
+/* 🖥️ PC(넓은 화면): 가로 폭을 꽉 채워 써요 */
+@media(min-width:1000px){
+  main{max-width:none;padding:0 28px;box-sizing:border-box}
+  .m{max-width:72%}
+  #taskList{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:12px}
+  #taskList .task,#taskList .box{margin-bottom:0}
+  #taskList .task img{max-height:320px}
+}
 .sheet h3{margin:0 0 6px}
 .sheet h4{margin:18px 0 0;font-size:15px;border-top:1px solid var(--line);padding-top:14px}
 label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
@@ -348,7 +356,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.12.1';
+const VERSION = '0.12.2';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
