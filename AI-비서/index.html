@@ -1751,20 +1751,44 @@ function renderPlan() {
   const old = S.events.filter(e => e.date < addDays(t, -1)).length;
   $('evList').innerHTML = (h || '<div class="box"><div class="none">앞으로 잡힌 일정이 없어요</div></div>') + (old ? `<div class="hint">지난 일정 ${old}개는 숨겨 뒀어요</div>` : '');
 
-  // 위쪽 바로가기 — 폰 일정이 많으면 할 일·쿨메신저가 한참 아래라서
-  const tdOpen = S.todos.filter(x => !x.done).length + G.tasks.length, coolN = owner ? coolOpen().length : 0;
-  $('planJump').innerHTML = `<button class="chip" data-jump="hEv">📅 일정</button><button class="chip" data-jump="hTd">✅ 할 일 ${tdOpen}</button>${owner ? `<button class="chip" data-jump="hCool">📨 쿨메신저 ${coolN}</button>` : ''}`;
-  const td = [...S.todos].sort((a, b) => (a.done - b.done) || (a.due || '9999').localeCompare(b.due || '9999'));
-  $('tdList').innerHTML = td.length ? td.map(x => {
-    const late = !x.done && x.due && x.due < t;
-    return `<div class="row ${x.done ? 'done' : ''}"><input type="checkbox" data-chk="${x.id}" ${x.done ? 'checked' : ''}><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small style="${late ? 'color:var(--warn);font-weight:700' : ''}">~ ${dLabel(x.due)}${late ? ' · 마감 지남' : ''}</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
-  }).join('') : G.tasks.length ? '' : '<div class="none">할 일이 없어요 🎉</div>';
-  // ☑️ 구글 할 일 (연결한 계정에 '할 일' 허락이 있을 때)
-  const gt = [...G.tasks].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
-  if (gt.length) $('tdList').innerHTML += gt.map(x => {
+  renderTodo();
+}
+// ✅ 체크리스트 — 할 일(🍓)과 구글 할 일(☑️)을 마감 디데이별로 묶어 보여 줘요
+const dDiff = d => Math.round((new Date(d + 'T00:00') - new Date(today() + 'T00:00')) / 864e5);
+const dTag = n => n === 0 ? 'D-day' : n > 0 ? `D-${n}` : `D+${-n}`;
+function renderTodo() {
+  const t = today();
+  const open = [
+    ...S.todos.filter(x => !x.done).map(x => ({ ...x, src: 'me' })),
+    ...G.tasks.map(x => ({ ...x, src: 'g' }))
+  ].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+  const groups = new Map(); // 마감 지남 / 날짜마다 / 마감 없음
+  for (const x of open) {
+    const k = !x.due ? 'none' : x.due < t ? 'late' : x.due;
+    if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x);
+  }
+  const keys = [...groups.keys()].sort((a, b) => (a === 'late' ? '0' : a === 'none' ? '9' : a).localeCompare(b === 'late' ? '0' : b === 'none' ? '9' : b));
+  const row = x => {
     const late = x.due && x.due < t;
-    return `<div class="row"><input type="checkbox" data-gtd="${esc(x.id)}"><div class="t"><div>${esc(x.title)}</div><small>${dotH(x.color)}☑️ ${esc(x.label)}${x.due ? ` · <span style="${late ? 'color:var(--warn);font-weight:700' : ''}">~ ${dLabel(x.due)}${late ? ' · 마감 지남' : ''}</span>` : ''}</small></div></div>`;
-  }).join('');
+    const tag = late ? `<span class="tag" style="color:var(--warn);font-weight:700">${dTag(dDiff(x.due))}</span> ` : '';
+    return x.src === 'g'
+      ? `<div class="row"><input type="checkbox" data-gtd="${esc(x.id)}"><div class="t"><div>${tag}${esc(x.title)}</div><small>${dotH(x.color)}☑️ ${esc(x.label)}${late ? ' · ' + dLabel(x.due) : ''}</small></div></div>`
+      : `<div class="row"><input type="checkbox" data-chk="${x.id}"><div class="t"><div>${tag}${esc(x.title)}</div>${late ? `<small style="color:var(--warn)">${dLabel(x.due)} 마감 지남</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
+  };
+  const head = k => {
+    if (k === 'late') return `⚠️ 마감 지남`;
+    if (k === 'none') return `📌 마감 없음`;
+    const n = dDiff(k);
+    return `<b style="${n <= 1 ? 'color:var(--warn)' : ''}">${dTag(n)}</b> · ${dLabel(k)}`;
+  };
+  let h = keys.map(k => `<div class="dhead ${k === t ? 'today' : ''}">${head(k)} <small style="color:var(--sub);font-weight:400">${groups.get(k).length}개</small></div><div class="box">${groups.get(k).map(row).join('')}</div>`).join('');
+  if (!h) h = '<div class="box"><div class="none">해야 할 것이 없어요 🎉</div></div>';
+  // 끝낸 것은 최근 7일 것만 아래에 흐리게
+  const done = S.todos.filter(x => x.done && (x.doneAt || '') >= addDays(t, -7)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
+  if (done.length) h += `<div class="dhead">✔️ 끝낸 것 <small style="color:var(--sub);font-weight:400">최근 7일</small></div><div class="box">${done.map(x => `<div class="row done"><input type="checkbox" data-chk="${x.id}" checked><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small>${dLabel(x.due)}까지였음</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`).join('')}</div>`;
+  $('tdList').innerHTML = h;
+  const nb = document.querySelector('nav button[data-p=pTodo]');
+  if (nb) { const n = open.filter(x => x.due && x.due <= addDays(t, 1)).length; nb.textContent = '✅ 할 일' + (n ? ` ${n}` : ''); }
 }
 $('pPlan').onclick = async e => {
   const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev, gtd = e.target.dataset.gtd, dp = e.target.dataset.delPev, cq = e.target.dataset.cancelPq;
