@@ -101,3 +101,4 @@
 - 2026-11-22 19:50 · AI 비서 v0.11.0 + 캘린더 다리 v0.4.0: ⚡ FCM 바로 깨우기(ai_phone_cal.fcm, ai_push_config.bridge_fcm, phone_wake·bridge_fcm), ☀️ 브리핑 메일 요약(ai_profile.mail), 🔁 반복 일정 이번 것만/전체 (ai-google v16)
 - 2026-11-22 20:05 · PC 일꾼 v0.7.1: 여러 PC에 깔아도 한 일은 한 PC만(claim), 설치 순서 계획 기록(내 PC→학교 PC→미니PC 상시)
 - 2026-11-22 20:10 · AI 비서 v0.12.1 / 일꾼 v0.7.2: 🛡️ 안전 모드 — 정각 예약 몇 초 늦게+확정 물어봄, 다시 보기 30분·10번, 코레일·SRT 막기
+- 2026-11-22 20:05 · AI 비서 v0.12.2: @media(min-width:1000px) main max-width 없앰+좌우 28px, 말풍선 72%, #taskList 그리드(minmax 440px)
