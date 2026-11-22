@@ -44,12 +44,29 @@ public class MainActivity extends Activity {
         setContentView(sv);
     }
 
-    @Override protected void onResume() { super.onResume(); draw(); }
+    @Override protected void onResume() { super.onResume(); draw(); ui.post(watch); }
+    @Override protected void onPause() { super.onPause(); ui.removeCallbacks(watch); }
+
+    /** 이 화면이 켜져 있는 동안은 5초마다 AI 딸기 쪽지를 확인해서 바로 넣어요 */
+    final Runnable watch = new Runnable() {
+        @Override public void run() {
+            ui.removeCallbacks(this);
+            if (Api.loggedIn(MainActivity.this) && Sync.hasWrite(MainActivity.this) && !busy) {
+                new Thread(() -> {
+                    int n = Cmd.process(MainActivity.this);
+                    if (n > 0) { Sync.run(MainActivity.this); ui.post(() -> { android.widget.Toast.makeText(MainActivity.this, "🍓 폰 캘린더에 " + n + "개 반영했어요", android.widget.Toast.LENGTH_SHORT).show(); draw(); }); }
+                }).start();
+            }
+            ui.postDelayed(this, 5000);
+        }
+    };
+
+    void askPerm() { requestPermissions(new String[]{ Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR }, 1); }
 
     void draw() {
         box.removeAllViews();
         text("🍓 캘린더 다리", 26, Color.BLACK, true);
-        text("폰에 있는 모든 캘린더(삼성 계정·구글·내 폰)를 30분마다 읽어서 AI 딸기에 보내 줘요. 폰 일정은 읽기만 하고 절대 바꾸지 않아요.", 15, GRAY, false);
+        text("폰에 있는 모든 캘린더(삼성 계정·구글·내 폰)를 15분마다 읽어서 AI 딸기에 보내 줘요. AI 딸기에서 [허락]한 일정만 폰 캘린더에 넣거나 고치거나 지워요.", 15, GRAY, false);
         gap(12);
 
         if (!Api.loggedIn(this)) { drawLogin(); return; }
@@ -58,10 +75,10 @@ public class MainActivity extends Activity {
         text("👤 " + pr.getString("email", "") + " 로 로그인됨", 15, Color.BLACK, false);
         gap(8);
 
-        // ① 캘린더 권한
-        boolean perm = Sync.hasPermission(this);
-        step("① 캘린더 읽기 권한", perm ? "✅ 허용됨" : "아직 허용 안 됨", perm);
-        if (!perm) button("캘린더 권한 허용하기", v -> requestPermissions(new String[]{ Manifest.permission.READ_CALENDAR }, 1));
+        // ① 캘린더 권한 (읽기 + 쓰기)
+        boolean perm = Sync.hasPermission(this), wr = Sync.hasWrite(this);
+        step("① 캘린더 읽기·쓰기 권한", perm && wr ? "✅ 허용됨 (AI 딸기에서 허락한 일정 넣기·고치기·지우기도 돼요)" : perm ? "읽기만 허용됨 — 쓰기도 허용해야 AI 딸기가 일정을 넣을 수 있어요" : "아직 허용 안 됨", perm && wr);
+        if (!perm || !wr) button("캘린더 권한 허용하기", v -> askPerm());
 
         // ② 배터리 제한 풀기
         PowerManager pm = getSystemService(PowerManager.class);
@@ -79,6 +96,9 @@ public class MainActivity extends Activity {
         String err = pr.getString("last_err", null);
         step("③ AI 딸기로 보내기", ok > 0 ? pr.getString("last_msg", "") + "\n(" + DateUtils.getRelativeTimeSpanString(ok) + ")" : "아직 한 번도 안 보냈어요", ok > 0 && err == null);
         if (err != null) text(err, 14, PINK, false);
+        String cerr = pr.getString("cmd_err", null);
+        if (cerr != null) text(cerr, 14, PINK, false);
+        if (pr.getInt("cmd_count", 0) > 0) small("📝 AI 딸기 부탁으로 폰 캘린더에 반영한 것: " + pr.getInt("cmd_count", 0) + "개 (마지막 " + DateUtils.getRelativeTimeSpanString(pr.getLong("cmd_last", 0)) + ")");
         button(busy ? "보내는 중…" : "지금 보내기", v -> sendNow());
 
         // ④ 보낼 캘린더 고르기 — 체크를 끄면 그 캘린더 일정은 AI 딸기로 안 보내요
@@ -137,7 +157,7 @@ public class MainActivity extends Activity {
                     if (fe != null) { msg.setText("⚠️ " + (fe.contains("Invalid login") ? "이메일이나 비밀번호가 틀렸어요" : fe)); return; }
                     SyncJob.schedule(this);
                     draw();
-                    if (!Sync.hasPermission(this)) requestPermissions(new String[]{ Manifest.permission.READ_CALENDAR }, 1);
+                    if (!Sync.hasPermission(this) || !Sync.hasWrite(this)) askPerm();
                     else sendNow();
                 });
             }).start();
@@ -146,7 +166,7 @@ public class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         if (Sync.hasPermission(this)) { SyncJob.schedule(this); sendNow(); }
-        else if (!shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR)) {
+        if ((!Sync.hasPermission(this) || !Sync.hasWrite(this)) && !shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR)) {
             // '다시 묻지 않음'이 된 경우: 설정 화면에서 직접 켜야 해요
             openAppSettings();
         }
