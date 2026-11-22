@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.7.2';
+const VERSION = '0.8.0';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST?.home || (TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼'));
 fs.mkdirSync(HOME, { recursive: true });
@@ -242,6 +242,7 @@ async function permission(t, why, action, img) {
 }
 
 async function runWatch(t) {
+  if (t.spec?.bus) return runBus(t); // 🚌 고속버스 빈자리
   const s = t.spec || {}, every = Math.max(TEST ? 1 : 30, +s.every || 60) * 1000, until = Date.now() + Math.min(24, +s.hours || 6) * 3600e3;
   const want = String(s.text || '').trim();
   if (!s.url || !want) { await B.update(t.id, { status: 'failed', step: '주소나 찾을 글자가 없어요' }); return; }
@@ -404,6 +405,91 @@ async function runDo(t) {
       await sleep(1500 + Math.floor(Math.random() * 1500)); // 사람처럼 천천히
     }
     await log(t, '⏹️ 30단계 안에 끝내지 못했어요', { status: 'failed' });
+  } catch (e) { await log(t, '⚠️ ' + e.message.split('\n')[0], { status: 'failed' }); }
+}
+
+/* ============ 🚌 고속버스 빈자리 알림 (v0.8) ============
+   kobus.co.kr에서 정한 간격마다 배차 조회를 한 번 해서, 원하는 시간대에 남은 자리가 생기면 폰으로 알려 줘요.
+   알려 주기만 하고 예매는 사람이 해요. AI를 쓰지 않아요(버스 취소표 알리미와 같은 방법). */
+const KOBUS = TEST?.kobus || 'https://www.kobus.co.kr/main.do';
+async function busRoutes(page) {
+  return page.evaluate(async () => {
+    const res = await fetch('/mrs/readRotLinInf.ajax', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' }, body: '' });
+    const d = JSON.parse(await res.text());
+    return (d.rotInfList || []).filter(r => r.deprCd && r.arvlCd).map(r => ({ d: r.deprCd, dn: r.deprNm, a: r.arvlCd, an: r.arvlNm }));
+  });
+}
+// "서울"처럼 말해도 맞는 터미널 짝을 찾아요(딱 맞는 이름 → 그 말로 시작 → 그 말이 들어간 것, 최대 4쌍)
+function busPairs(list, dep, arr) {
+  const norm = s => String(s || '').replace(/\s|터미널|고속|버스/g, '');
+  const D = norm(dep), A = norm(arr);
+  const score = (name, q) => { const n = norm(name); return n === q ? 3 : n.startsWith(q) ? 2 : n.includes(q) ? 1 : 0; };
+  const ps = list.map(r => ({ ...r, s: Math.min(score(r.dn, D), score(r.an, A)) })).filter(r => r.s > 0);
+  const best = Math.max(0, ...ps.map(r => r.s));
+  return ps.filter(r => r.s === best).slice(0, 4);
+}
+async function busCheck(page, p, ymd) {
+  return page.evaluate(async ({ p, ymd }) => {
+    const f = new URLSearchParams({ deprCd: p.d, deprNm: p.dn, arvlCd: p.a, arvlNm: p.an, tfrCd: '', tfrNm: '', tfrArvlFullNm: '', pathDvs: 'sngl', pathStep: '1', deprDtm: ymd, arvlDtm: ymd, busClsCd: '0', rtrpChc: '1', timeLinkMin: '00', timeLinkMax: '23' });
+    const res = await fetch('/mrs/alcnSrch.do', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: f.toString() });
+    if (!res.ok) throw new Error('사이트 응답 ' + res.status);
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    const dep = doc.querySelector('input[name=deprCd]');
+    if (!dep || dep.value !== p.d) throw new Error('배차 조회 화면이 아닌 다른 화면이 왔어요');
+    const t = el => el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+    const rows = [];
+    for (const st of doc.querySelectorAll('.bus_time .start_time, .start_time')) {
+      if (st.closest('.bustime_head')) continue;
+      const row = st.closest('a') || st.closest('p') || st.parentElement;
+      const time = t(st).replace(/\s/g, '');
+      if (!/^\d{2}:\d{2}$/.test(time) || rows.some(r => r.time === time && r.el === row)) continue;
+      const m = /(\d+)\s*석/.exec(t(row.querySelector('.remain')));
+      rows.push({ time, grade: (t(row.querySelector('.grade')) || t(row.querySelector('.grade_mo'))).split(' ')[0], remain: m ? +m[1] : 0, el: null });
+    }
+    return rows.map(({ el, ...r }) => r);
+  }, { p, ymd });
+}
+async function runBus(t) {
+  const s = t.spec || {}, b = s.bus || {};
+  const ymd = String(b.date || '').replace(/-/g, ''), need = Math.max(1, +b.n || 1);
+  const every = Math.max(TEST ? 1 / 60 : 2, +s.every || 5) * 60e3; // 🛡️ 2분보다 자주 안 봐요
+  const until = Math.min(Date.parse((b.date || '') + 'T' + (b.to || '23:59') + ':00+09:00') || Infinity, Date.now() + Math.min(72, +s.hours || 24) * 3600e3);
+  if (!/^\d{8}$/.test(ymd) || !b.dep || !b.arr) { await B.update(t.id, { status: 'failed', step: '출발·도착·날짜가 필요해요' }); return; }
+  await B.update(t.id, { status: 'running' });
+  const page = await (await browser()).newPage();
+  try {
+    await page.goto(KOBUS, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const pairs = busPairs(await busRoutes(page), b.dep, b.arr);
+    if (!pairs.length) { await log(t, `❌ "${b.dep}→${b.arr}" 고속버스 노선을 못 찾았어요(시외버스는 아직 안 돼요)`, { status: 'failed' }); await page.close().catch(() => {}); return; }
+    await log(t, `🚌 ${pairs.map(p => `${p.dn}→${p.an}`).join(', ')} · ${b.from || '첫차'}~${b.to || '막차'} · ${need}석 이상 · ${Math.round(every / 60e3) || 1}분마다 볼게요`);
+    let n = 0, fails = 0;
+    while (Date.now() < until) {
+      if (await stopped(t)) { await page.close().catch(() => {}); return; }
+      n++;
+      const hits = [];
+      try {
+        for (const p of pairs) {
+          for (const r of await busCheck(page, p, ymd)) if ((!b.from || r.time >= b.from) && (!b.to || r.time <= b.to) && r.remain >= need) hits.push({ ...r, route: `${p.dn}→${p.an}` });
+          await sleep(1500);
+        }
+        fails = 0;
+      } catch (e) {
+        if (++fails >= 5) { await log(t, '⚠️ 사이트 조회가 계속 안 돼요: ' + e.message, { status: 'failed' }); await B.notify('⚠️ 버스 빈자리 알림이 멈췄어요', t.title); return; }
+        await page.goto(KOBUS, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}); // 세션이 끊겼으면 다시 들어가요
+      }
+      if (hits.length) {
+        hits.sort((x, y) => x.time.localeCompare(y.time));
+        const msg = hits.slice(0, 4).map(h => `${h.time} ${h.grade} ${h.remain}석`).join(', ');
+        await log(t, `🔔 빈자리! ${msg} (${n}번째 확인)`, { status: 'done', result: { ok: true, summary: `${hits[0].route} ${msg}`, url: 'https://www.kobus.co.kr/mrs/rotinf.do' } });
+        await B.notify('🚌 버스 빈자리가 났어요!', `${t.title}\n${msg}\n얼른 예매하세요 (티머니GO·kobus)`);
+        await page.close().catch(() => {});
+        return;
+      }
+      if (n === 1 || n % 6 === 0) await log(t, `👀 ${n}번째 확인 · 아직 빈자리가 없어요`);
+      await sleep(every);
+    }
+    await log(t, '⏰ 출발 시간이 지나서 그만 볼게요', { status: 'failed' });
+    await page.close().catch(() => {});
   } catch (e) { await log(t, '⚠️ ' + e.message.split('\n')[0], { status: 'failed' }); }
 }
 
