@@ -180,7 +180,8 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
   <!-- 일정·할 일 -->
   <section id="pPlan" class="page">
-    <h2>📅 일정 <small>지난 일정은 하루 지나면 접혀요</small></h2>
+    <div id="planJump" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px"></div>
+    <h2 id="hEv">📅 일정 <small>지난 일정은 하루 지나면 접혀요</small></h2>
     <div id="evList"></div>
     <div class="add">
       <input type="date" id="evD">
@@ -190,7 +191,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <button class="p" id="evAdd">추가</button>
     </div>
 
-    <h2>✅ 할 일</h2>
+    <h2 id="hTd">✅ 할 일</h2>
     <div class="box" id="tdList"></div>
     <div class="add">
       <input class="grow" id="tdTitle" placeholder="할 일">
@@ -199,7 +200,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
     </div>
     <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요.</p>
 
-    <h2>📨 쿨메신저 <small id="coolAt"></small></h2>
+    <h2 id="hCool">📨 쿨메신저 <small id="coolAt"></small></h2>
     <div id="coolList"></div>
   </section>
 
@@ -1746,6 +1747,9 @@ function renderPlan() {
   const old = S.events.filter(e => e.date < addDays(t, -1)).length;
   $('evList').innerHTML = (h || '<div class="box"><div class="none">앞으로 잡힌 일정이 없어요</div></div>') + (old ? `<div class="hint">지난 일정 ${old}개는 숨겨 뒀어요</div>` : '');
 
+  // 위쪽 바로가기 — 폰 일정이 많으면 할 일·쿨메신저가 한참 아래라서
+  const tdOpen = S.todos.filter(x => !x.done).length + G.tasks.length, coolN = owner ? coolOpen().length : 0;
+  $('planJump').innerHTML = `<button class="chip" data-jump="hEv">📅 일정</button><button class="chip" data-jump="hTd">✅ 할 일 ${tdOpen}</button>${owner ? `<button class="chip" data-jump="hCool">📨 쿨메신저 ${coolN}</button>` : ''}`;
   const td = [...S.todos].sort((a, b) => (a.done - b.done) || (a.due || '9999').localeCompare(b.due || '9999'));
   $('tdList').innerHTML = td.length ? td.map(x => {
     const late = !x.done && x.due && x.due < t;
