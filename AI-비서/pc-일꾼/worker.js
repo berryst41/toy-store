@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST?.home || (TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼'));
 fs.mkdirSync(HOME, { recursive: true });
@@ -60,6 +60,8 @@ let sb = null, me = null;
 const B = TEST ? testBackend() : {
   async tasks(statuses) { const { data, error } = await sb.from('ai_tasks').select('*').in('status', statuses).order('created_at'); if (error) throw error; return data; },
   async get(id) { const { data } = await sb.from('ai_tasks').select('*').eq('id', id).maybeSingle(); return data; },
+  // 일꾼이 여러 PC에 있어도 한 일은 한 PC만 하게: '기다리는 중'일 때만 내 것으로 바꿔요(먼저 바꾼 PC가 가져가요)
+  async claim(t) { const { data } = await sb.from('ai_tasks').update({ status: 'running', spec: { ...(t.spec || {}), by: cfg.name } }).eq('id', t.id).eq('status', 'queued').select('id'); return !!data?.length; },
   async update(id, patch) { const { error } = await sb.from('ai_tasks').update(patch).eq('id', id); if (error) say('⚠️ 저장 실패', error.message); },
   async add(row) { await sb.from('ai_tasks').insert({ ...row, user_id: me.id }); },
   async notify(title, body) { try { await sb.functions.invoke('ai-google', { body: { action: 'notify', title, body } }); } catch (e) { /* 알림 실패는 넘어가요 */ } },
@@ -91,6 +93,7 @@ function testBackend() {
     async coolGone(ids) { cool.filter(x => ids.includes(x.id)).forEach(x => x.gone = true); },
     async coolUpsert(list) { for (const r of list) { const o = cool.find(x => x.id === r.id); if (o) Object.assign(o, r); else cool.push({ kind: 'todo', text: '', done: false, gone: false, ...r }); } },
     async tasks(st) { return rows.filter(r => st.includes(r.status)); },
+    async claim(t) { const r = rows.find(x => x.id === t.id); if (r.status !== 'queued') return false; r.status = 'running'; r.spec = { ...(r.spec || {}), by: cfg.name }; return true; },
     async get(id) { const r = rows.find(x => x.id === id); if (r && r.status === 'need_ok' && TEST.answer) { r.answer = TEST.answer; r.status = 'running'; } return r; },
     async update(id, p) { Object.assign(rows.find(x => x.id === id), p); if (p.status || p.step) say('  ↳', id, p.status || '', p.step || ''); },
     async add(row) { rows.push({ id: 't' + rows.length, status: 'queued', log: [], ...row }); },
@@ -468,6 +471,7 @@ async function coolSync() {
   }
   // 일꾼이 꺼져 있는 동안 "하는 중"이던 일 정리: 지켜보기는 다시 시작, 대신 하기는 멈춤 표시
   for (const t of await B.tasks(['running', 'need_ok'])) {
+    if (t.spec?.by && t.spec.by !== cfg.name) continue; // 다른 PC 일꾼이 하는 일은 건드리지 않아요
     if (t.kind === 'watch' || (t.spec?.at && Date.parse(t.spec.at) > Date.now() + 60e3)) await B.update(t.id, { status: 'queued' }); // 정각 예약을 기다리던 것도 다시
     else await B.update(t.id, { status: 'failed', step: '일꾼이 다시 켜져서 멈췄어요. 다시 맡겨 주세요' });
   }
@@ -488,6 +492,8 @@ async function coolSync() {
         if (at && Date.now() < at - (TEST ? 10e3 : 600e3)) { if (t.step?.indexOf('⏰') !== 0) await B.update(t.id, { step: `⏰ ${hm(at)}에 예약을 시작해요 (10분 전에 창을 열어요)` }); t.step = '⏰'; continue; }
         if (nx && Date.now() < nx) continue;
         if (t.kind === 'do' && doBusy) continue; // 대신 하기는 한 번에 하나씩
+        if (!(await B.claim(t))) continue; // 다른 PC 일꾼이 먼저 가져갔어요
+        t.spec = { ...(t.spec || {}), by: cfg.name };
         running.set(t.id, t.kind); say(t.kind === 'watch' ? '👀 지켜보기 시작:' : '🖱️ 대신 하기 시작:', t.title);
         if (t.kind === 'do') doBusy = true;
         (t.kind === 'watch' ? runWatch(t) : runDo(t)).finally(() => { running.delete(t.id); if (t.kind === 'do') doBusy = false; say('끝:', t.title); });
