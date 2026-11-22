@@ -28,7 +28,9 @@ const SCOPES: Record<string, string[]> = {
   mail_send: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly', 'https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
   // v0.7: 체크하면 위에 더해서 받는 허락 (구글 할 일·드라이브·시트·설문·유튜브·새 문서 만들기)
   extra: ['https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/forms.body.readonly', 'https://www.googleapis.com/auth/forms.responses.readonly'],
-  youtube: ['https://www.googleapis.com/auth/youtube.readonly'] // 따로 체크 (구글이 일부 허락과 같이 못 받게 막는 경우가 있어서)
+  youtube: ['https://www.googleapis.com/auth/youtube.readonly'], // 따로 체크 (구글이 일부 허락과 같이 못 받게 막는 경우가 있어서)
+  // v0.10: 지메일 정리(라벨 붙이기·광고 보관). 지우기는 하지 않아요
+  tidy: ['https://www.googleapis.com/auth/gmail.modify']
 };
 
 /* ---------- 잠그기 / 풀기 ---------- */
@@ -68,7 +70,7 @@ async function g(a: Acct, url: string, init: RequestInit = {}) {
   return d;
 }
 const has = (a: Acct, sc: string) => (a.scopes || '').split(' ').some(x => x === 'https://www.googleapis.com/auth/' + sc);
-const caps = (a: Acct) => ({ tasks: has(a, 'tasks'), drive: has(a, 'drive.readonly'), make: has(a, 'documents'), sheets: has(a, 'spreadsheets'), forms: has(a, 'forms.responses.readonly'), youtube: has(a, 'youtube.readonly'), allcal: has(a, 'calendar.calendarlist.readonly') });
+const caps = (a: Acct) => ({ tasks: has(a, 'tasks'), drive: has(a, 'drive.readonly'), make: has(a, 'documents'), sheets: has(a, 'spreadsheets'), forms: has(a, 'forms.responses.readonly'), youtube: has(a, 'youtube.readonly'), allcal: has(a, 'calendar.calendarlist.readonly'), tidy: has(a, 'gmail.modify') });
 type Cap = keyof ReturnType<typeof caps>;
 const pub = (a: Acct) => ({ id: a.id, email: a.email, label: a.label, color: a.color, level: a.level, is_default: a.is_default, caps: caps(a) });
 const canMail = (a: Acct) => a.level === 'mail_read' || a.level === 'mail_send';
@@ -227,6 +229,32 @@ async function mailList(a: Acct, q: string, max: number) {
     return { id, account: a.id, label: a.label || a.email, color: a.color, from: h('From'), subject: h('Subject'), date: new Date(+m.internalDate).toISOString(), snippet: (m.snippet || '').slice(0, 200), unread: (m.labelIds || []).includes('UNREAD') };
   }));
   return out;
+}
+/* ---------- 지메일 정리 (v0.10): AI 딸기가 나눈 대로 라벨을 붙이고, 광고는 받은편지함에서 빼서 보관(지우지 않음) ---------- */
+const TIDY_LABEL: Record<string, string> = { reply: 'AI딸기/답장할 것', todo: 'AI딸기/할 일', event: 'AI딸기/일정', info: 'AI딸기/알림', ad: 'AI딸기/광고' };
+async function labelId(a: Acct, name: string, cache: Map<string, string>) {
+  if (!cache.size) { const d = await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/labels'); for (const l of d.labels || []) cache.set(l.name, l.id); }
+  if (cache.has(name)) return cache.get(name)!;
+  const parent = name.split('/')[0];
+  if (name.includes('/') && !cache.has(parent)) { const p = await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/labels', { method: 'POST', body: JSON.stringify({ name: parent, labelListVisibility: 'labelShow', messageListVisibility: 'show' }) }); cache.set(parent, p.id); }
+  const l = await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/labels', { method: 'POST', body: JSON.stringify({ name, labelListVisibility: 'labelShow', messageListVisibility: 'show' }) });
+  cache.set(name, l.id); return l.id as string;
+}
+async function mailTidy(a: Acct, items: { id: string; cat: string }[], archiveAds: boolean) {
+  const cache = new Map<string, string>(), ok: string[] = [];
+  const byCat = new Map<string, string[]>();
+  for (const it of items) if (TIDY_LABEL[it.cat] && /^[\w-]+$/.test(it.id)) byCat.set(it.cat, [...(byCat.get(it.cat) || []), it.id]);
+  for (const [cat, ids] of byCat) {
+    const lid = await labelId(a, TIDY_LABEL[cat], cache);
+    const remove = cat === 'ad' && archiveAds ? ['INBOX'] : [];
+    await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify', { method: 'POST', body: JSON.stringify({ ids, addLabelIds: [lid], removeLabelIds: remove }) });
+    // 정말 붙었는지 다시 읽어서 확인
+    for (const id of ids) {
+      const m = await g(a, `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=minimal`).catch(() => null);
+      if (m && (m.labelIds || []).includes(lid) && !(remove.length && (m.labelIds || []).includes('INBOX'))) ok.push(id);
+    }
+  }
+  return ok;
 }
 async function mailRead(a: Acct, id: string) {
   const m = await g(a, `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`);
@@ -430,6 +458,15 @@ Deno.serve(async req => {
     }
 
     if (act === 'mail_read') { const a = pick(body.account); if (!a || !canMail(a)) return json({ error: '메일 읽기 권한이 있는 계정이 아니에요' }, 400); return json(await mailRead(a, body.id)); }
+    if (act === 'mail_tidy') { // 앱이 나눈 결과로 라벨 붙이기 (지메일 정리를 허락한 계정만)
+      const out: Record<string, string[]> = {}, errs: string[] = [];
+      const items = Array.isArray(body.items) ? body.items.slice(0, 60) : [];
+      for (const a of accts.filter(x => caps(x).tidy)) {
+        const mine = items.filter((x: any) => x.account === a.id);
+        if (mine.length) try { out[a.id] = await mailTidy(a, mine, body.archive !== false); } catch (e) { errs.push(`${a.label || a.email}: ${(e as Error).message}`); }
+      }
+      return json({ done: Object.values(out).flat(), errors: errs });
+    }
     if (act === 'mail_search') { const out = (await Promise.all(accts.filter(canMail).map(a => mailList(a, body.q, body.max || 10).catch(() => [])))).flat(); return json({ mails: out }); }
 
     // 아래는 앱에서 [허락]을 누른 뒤에만 불러요
