@@ -51,11 +51,13 @@ public class Sync {
             // 1) 캘린더 목록 (삼성 계정, 구글, 내 폰 …)
             JSONArray cals = new JSONArray();
             Map<Long, Boolean> visible = new HashMap<>();
+            java.util.Set<String> skip = skipped(c); // 사용자가 체크를 끈 캘린더(안 보내요)
             String[] cc = { CalendarContract.Calendars._ID, CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, CalendarContract.Calendars.ACCOUNT_NAME,
                 CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.Calendars.CALENDAR_COLOR, CalendarContract.Calendars.VISIBLE };
             try (Cursor q = c.getContentResolver().query(CalendarContract.Calendars.CONTENT_URI, cc, null, null, null)) {
                 while (q != null && q.moveToNext()) {
                     long id = q.getLong(0);
+                    if (skip.contains(String.valueOf(id))) continue;   // 안 보내기로 한 캘린더는 목록에서도 빼요
                     boolean vis = q.getInt(5) == 1;
                     visible.put(id, vis);
                     cals.put(new JSONObject().put("id", String.valueOf(id)).put("name", nz(q.getString(1)))
@@ -85,6 +87,7 @@ public class Sync {
                     if (q.getInt(7) == CalendarContract.Events.STATUS_CANCELED) continue;              // 취소된 일정
                     if (q.getInt(8) == CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED) continue;   // 거절한 초대
                     long cal = q.getLong(6), begin = q.getLong(1), end = q.getLong(2);
+                    if (skip.contains(String.valueOf(cal))) continue;                                    // 안 보내기로 한 캘린더의 일정
                     boolean allDay = q.getInt(5) == 1;
                     JSONObject e = new JSONObject()
                         .put("id", q.getLong(0) + "_" + begin)
@@ -128,6 +131,16 @@ public class Sync {
             p.edit().putLong("last_try", System.currentTimeMillis()).putString("last_err", m).apply();
             return m;
         }
+    }
+
+    /** 보내지 않을 캘린더 번호 모음 (앱 화면의 체크를 끈 것). 처음엔 비어 있어서 모두 보내요. */
+    static java.util.Set<String> skipped(Context c) {
+        return new java.util.HashSet<>(Api.prefs(c).getStringSet("skip_cals", new java.util.HashSet<>()));
+    }
+    static void setSkipped(Context c, String calId, boolean skip) {
+        java.util.Set<String> s = skipped(c);
+        if (skip) s.add(calId); else s.remove(calId);
+        Api.prefs(c).edit().putStringSet("skip_cals", s).apply();
     }
 
     static String nz(String s) { return s == null ? "" : s; }

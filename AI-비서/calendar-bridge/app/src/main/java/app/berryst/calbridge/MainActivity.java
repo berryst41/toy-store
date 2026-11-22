@@ -19,6 +19,7 @@ import android.text.format.DateUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -80,19 +81,25 @@ public class MainActivity extends Activity {
         if (err != null) text(err, 14, PINK, false);
         button(busy ? "보내는 중…" : "지금 보내기", v -> sendNow());
 
-        // ④ 읽은 캘린더 목록
+        // ④ 보낼 캘린더 고르기 — 체크를 끄면 그 캘린더 일정은 AI 딸기로 안 보내요
         if (perm) {
             gap(12);
-            text("📚 이 폰의 캘린더", 17, Color.BLACK, true);
-            small("AI 딸기에서는 구글 계정으로 이미 연결한 캘린더와 겹치는 일정은 한 번만 보여요.");
-            String[] cc = { CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, CalendarContract.Calendars.ACCOUNT_NAME, CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.Calendars.CALENDAR_COLOR, CalendarContract.Calendars.VISIBLE };
+            text("📚 AI 딸기로 보낼 캘린더", 17, Color.BLACK, true);
+            small("필요한 캘린더만 체크해 두세요. 바꾸면 바로 다시 보내요. 구글 계정으로 이미 연결한 캘린더와 겹치는 일정은 AI 딸기에서 한 번만 보여요.");
+            java.util.Set<String> skip = Sync.skipped(this);
+            String[] cc = { CalendarContract.Calendars._ID, CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, CalendarContract.Calendars.ACCOUNT_NAME, CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.Calendars.CALENDAR_COLOR, CalendarContract.Calendars.VISIBLE };
             try (Cursor q = getContentResolver().query(CalendarContract.Calendars.CONTENT_URI, cc, null, null, null)) {
                 while (q != null && q.moveToNext()) {
-                    TextView t = text("● " + Sync.nz(q.getString(0)) + "  ·  " + kind(q.getString(2), q.getString(1)) + (q.getInt(4) == 1 ? "" : "  (숨김)"), 14, Color.DKGRAY, false);
+                    String id = String.valueOf(q.getLong(0));
+                    String label = "● " + Sync.nz(q.getString(1)) + "  ·  " + kind(q.getString(3), q.getString(2)) + (q.getInt(5) == 1 ? "" : "  (삼성 캘린더에서 숨김)");
                     // 맨 앞 ● 를 그 캘린더 색으로
-                    android.text.SpannableString s = new android.text.SpannableString(t.getText());
-                    s.setSpan(new android.text.style.ForegroundColorSpan(0xFF000000 | q.getInt(3)), 0, 1, 0);
-                    t.setText(s);
+                    android.text.SpannableString s = new android.text.SpannableString(label);
+                    s.setSpan(new android.text.style.ForegroundColorSpan(0xFF000000 | q.getInt(4)), 0, 1, 0);
+                    CheckBox cb = new CheckBox(this);
+                    cb.setText(s); cb.setTextSize(14); cb.setTextColor(Color.DKGRAY);
+                    cb.setChecked(!skip.contains(id));
+                    cb.setOnCheckedChangeListener((btn, on) -> { Sync.setSkipped(this, id, !on); sendSoon(); });
+                    box.addView(cb);
                 }
             } catch (Exception e) { small("목록을 못 읽었어요: " + e.getMessage()); }
         }
@@ -151,6 +158,10 @@ public class MainActivity extends Activity {
         busy = true; draw();
         new Thread(() -> { Sync.run(this); ui.post(() -> { busy = false; draw(); }); }).start();
     }
+
+    /** 체크를 여러 개 연달아 바꿀 수 있으니, 마지막으로 바꾸고 2초 뒤에 한 번만 보내요 */
+    final Runnable sendLater = () -> { if (busy) sendSoon(); else sendNow(); }; // 보내는 중이면 끝난 뒤에 다시
+    void sendSoon() { ui.removeCallbacks(sendLater); ui.postDelayed(sendLater, 2000); }
 
     void openAppSettings() {
         startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
