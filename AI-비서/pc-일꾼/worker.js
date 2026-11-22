@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.7.1';
+const VERSION = '0.7.2';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST?.home || (TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼'));
 fs.mkdirSync(HOME, { recursive: true });
@@ -50,9 +50,13 @@ const MONEY_PAGE = /결제\s*금액|총\s*결제|최종\s*결제|결제\s*수단
 const SITE_TIPS = [
   [/naver\.com/, '네이버 예약: 달력에서 날짜를 누르고, 시간 버튼 중 눌리는 것(회색·마감·"예약불가"는 안 됨)을 골라. 인원·옵션을 고른 뒤 "다음". 예약자 정보는 로그인 정보로 채워져 있으니 고치지 마. 요청사항은 비워 둬. 마지막은 "동의하고 예약하기"/"예약하기". 네이버페이 결제 화면이 나오면 pay=true.'],
   [/kobus\.co\.kr|t-money\.co\.kr|bustago|txbus/, '고속·시외버스: 출발지·도착지·날짜를 고르고 조회 → 시간표에서 원하는 시간대 중 잔여석이 있는 차를 골라 → 좌석 선택. 승차권은 결제가 꼭 있으니 결제 화면 앞에서 pay=true로 멈춰.'],
-  [/letskorail|korail/, '코레일: 출발·도착역, 날짜, 시간을 넣고 조회 → 원하는 열차의 "예약하기". 결제 화면은 pay=true.'],
   [/keyescape|fantastrick|escape|방탈출|xdungeon|seoul-escape|nextedition|zeroworld/, '방탈출: 지점(매장)·테마·날짜를 고르면 시간 목록이 나와. "예약가능"/"가능"인 시간만 눌러. 예약자 이름·전화번호는 목표에 있으면 넣고, 없으면 need_person. 인원은 목표대로.']
 ];
+// 🚫 매크로(자동 프로그램) 예매를 약관으로 금지하고 회원 탈퇴·수사 의뢰까지 하는 곳 → 일꾼이 아예 안 해요 (2026-11-22)
+const BLOCKED = /(^|\.|\/\/)(letskorail\.com|korail\.com|srail\.kr|srail\.or\.kr)(\/|:|$)/i;
+const blocked = url => BLOCKED.test(String(url || ''));
+// 🛡️ 안전 모드: 다시 보기는 30분보다 자주 안 하고, 한 예약에 10번까지만
+const RETRY_MIN = 30, RETRY_MAX = 10;
 const tipsFor = url => SITE_TIPS.filter(([re]) => re.test(url || '')).map(([, t]) => t).join('\n');
 
 /* ============ 서버 (진짜 / 시험) ============ */
@@ -241,6 +245,7 @@ async function runWatch(t) {
   const s = t.spec || {}, every = Math.max(TEST ? 1 : 30, +s.every || 60) * 1000, until = Date.now() + Math.min(24, +s.hours || 6) * 3600e3;
   const want = String(s.text || '').trim();
   if (!s.url || !want) { await B.update(t.id, { status: 'failed', step: '주소나 찾을 글자가 없어요' }); return; }
+  if (blocked(s.url)) { await B.update(t.id, { status: 'failed', step: '🚫 코레일·SRT는 자동 프로그램을 금지해서(계정 정지 위험) 일꾼이 하지 않아요' }); return; }
   await B.update(t.id, { status: 'running' });
   const page = await (await browser()).newPage();
   let n = 0, hitTimes = 0;
@@ -301,6 +306,8 @@ function mustAsk(s, a, el, txt) {
 
 async function runDo(t) {
   const s = t.spec || {};
+  if (blocked(s.url)) { await B.update(t.id, { status: 'failed', step: '🚫 코레일·SRT는 자동 프로그램 예매를 금지해서(계정 정지 위험) 일꾼이 하지 않아요. 직접 예매해 주세요' }); return; }
+  if (s.at) s.auto = false; // 🛡️ 정각 예약은 언제나 마지막 확정을 사람에게 물어봐요
   await B.update(t.id, { status: 'running' });
   const page = await (await browser()).newPage();
   const hist = [], tips = tipsFor(s.url);
@@ -317,15 +324,16 @@ async function runDo(t) {
     if (at && at > Date.now()) {
       const off = s.url ? await siteOffset(page, s.url) : 0;
       await log(t, `⏰ ${hm(at)} 정각을 기다려요 · 창을 미리 열어 뒀어요${off ? ` (사이트 시계가 ${(off / 1000).toFixed(1)}초 ${off > 0 ? '빨라요' : '느려요'})` : ''}`, { shot: await shot(page) });
-      let lastCheck = 0;
+      let lastCheck = 0; const jitter = TEST ? 300 : 3000 + Math.floor(Math.random() * 5000);
       for (;;) {
-        const left = at + 300 - (Date.now() + off); // 0.3초 여유
+        const left = at + jitter - (Date.now() + off); // 🛡️ 정각 경쟁처럼 보이지 않게 몇 초 늦게
         if (left <= 0) break;
         if (left > 5000 && Date.now() - lastCheck > 5000) { lastCheck = Date.now(); if (await stopped(t)) { await page.close().catch(() => {}); return; } }
         await sleep(Math.min(left, left > 5000 ? 1000 : 50));
       }
       await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-      await log(t, '⏰ 정각! 시작해요');
+      await log(t, '⏰ 예약이 열렸어요! 시작해요 (마지막 확정은 물어볼게요)');
+      await B.notify('⏰ 예약이 열렸어요', `${t.title}\n일꾼이 화면을 준비해요. 곧 ✋ 허락을 물어봐요`);
     }
     for (let step = 1; step <= 30; step++) {
       if (await stopped(t)) return;
@@ -356,11 +364,11 @@ async function runDo(t) {
       }
       if (a.action === 'no_slot') {
         // 🔁 자리가 없으면: 다시 해 보기를 골랐으면 잠시 뒤 다시, 아니면 끝
-        const tries = (s.tries || 0) + 1, every = Math.max(TEST ? 0 : 3, +s.retry || 0) * 60e3, until = s.retry_until ? Date.parse(s.retry_until) : 0;
+        const tries = (s.tries || 0) + 1, every = Math.max(TEST ? 0 : RETRY_MIN, +s.retry || 0) * 60e3, until = s.retry_until ? Date.parse(s.retry_until) : 0;
         const next = Date.now() + every;
-        if (s.retry && next < until) {
+        if (s.retry && next < until && tries < RETRY_MAX) {
           await log(t, `🔁 자리가 없어요(${a.why || ''}) · ${hm(next)}에 다시 볼게요 (${tries}번째)`, { status: 'queued', spec: { ...s, at: null, next: new Date(next).toISOString(), tries } });
-          if (tries === 1) await B.notify('🔁 아직 자리가 없어요', `${t.title}\n${s.retry}분마다 다시 볼게요`);
+          if (tries === 1) await B.notify('🔁 아직 자리가 없어요', `${t.title}\n${Math.max(RETRY_MIN, +s.retry)}분마다 다시 볼게요(${RETRY_MAX}번까지)`);
         } else {
           await log(t, `😢 원하는 시간에 자리가 없어요 · ${a.why || ''}`, { status: 'failed', result: { ok: false, summary: '빈자리 없음: ' + (a.why || ''), url: page.url() } });
           await B.notify('😢 자리가 없어요', `${t.title}\n${a.why || ''}`);
@@ -393,7 +401,7 @@ async function runDo(t) {
         else await sleep(3000);
         hist.push(`${step}. ${a.action}${el ? ` [${el.text}]` : ''}${a.text ? ` "${a.text}"` : ''}`);
       } catch (e) { hist.push(`${step}. ${a.action} 실패: ${e.message.split('\n')[0].slice(0, 80)}`); }
-      await sleep(1200);
+      await sleep(1500 + Math.floor(Math.random() * 1500)); // 사람처럼 천천히
     }
     await log(t, '⏹️ 30단계 안에 끝내지 못했어요', { status: 'failed' });
   } catch (e) { await log(t, '⚠️ ' + e.message.split('\n')[0], { status: 'failed' }); }
