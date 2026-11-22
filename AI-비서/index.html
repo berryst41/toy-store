@@ -356,7 +356,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.12.2';
+const VERSION = '0.12.3';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -497,12 +497,20 @@ async function pullProfile() {
     if (data.me) ls.set('me', data.me);
     if (data.settings?.limit) ls.set('limit', String(data.settings.limit));
     if (data.settings?.brief) ls.set('brief', JSON.stringify(data.settings.brief));
+    // 🔑 AI 키: 다른 기기(폰·PC)에서 넣은 키가 있으면 이 기기에도 저절로 (로그인한 주인만 보는 칸)
+    srvKey = data.settings?.gkey || '';
+    if (srvKey && !ls.get('gkey')) { ls.set('gkey', srvKey); renderUsage?.(); }
   }
 }
+let srvKey = '';
 const briefCfg = () => { try { return { on: false, time: '07:30', ...JSON.parse(ls.get('brief', '{}')) }; } catch (e) { return { on: false, time: '07:30' }; } };
 async function pushProfile() {
   if (!owner) return;
-  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { limit: +ls.get('limit') || DEFAULT_LIMIT, brief: briefCfg() }, updated_at: new Date().toISOString() });
+  if (!ls.get('gkey') && !srvKey) { // 이 기기에 키가 없으면 서버 키를 지우지 않게 먼저 받아 와요
+    const { data } = await sb.from('ai_profile').select('settings').maybeSingle();
+    srvKey = data?.settings?.gkey || ''; if (srvKey) ls.set('gkey', srvKey);
+  }
+  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { limit: +ls.get('limit') || DEFAULT_LIMIT, brief: briefCfg(), gkey: ls.get('gkey') || srvKey || undefined }, updated_at: new Date().toISOString() });
 }
 
 /* ---------- 아침 브리핑 알림 (웹 푸시) ---------- */
@@ -1865,7 +1873,8 @@ if (shared) { history.replaceState(null, '', location.pathname); $('inp').value 
 // 아침 브리핑 알림을 누르고 들어왔으면 → 자세한 브리핑 바로 해 주기
 if (sp.get('brief')) { history.replaceState(null, '', location.pathname); if (ls.get('gkey')) setTimeout(async () => { await gRefresh(true); send(QUICK[0][1]); }, 1500); }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-if (!ls.get('gkey')) setTimeout(() => toast('처음이면 ⚙️ 설정에서 무료 AI 키를 넣어 주세요', 5000), 800);
+// 키 안내는 로그인해서 다른 기기의 키를 받아 볼 시간을 준 뒤, 그래도 없을 때 하루 한 번만
+setTimeout(() => { if (!ls.get('gkey') && ls.get('keyHint') !== today()) { ls.set('keyHint', today()); toast('처음이면 ⚙️ 설정에서 무료 AI 키를 넣어 주세요', 5000); } }, 5000);
 </script>
 </body>
 </html>

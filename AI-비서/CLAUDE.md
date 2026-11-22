@@ -102,3 +102,4 @@
 - 2026-11-22 20:05 · PC 일꾼 v0.7.1: 여러 PC에 깔아도 한 일은 한 PC만(claim), 설치 순서 계획 기록(내 PC→학교 PC→미니PC 상시)
 - 2026-11-22 20:10 · AI 비서 v0.12.1 / 일꾼 v0.7.2: 🛡️ 안전 모드 — 정각 예약 몇 초 늦게+확정 물어봄, 다시 보기 30분·10번, 코레일·SRT 막기
 - 2026-11-22 20:05 · AI 비서 v0.12.2: @media(min-width:1000px) main max-width 없앰+좌우 28px, 말풍선 72%, #taskList 그리드(minmax 440px)
+- 2026-11-22 20:10 · AI 비서 v0.12.3: Gemini 키를 ai_profile.settings.gkey에도 저장(RLS 주인만) → pullProfile에서 이 기기에 없으면 받아 씀, pushProfile은 키 없는 기기가 서버 키를 지우지 않게 먼저 읽음. 키 안내 토스트는 5초 뒤·하루 한 번(ls keyHint)
