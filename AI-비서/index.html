@@ -302,7 +302,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
   <div class="hint"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>에서 구글 로그인 → "Create API key" → 복사해서 붙여넣기. 키는 <b>이 기기 안에만</b> 저장돼요(폰·PC 각각 한 번씩 넣어요).</div>
   <label>AI 모델</label>
   <input type="text" id="sModel">
-  <div class="hint">기본값 <code>gemini-flash-lite-latest</code> (빠르고 무료 한도가 넉넉해요). 오류가 나면 여기만 고치면 돼요.</div>
+  <div class="hint">기본값 <code>gemini-flash-lite-latest</code> (빠르고 무료 한도가 넉넉해요). 오류가 나면 여기만 고치면 돼요. AI가 바쁘면 저절로 다시 하고, 그래도 안 되면 다른 무료 모델(gemini-flash-latest 등)로 바꿔서 대답해요.</div>
   <label>하루 무료 한도 (대략)</label>
   <input type="number" id="sLimit" min="1">
   <div class="hint">구글이 남은 양을 알려 주지 않아서 직접 세어요. 위쪽 🔋에 "오늘 쓴 횟수 / 이 숫자"로 보여요. 한도에 걸리면 그날 횟수를 기억해서 알려 줘요.</div>
@@ -327,7 +327,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.9.0';
+const VERSION = '0.9.1';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
@@ -1291,30 +1291,45 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [최근 메일] ${G.mails.slice(0, 20).map(m => `[${m.label}] ${m.unread ? '(안 읽음) ' : ''}${fmtWhen(m.date)} 보낸이:${m.from} / 제목:${m.subject} / ${m.snippet.slice(0, 120)}`).join('\n') || '(없음)'}`;
 }
 const allEvents = () => [...S.events, ...G.events.map(e => ({ ...e, g: true })), ...phoneEvents()];
+// 구글 AI가 바쁠 때(503·500) 저절로 다시 하고, 그래도 안 되면 다른 무료 모델로 바꿔서 해요
+const BACKUP_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function gemini(contents) {
-  const key = ls.get('gkey'), model = ls.get('gmodel') || DEFAULT_MODEL;
+  const key = ls.get('gkey'), main = ls.get('gmodel') || DEFAULT_MODEL;
   if (!key) { openSet(); throw new Error('먼저 ⚙️ 설정에서 무료 Gemini API 키를 넣어 주세요'); }
-  const body = {
+  const body = JSON.stringify({
     system_instruction: { parts: [{ text: systemPrompt() }] },
     contents,
     generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0.5 }
-  };
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body)
   });
-  if (!res.ok) {
-    let m = ''; try { m = (await res.json()).error?.message || ''; } catch (e) {}
-    if (res.status === 400 && /API key/i.test(m)) throw new Error('API 키가 틀렸어요. ⚙️ 설정에서 다시 확인해 주세요');
-    if (res.status === 429) { bumpUsage(true); throw new Error('무료 사용 한도에 걸렸어요. 1분쯤 뒤에 다시 해 주세요 (계속 막히면 오늘 하루치를 다 쓴 거예요)'); }
-    if (res.status === 503) throw new Error('AI가 지금 바빠요. 잠시 뒤에 다시 해 주세요');
-    if (res.status === 404) throw new Error('AI 모델 이름이 맞지 않아요. ⚙️ 설정에서 확인해 주세요');
-    throw new Error(`AI 오류(${res.status}) ${m.slice(0, 120)}`);
+  const models = [main, ...BACKUP_MODELS.filter(m => m !== main)];
+  let last = null;
+  for (let mi = 0; mi < models.length; mi++) {
+    const model = models[mi];
+    for (let tryN = 0; tryN < (mi === 0 ? 3 : 1); tryN++) { // 원래 모델은 3번까지(1초·3초 쉬고), 대신 모델은 1번씩
+      if (mi || tryN) { const w = $('msgs')?.querySelector('.typing'); if (w) w.textContent = 'AI가 바빠서 다시 해 보는 중… ⏳'; }
+      let res;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body
+        });
+      } catch (e) { last = new Error('인터넷 연결을 확인해 주세요'); await sleep(1500); continue; }
+      if (res.ok) {
+        bumpUsage(false);
+        const data = await res.json();
+        const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+        if (!txt) throw new Error('AI가 답을 주지 않았어요(내용이 차단됐을 수 있어요)');
+        try { return JSON.parse(txt); } catch (e) { return { reply: txt, actions: [] }; }
+      }
+      let m = ''; try { m = (await res.json()).error?.message || ''; } catch (e) {}
+      if (res.status === 400 && /API key/i.test(m)) throw new Error('API 키가 틀렸어요. ⚙️ 설정에서 다시 확인해 주세요');
+      if (res.status === 503 || res.status === 500 || res.status === 504) { last = new Error('AI가 지금 바빠요. 잠시 뒤에 다시 해 주세요'); if (mi === 0 && tryN < 2) await sleep(tryN ? 3000 : 1000); continue; }
+      if (res.status === 429) { bumpUsage(true); last = new Error('무료 사용 한도에 걸렸어요. 1분쯤 뒤에 다시 해 주세요 (계속 막히면 오늘 하루치를 다 쓴 거예요)'); break; } // 모델마다 한도가 따로라 다음 모델로
+      if (res.status === 404) { last = new Error('AI 모델 이름이 맞지 않아요. ⚙️ 설정에서 확인해 주세요'); break; }
+      throw new Error(`AI 오류(${res.status}) ${m.slice(0, 120)}`);
+    }
   }
-  bumpUsage(false);
-  const data = await res.json();
-  const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-  if (!txt) throw new Error('AI가 답을 주지 않았어요(내용이 차단됐을 수 있어요)');
-  try { return JSON.parse(txt); } catch (e) { return { reply: txt, actions: [] }; }
+  throw last || new Error('AI가 지금 바빠요. 잠시 뒤에 다시 해 주세요');
 }
 
 /* ---------- AI가 시킨 일 처리 ---------- */
