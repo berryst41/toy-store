@@ -364,7 +364,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.13.2';
+const VERSION = '0.13.3';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -1503,6 +1503,7 @@ function systemPrompt() {
    구글 계정이 연결돼 있고 폰 캘린더가 없거나 사용자가 구글을 말하면: add_gcal_event(account=계정 이름표, date, time, end_time, title)로 구글 캘린더에 넣어. 계정을 말하지 않으면 ⭐기본 계정. 구글 일정 지우기는 delete_gcal_event(id=[구글 일정]의 id). 구글 계정이 없으면 add_event를 써.
    메일 보내기는 send_mail(account, to, subject, body). 받는 사람 주소를 모르면 보내지 말고 물어봐. 메일 읽기 계정의 [최근 메일]을 보고 요약·답장 초안을 도와줘.
    add_gcal_event·delete_gcal_event·send_mail도 [허락] 버튼을 눌러야 실행돼. "넣었어요/보냈어요"라고 말하지 말고 "아래에서 확인하고 허락해 주세요"라고 해.
+   ⚠️ add_event·add_todo·done_todo·update_todo·add_memo·update_memo는 [허락] 없이 바로 들어가. 이것만 담았을 때는 "허락해 주세요"라고 하지 말고 "넣어 뒀어요"처럼 끝난 말로 해.
    할 일 마감을 미루거나 이름을 고치면 update_todo(id, title, date=새 마감일).
    🧠 기억 키우기: 사용자가 대화 중에 오래 쓸 정보(나·가족·반·학교·담당 업무·좋아하는 것·싫어하는 것·습관·자주 하는 일·연락처 이름 등)를 말하면 묻지 말고 add_memo(title=짧은 한 줄)로 기억해. [기억]에 이미 비슷한 게 있으면 새로 넣지 말고 update_memo(id, title)로 고쳐. 한 번만 쓸 일시적인 내용은 기억하지 마. 기억했으면 reply 끝에 "(기억해 둘게요)"라고 짧게 붙여.
    대답할 때 [기억]을 적극적으로 써서 사용자에게 맞춰 줘(예: 반 학생 수, 좋아하는 음식).
@@ -1714,7 +1715,9 @@ async function send(text) {
     }
     for (const a of (r.actions || []).filter(x => x.type === 'set_brief').slice(0, 1)) res.done.push(await setBrief(a));
     if ((r.actions || []).some(x => x.type === 'tidy_mail')) res.done.push(await tidyMailNow());
-    const am = { id: uid('c'), role: 'model', text: r.reply || '(대답이 비어 있어요)', acts: res.done, ts: Date.now() };
+    let reply = r.reply || '';
+    if (!res.wait.length) reply = reply.replace(/[^.!?\n]*허락(해|하여|을 눌러)\s*주세요[.!?~]?/g, '').replace(/[ \t]+\n/g, '\n').trim(); // 허락 카드가 없는데 "허락해 주세요"라고 하면 그 문장 빼기
+    const am = { id: uid('c'), role: 'model', text: reply || (res.done.length ? '해 뒀어요.' : '(대답이 비어 있어요)'), acts: res.done, ts: Date.now() };
     if (res.wait.length) am.ask = { status: 'wait', items: res.wait.map(w => w.d), actions: res.wait.map(w => w.a) };
     put('chat', am); renderChat();
     if (owner && res.addedIds.length) { am.check = await verifyOnServer(res.addedIds); put('chat', am); renderChat(); }
