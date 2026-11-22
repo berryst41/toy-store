@@ -327,7 +327,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.9.3';
+const VERSION = '0.9.4';
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
@@ -1016,8 +1016,7 @@ function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); r
 const QUICK = [
   ['☀️ 오늘 브리핑', '오늘 일정이랑 할 일 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
   ['🗓️ 이번 주', '이번 주 일정과 마감 있는 할 일을 요일별로 정리해 줘.'],
-  ['📬 메일 정리', '최근 메일을 정리해 줘. 답장이 필요한 것, 할 일·마감·일정이 있는 것을 먼저 알려 주고, 일정은 캘린더에 넣을지 물어봐 줘.'],
-  ['🍱 저녁 메뉴', '오늘 저녁 메뉴 3가지 추천해 줘. 간단하게 만들 수 있는 걸로.']
+  ['📬 메일 정리', '최근 메일을 정리해 줘. 답장이 필요한 것, 할 일·마감·일정이 있는 것을 먼저 알려 주고, 일정은 캘린더에 넣을지 물어봐 줘.']
 ];
 $('quick').innerHTML = QUICK.map((q, i) => `<button class="chip" data-i="${i}">${q[0]}</button>`).join('');
 $('quick').onclick = e => {

@@ -33,7 +33,7 @@
   - 응답은 JSON 스키마 `{reply, actions[]}`. actions: add_event / delete_event / add_todo / done_todo / delete_todo / add_memo / delete_memo.
   - 매번 system_instruction에 오늘 날짜·14일 달력·내 정보·기억·일정·할 일(id 포함)을 넣고, 최근 대화 16개만 보냄.
 - 데이터: localStorage `ai-secretary` 키 하나(events, todos, memos, chat). 기기 간 이동은 ⚙️ 백업 파일 받기/불러오기.
-- 화면: 💬 대화(빠른 버튼: 오늘 브리핑·이번 주·공문 요약·기안문·가정통신문·학부모 문자·생기부 문구·저녁 메뉴, 📎 파일 붙이기, 🎤 말로 하기) / 📅 일정·할 일 / 📒 기억.
+- 화면: 💬 대화(빠른 버튼: 오늘 브리핑·이번 주·공문 요약·기안문·가정통신문·학부모 문자·생기부 문구, 📎 파일 붙이기, 🎤 말로 하기) / 📅 일정·할 일 / 📒 기억.
 
 ## 시험한 것 / 못 한 것
 - Playwright로 가짜 AI 답을 넣어 일정·할 일·기억 추가와 화면을 확인함(오류 없음).
@@ -90,3 +90,4 @@
 - 2026-11-22 19:10 · AI 비서 v0.9.1: Gemini 503 때 1·3초 뒤 다시, 그래도 안 되면 BACKUP_MODELS(gemini-flash-latest 등)로, 429도 다음 모델로
 - 2026-11-22 19:15 · AI 비서 v0.9.2: AI가 새 일정을 구글 대신 폰 기본 캘린더(공유용)에 넣게 프롬프트 우선순위 바꿈 (구글은 콕 집어 말할 때만)
 - 2026-11-22 19:20 · AI 비서 v0.9.3: body overflow hidden + .page/#msgs min-height:0 로 입력창 고정, textarea min-height 68px(두 줄)
+- 2026-11-22 19:25 · AI 비서 v0.9.4: 빠른 버튼에서 🍱 저녁 메뉴 뺌
