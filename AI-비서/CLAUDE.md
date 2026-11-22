@@ -91,3 +91,4 @@
 - 2026-11-22 19:15 · AI 비서 v0.9.2: AI가 새 일정을 구글 대신 폰 기본 캘린더(공유용)에 넣게 프롬프트 우선순위 바꿈 (구글은 콕 집어 말할 때만)
 - 2026-11-22 19:20 · AI 비서 v0.9.3: body overflow hidden + .page/#msgs min-height:0 로 입력창 고정, textarea min-height 68px(두 줄)
 - 2026-11-22 19:25 · AI 비서 v0.9.4: 빠른 버튼에서 🍱 저녁 메뉴 뺌
+- 2026-11-22 19:50 · AI 비서 v0.10.0: 메일 자동 정리·요약(MCAT 5종, ls mailcls/mailsum) + 지메일 라벨 AI딸기/…·광고 보관(gmail.modify, mail_tidy, ai-google v15)
