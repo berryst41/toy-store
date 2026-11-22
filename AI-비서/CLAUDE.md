@@ -92,3 +92,4 @@
 - 2026-11-22 19:20 · AI 비서 v0.9.3: body overflow hidden + .page/#msgs min-height:0 로 입력창 고정, textarea min-height 68px(두 줄)
 - 2026-11-22 19:25 · AI 비서 v0.9.4: 빠른 버튼에서 🍱 저녁 메뉴 뺌
 - 2026-11-22 19:50 · AI 비서 v0.10.0: 메일 자동 정리·요약(MCAT 5종, ls mailcls/mailsum) + 지메일 라벨 AI딸기/…·광고 보관(gmail.modify, mail_tidy, ai-google v15)
+- 2026-11-22 19:55 · AI 비서 v0.10.1: 앱 높이를 visualViewport.height(--appH)로 맞춰 폰 입력창 잘림 고침, header에 safe-area-inset-top. 대화 action tidy_mail → tidyMailNow()(sortMails+tidyGmail, 지우지 않음), 프롬프트에 [지메일 정리] 허락 계정
