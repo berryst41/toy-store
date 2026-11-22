@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.6.1';
+const VERSION = '0.7.0';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST?.home || (TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼'));
 fs.mkdirSync(HOME, { recursive: true });
@@ -40,6 +40,20 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']) process.on(sig, (
 
 // 예약·결제처럼 되돌리기 어려운 버튼 (이 말이 들어간 버튼은 AI가 뭐라 해도 허락을 받아요)
 const RISKY = /결제|구매|주문|예매|예약|신청|제출|보내기|전송|발송|확정|완료|등록|삭제|취소|탈퇴|동의|승인|송금|이체|충전|pay|buy|order|checkout|submit|confirm|book|reserve|purchase|send|delete/i;
+// 📅 "끝까지 자동" 예약(v0.7)에서도 언제나 허락을 받는 것: 돈이 나가거나, 지우거나, 보내는 버튼
+const ALWAYS_ASK = /결제|구매|주문|송금|이체|충전|삭제|탈퇴|보내기|전송|발송|pay|buy|order|checkout|purchase|delete|send/i;
+// "끝까지 자동"에서 묻지 않고 눌러도 되는 버튼(예약 확정 쪽 말)
+const BOOK_WORDS = /예약|예매|신청|확정|완료|다음|동의|등록|확인|book|reserve|confirm|submit|next/i;
+// 화면에 이런 말이 있으면 돈이 드는 예약으로 보고 자동이어도 허락을 받아요
+const MONEY_PAGE = /결제\s*금액|총\s*결제|최종\s*결제|결제\s*수단|결제하기|예약금|선결제|보증금|카드\s*번호|무통장/;
+// 사이트별 요령 (AI에게 알려 줘요)
+const SITE_TIPS = [
+  [/naver\.com/, '네이버 예약: 달력에서 날짜를 누르고, 시간 버튼 중 눌리는 것(회색·마감·"예약불가"는 안 됨)을 골라. 인원·옵션을 고른 뒤 "다음". 예약자 정보는 로그인 정보로 채워져 있으니 고치지 마. 요청사항은 비워 둬. 마지막은 "동의하고 예약하기"/"예약하기". 네이버페이 결제 화면이 나오면 pay=true.'],
+  [/kobus\.co\.kr|t-money\.co\.kr|bustago|txbus/, '고속·시외버스: 출발지·도착지·날짜를 고르고 조회 → 시간표에서 원하는 시간대 중 잔여석이 있는 차를 골라 → 좌석 선택. 승차권은 결제가 꼭 있으니 결제 화면 앞에서 pay=true로 멈춰.'],
+  [/letskorail|korail/, '코레일: 출발·도착역, 날짜, 시간을 넣고 조회 → 원하는 열차의 "예약하기". 결제 화면은 pay=true.'],
+  [/keyescape|fantastrick|escape|방탈출|xdungeon|seoul-escape|nextedition|zeroworld/, '방탈출: 지점(매장)·테마·날짜를 고르면 시간 목록이 나와. "예약가능"/"가능"인 시간만 눌러. 예약자 이름·전화번호는 목표에 있으면 넣고, 없으면 need_person. 인원은 목표대로.']
+];
+const tipsFor = url => SITE_TIPS.filter(([re]) => re.test(url || '')).map(([, t]) => t).join('\n');
 
 /* ============ 서버 (진짜 / 시험) ============ */
 let sb = null, me = null;
@@ -50,6 +64,20 @@ const B = TEST ? testBackend() : {
   async add(row) { await sb.from('ai_tasks').insert({ ...row, user_id: me.id }); },
   async notify(title, body) { try { await sb.functions.invoke('ai-google', { body: { action: 'notify', title, body } }); } catch (e) { /* 알림 실패는 넘어가요 */ } },
   async beat(info) { await sb.from('ai_workers').upsert({ user_id: me.id, name: cfg.name, last_seen: new Date().toISOString(), info }); },
+  // 📅 예약이 끝나면 캘린더에 넣기: 폰 캘린더(⚙️ 기본, 보통 공유용)가 있으면 캘린더 다리에 쪽지, 없으면 비서 일정에
+  async addCal(ev) {
+    const { data: rows } = await sb.from('ai_phone_cal').select('device,calendars,write_cal').order('synced_at', { ascending: false }).limit(1);
+    const r = rows?.[0], cs = (r?.calendars || []).filter(c => 'can_write' in c && c.can_write !== false && c.visible !== false);
+    const c = cs.find(x => String(x.id) === String(r?.write_cal || '')) || cs.find(x => x.name === '공유용') || cs[0];
+    const data = { date: ev.date, time: ev.time || '', end: '', title: ev.title, all_day: !ev.time, ...(ev.loc ? { loc: ev.loc } : {}) };
+    if (c) {
+      const { error } = await sb.from('ai_phone_cmd').insert({ device: r.device, op: 'add', cal: String(c.id), data, label: `📅 예약 → [${c.name}] ${ev.date} ${ev.time || ''} ${ev.title}` });
+      if (error) throw error; return `📱 폰 캘린더 [${c.name}]`;
+    }
+    const id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const { error } = await sb.from('ai_items').upsert({ id, user_id: me.id, kind: 'event', data: { date: ev.date, time: ev.time || '', title: ev.title }, deleted: false });
+    if (error) throw error; return '📅 비서 일정';
+  },
   async coolAll() { const { data, error } = await sb.from('ai_cool').select('id,done,done_src,gone'); if (error) throw error; return data; },
   async coolUpsert(rows) { for (let i = 0; i < rows.length; i += 200) { const { error } = await sb.from('ai_cool').upsert(rows.slice(i, i + 200).map(r => ({ ...r, user_id: me.id }))); if (error) throw error; } },
   async coolGone(ids) { const { error } = await sb.from('ai_cool').update({ gone: true }).in('id', ids); if (error) throw error; }
@@ -67,6 +95,7 @@ function testBackend() {
     async update(id, p) { Object.assign(rows.find(x => x.id === id), p); if (p.status || p.step) say('  ↳', id, p.status || '', p.step || ''); },
     async add(row) { rows.push({ id: 't' + rows.length, status: 'queued', log: [], ...row }); },
     async notify(t, b) { say('🔔 알림:', t, '/', b); (TEST.notified ||= []).push(t); },
+    async addCal(ev) { (TEST.cal ||= []).push(ev); return '📅 시험 캘린더'; },
     async beat() {}
   };
 }
@@ -111,9 +140,10 @@ const SCHEMA = {
   type: 'OBJECT',
   properties: {
     thought: { type: 'STRING' },
-    action: { type: 'STRING', enum: ['click', 'type', 'select', 'press_enter', 'scroll', 'goto', 'back', 'wait', 'need_person', 'done', 'fail'] },
+    action: { type: 'STRING', enum: ['click', 'type', 'select', 'press_enter', 'scroll', 'goto', 'back', 'wait', 'need_person', 'no_slot', 'done', 'fail'] },
     n: { type: 'INTEGER' }, text: { type: 'STRING' }, url: { type: 'STRING' },
-    risky: { type: 'BOOLEAN' }, why: { type: 'STRING' }, summary: { type: 'STRING' }, evidence: { type: 'STRING' }
+    risky: { type: 'BOOLEAN' }, pay: { type: 'BOOLEAN' }, why: { type: 'STRING' }, summary: { type: 'STRING' }, evidence: { type: 'STRING' },
+    date: { type: 'STRING' }, time: { type: 'STRING' }, place: { type: 'STRING' }
   },
   required: ['thought', 'action']
 };
@@ -125,6 +155,9 @@ const RULES = `너는 사람 대신 웹사이트를 조작하는 꼼꼼한 비�
 - 목표와 다른 일은 하지 마. 고를 게 여러 개라 애매하면(날짜·지점·좌석 등) need_person으로 물어봐.
 - 목표를 다 이뤘으면 action=done, summary에 결과(예약번호·날짜·금액 등), evidence에 지금 화면에 실제로 보이는 확인 글자(예: "예약이 완료되었습니다")를 그대로 써. 화면에 확인 글자가 없으면 done 하지 마.
 - 더 할 수 없으면 action=fail, why에 이유.
+- 돈을 내는 단계(결제 금액·결제 수단·결제하기·예약금)가 나오면 그 버튼은 pay=true.
+- [예약]일 때: 목표에 적힌 날짜·시간대·대안 안에서만 골라. 그 안에 빈자리가 하나도 없으면(마감·매진·예약불가·꺼진 버튼) 다른 걸 마음대로 고르지 말고 action=no_slot, why에 본 것을 한 줄로.
+- done일 때 예약한 날짜는 date(YYYY-MM-DD), 시각은 time(HH:MM), 가게·장소 이름은 place에도 채워.
 - thought는 한국어 한 줄.`;
 async function gemini(parts) {
   if (TEST) { const r = TEST.gemini.shift(); if (!r) throw new Error('시험 AI 답이 떨어졌어요'); return r; }
@@ -149,8 +182,8 @@ function browser() {
     const { chromium } = require('playwright-core');
     const dir = path.join(HOME, 'browser');
     const opts = { headless: !!TEST, viewport: TEST ? { width: 1100, height: 800 } : null, args: TEST ? [] : ['--start-maximized'] };
-    for (const channel of ['chrome', 'msedge']) {
-      try { ctx = await chromium.launchPersistentContext(dir, { ...opts, channel }); break; } catch (e) { say('브라우저 열기 실패', channel, e.message.split('\n')[0]); }
+    for (const channel of process.env.AIW_CHROME ? ['exe'] : ['chrome', 'msedge']) { // AIW_CHROME = 시험할 때 크로미움 위치
+      try { ctx = await chromium.launchPersistentContext(dir, channel === 'exe' ? { ...opts, executablePath: process.env.AIW_CHROME } : { ...opts, channel }); break; } catch (e) { say('브라우저 열기 실패', channel, e.message.split('\n')[0]); }
     }
     opening = null;
     if (!ctx) throw new Error('크롬이나 엣지를 열 수 없어요. 크롬을 설치해 주세요');
@@ -235,19 +268,68 @@ async function runWatch(t) {
   } catch (e) { await log(t, '⚠️ ' + e.message.split('\n')[0], { status: 'failed' }); }
 }
 
+// 시각을 "11/24 09:00"처럼
+const hm = ms => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+// 사이트 시계와 내 PC 시계 차이(ms). 서버가 알려 주는 Date(초 단위)로 맞춰요. 이상하면 0.
+async function siteOffset(page, url) {
+  try {
+    const t0 = Date.now(), r = await page.request.head(url, { timeout: 8000 }), t1 = Date.now();
+    const d = Date.parse(r.headers()['date'] || ''); if (!d) return 0;
+    const off = d + 500 - (t0 + t1) / 2; // Date는 초 단위라 0.5초 더해 가운데로
+    return Math.abs(off) < 600e3 ? off : 0;
+  } catch (e) { return 0; }
+}
+// 네이버는 로그인 쿠키가 있는지 미리 봐요(없으면 사람이 로그인)
+async function needLogin(page, url) {
+  if (!/naver\.com/.test(url || '')) return false;
+  const ck = await page.context().cookies('https://nid.naver.com').catch(() => []);
+  return !ck.some(c => c.name === 'NID_AUT');
+}
+// 📅 예약 끝까지 자동이어도 허락을 받아야 하나?
+function mustAsk(s, a, el, txt) {
+  const label = el?.text || '';
+  const risky = a.action === 'click' && (a.risky || a.pay || RISKY.test(label)) || a.action === 'press_enter' && (a.risky || a.pay);
+  if (!risky) return false;
+  if (!s.auto) return true; // 확정 전에 물어보기
+  if (a.pay || ALWAYS_ASK.test(label)) return true; // 돈·지우기·보내기는 언제나
+  if (MONEY_PAGE.test(txt)) return true; // 돈이 드는 예약
+  return !BOOK_WORDS.test(label); // 예약 쪽 말이 아닌 위험 버튼은 물어봐요
+}
+
 async function runDo(t) {
   const s = t.spec || {};
   await B.update(t.id, { status: 'running' });
   const page = await (await browser()).newPage();
-  const hist = [];
+  const hist = [], tips = tipsFor(s.url);
   try {
     if (s.url) await page.goto(s.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // 🔐 네이버 로그인 확인 (정각 예약이면 미리 해 둬야 해요)
+    if (!TEST && await needLogin(page, s.url)) {
+      const ok = await permission(t, '네이버 로그인', '👤 PC 일꾼 창에서 네이버에 로그인해 주세요 (한 번만 하면 계속 남아요). 다 하면 [허락]', await shot(page));
+      if (!ok) { await log(t, '🚫 멈췄어요', { status: 'stopped' }); await page.close().catch(() => {}); return; }
+      if (s.url) await page.goto(s.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    }
+    // ⏰ 정각 예약: 창을 미리 열어 두고, 사이트 시계로 정각이 되면 새로고침하고 바로 시작
+    const at = s.at ? Date.parse(s.at) : 0;
+    if (at && at > Date.now()) {
+      const off = s.url ? await siteOffset(page, s.url) : 0;
+      await log(t, `⏰ ${hm(at)} 정각을 기다려요 · 창을 미리 열어 뒀어요${off ? ` (사이트 시계가 ${(off / 1000).toFixed(1)}초 ${off > 0 ? '빨라요' : '느려요'})` : ''}`, { shot: await shot(page) });
+      let lastCheck = 0;
+      for (;;) {
+        const left = at + 300 - (Date.now() + off); // 0.3초 여유
+        if (left <= 0) break;
+        if (left > 5000 && Date.now() - lastCheck > 5000) { lastCheck = Date.now(); if (await stopped(t)) { await page.close().catch(() => {}); return; } }
+        await sleep(Math.min(left, left > 5000 ? 1000 : 50));
+      }
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      await log(t, '⏰ 정각! 시작해요');
+    }
     for (let step = 1; step <= 30; step++) {
       if (await stopped(t)) return;
       await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
-      const els = await mark(page), img = await shot(page), txt = (await pageText(page)).slice(0, 2500);
+      const els = await mark(page), img = await shot(page), full = await pageText(page), txt = full.slice(0, 2500);
       const parts = [
-        { text: `[목표] ${s.goal}\n[지금 주소] ${page.url()}\n[제목] ${await page.title()}\n[지금까지 한 일]\n${hist.slice(-10).join('\n') || '(처음)'}\n[누를 수 있는 것]\n${els.map(e => `${e.n}: <${e.tag}${e.type ? ' ' + e.type : ''}${e.off ? ' 꺼짐' : ''}> ${e.label ? e.label + ': ' : ''}${e.text}`).join('\n')}\n[화면 글자]\n${txt}` },
+        { text: `[목표] ${s.goal}\n${tips ? `[이 사이트 요령]\n${tips}\n` : ''}[지금 주소] ${page.url()}\n[제목] ${await page.title()}\n[지금까지 한 일]\n${hist.slice(-10).join('\n') || '(처음)'}\n[누를 수 있는 것]\n${els.map(e => `${e.n}: <${e.tag}${e.type ? ' ' + e.type : ''}${e.off ? ' 꺼짐' : ''}> ${e.label ? e.label + ': ' : ''}${e.text}`).join('\n')}\n[화면 글자]\n${txt}` },
         { inline_data: { mime_type: 'image/jpeg', data: img.split(',')[1] } }
       ];
       const a = await gemini(parts);
@@ -257,8 +339,30 @@ async function runDo(t) {
         const fin = await pageText(page), ev = String(a.evidence || '').trim();
         const verified = !!ev && fin.includes(ev); // 했다는 말 대신 화면에 진짜 있는지 확인
         const img2 = await shot(page);
-        await log(t, verified ? `✅ 끝났어요 · 화면에서 "${ev}" 확인` : '✅ 끝났다고 했지만 화면에서 확인 글자를 못 찾았어요 — 직접 봐 주세요', { status: 'done', result: { ok: true, verified, summary: a.summary || '', url: page.url() }, shot: img2 });
-        await B.notify(verified ? '✅ 다 했어요' : '⚠️ 했는데 확인이 필요해요', `${t.title}\n${a.summary || ''}`);
+        const result = { ok: true, verified, summary: a.summary || '', url: page.url() };
+        // 📅 확인된 예약이면 캘린더에도 넣어요
+        let calMsg = '';
+        if (verified && s.cal && /^\d{4}-\d{2}-\d{2}$/.test(a.date || s.date || '')) {
+          const ev2 = { date: /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : s.date, time: /^\d{2}:\d{2}$/.test(a.time || '') ? a.time : '', title: (s.what || t.title || '예약').slice(0, 60), loc: a.place || '' };
+          try { const where = await B.addCal(ev2); result.cal = { ...ev2, where }; calMsg = ` · ${where}에 넣었어요`; }
+          catch (e) { calMsg = ' · ⚠️ 캘린더에 못 넣었어요'; }
+        }
+        await log(t, (verified ? `✅ 끝났어요 · 화면에서 "${ev}" 확인` : '✅ 끝났다고 했지만 화면에서 확인 글자를 못 찾았어요 — 직접 봐 주세요') + calMsg, { status: 'done', result, shot: img2 });
+        await B.notify(verified ? '✅ 다 했어요' : '⚠️ 했는데 확인이 필요해요', `${t.title}\n${a.summary || ''}${calMsg}`);
+        return;
+      }
+      if (a.action === 'no_slot') {
+        // 🔁 자리가 없으면: 다시 해 보기를 골랐으면 잠시 뒤 다시, 아니면 끝
+        const tries = (s.tries || 0) + 1, every = Math.max(TEST ? 0 : 3, +s.retry || 0) * 60e3, until = s.retry_until ? Date.parse(s.retry_until) : 0;
+        const next = Date.now() + every;
+        if (s.retry && next < until) {
+          await log(t, `🔁 자리가 없어요(${a.why || ''}) · ${hm(next)}에 다시 볼게요 (${tries}번째)`, { status: 'queued', spec: { ...s, at: null, next: new Date(next).toISOString(), tries } });
+          if (tries === 1) await B.notify('🔁 아직 자리가 없어요', `${t.title}\n${s.retry}분마다 다시 볼게요`);
+        } else {
+          await log(t, `😢 원하는 시간에 자리가 없어요 · ${a.why || ''}`, { status: 'failed', result: { ok: false, summary: '빈자리 없음: ' + (a.why || ''), url: page.url() } });
+          await B.notify('😢 자리가 없어요', `${t.title}\n${a.why || ''}`);
+        }
+        await page.close().catch(() => {});
         return;
       }
       if (a.action === 'fail') { await log(t, '❌ ' + (a.why || '더 할 수 없어요'), { status: 'failed' }); await B.notify('❌ 못 했어요', `${t.title}\n${a.why || ''}`); return; }
@@ -267,11 +371,12 @@ async function runDo(t) {
         if (!ok) { await log(t, '🚫 멈췄어요', { status: 'stopped' }); return; }
         hist.push(`${step}. 사람이 직접 처리함: ${a.why}`); continue;
       }
-      if (['click', 'type', 'select', 'press_enter'].includes(a.action) && !el) { hist.push(`${step}. ${a.n}번이 목록에 없어서 다시 봄`); continue; }
-      const risky = a.action === 'click' && (a.risky || RISKY.test(el.text)) || a.action === 'press_enter' && a.risky;
-      if (risky) {
-        const ok = await permission(t, a.why || '', `「${el?.text || 'Enter'}」 누르기 — ${a.why || '되돌리기 어려운 버튼이에요'}`, img);
+      if (['click', 'type', 'select', 'press_enter'].includes(a.action) && !el && a.action !== 'press_enter') { hist.push(`${step}. ${a.n}번이 목록에 없어서 다시 봄`); continue; }
+      if (mustAsk(s, a, el, full)) {
+        const ok = await permission(t, a.why || '', `「${el?.text || 'Enter'}」 누르기 — ${a.why || '되돌리기 어려운 버튼이에요'}${a.pay || ALWAYS_ASK.test(el?.text || '') || MONEY_PAGE.test(full) ? ' 💳 돈이 드는 단계예요' : ''}`, img);
         if (!ok) { await log(t, '🚫 허락하지 않아서 멈췄어요', { status: 'stopped' }); return; }
+      } else if (s.auto && a.action === 'click' && (a.risky || RISKY.test(el?.text || ''))) {
+        await log(t, `🤖 끝까지 자동: 「${el?.text || ''}」 눌러요 (돈이 안 드는 예약)`);
       }
       const loc = el ? page.locator(`[data-ai-n="${el.n}"]`).first() : null;
       try {
@@ -363,7 +468,7 @@ async function coolSync() {
   }
   // 일꾼이 꺼져 있는 동안 "하는 중"이던 일 정리: 지켜보기는 다시 시작, 대신 하기는 멈춤 표시
   for (const t of await B.tasks(['running', 'need_ok'])) {
-    if (t.kind === 'watch') await B.update(t.id, { status: 'queued' });
+    if (t.kind === 'watch' || (t.spec?.at && Date.parse(t.spec.at) > Date.now() + 60e3)) await B.update(t.id, { status: 'queued' }); // 정각 예약을 기다리던 것도 다시
     else await B.update(t.id, { status: 'failed', step: '일꾼이 다시 켜져서 멈췄어요. 다시 맡겨 주세요' });
   }
   if (!TEST && !HIDDEN) await browser(); // 숨어서 켤 때는 맡긴 일이 올 때만 브라우저 창을 열어요
@@ -378,6 +483,10 @@ async function coolSync() {
       if (Date.now() - lastBeat > 30000) { lastBeat = Date.now(); await B.beat({ v: VERSION, running: running.size, cool: coolInfo }); }
       for (const t of await B.tasks(['queued'])) {
         if (running.has(t.id)) continue;
+        // ⏰ 정각 예약은 10분 전에 창을 열고, 🔁 다시 해 보기는 정한 시각이 되면 시작해요
+        const at = t.spec?.at ? Date.parse(t.spec.at) : 0, nx = t.spec?.next ? Date.parse(t.spec.next) : 0;
+        if (at && Date.now() < at - (TEST ? 10e3 : 600e3)) { if (t.step?.indexOf('⏰') !== 0) await B.update(t.id, { step: `⏰ ${hm(at)}에 예약을 시작해요 (10분 전에 창을 열어요)` }); t.step = '⏰'; continue; }
+        if (nx && Date.now() < nx) continue;
         if (t.kind === 'do' && doBusy) continue; // 대신 하기는 한 번에 하나씩
         running.set(t.id, t.kind); say(t.kind === 'watch' ? '👀 지켜보기 시작:' : '🖱️ 대신 하기 시작:', t.title);
         if (t.kind === 'do') doBusy = true;

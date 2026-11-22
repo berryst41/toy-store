@@ -1,6 +1,6 @@
 {
   "name": "ai-secretary-pc-worker",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "description": "AI 비서 PC 일꾼 — 따로 연 브라우저 창에서 빈자리 지켜보기·대신 누르기(허락 받고)",
   "main": "worker.js",
