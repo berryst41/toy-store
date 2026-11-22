@@ -159,6 +159,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 <nav>
   <button data-p="pChat" class="on">💬 대화</button>
   <button data-p="pPlan">📅 일정</button>
+  <button data-p="pTodo">✅ 할 일</button>
   <button data-p="pMail">📬 메일</button>
   <button data-p="pWork">🖥️ 일꾼</button>
   <button data-p="pMemo">📒 기억</button>
@@ -180,28 +181,30 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
   <!-- 일정·할 일 -->
   <section id="pPlan" class="page">
-    <div id="planJump" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px"></div>
-    <h2 id="hEv">📅 일정 <small>지난 일정은 하루 지나면 접혀요</small></h2>
-    <div id="evList"></div>
-    <div class="add">
+    <h2>📅 일정 <small>지난 일정은 하루 지나면 접혀요</small></h2>
+    <div class="add" style="margin:0 0 10px">
       <input type="date" id="evD">
       <input type="time" id="evT">
-      <input class="grow" id="evTitle" placeholder="일정 이름">
+      <input class="grow" id="evTitle" placeholder="새 일정 이름">
       <select id="evWhere" title="어디에 넣을까요?"><option value="">🍓 AI 비서</option></select>
       <button class="p" id="evAdd">추가</button>
     </div>
+    <div id="evList"></div>
 
-    <h2 id="hTd">✅ 할 일</h2>
-    <div class="box" id="tdList"></div>
-    <div class="add">
-      <input class="grow" id="tdTitle" placeholder="할 일">
+    <h2>📨 쿨메신저 <small id="coolAt"></small></h2>
+    <div id="coolList"></div>
+  </section>
+
+  <!-- 체크리스트(할 일) — 일정과 따로, 디데이별로 -->
+  <section id="pTodo" class="page">
+    <h2>✅ 체크리스트 <small>마감 디데이별로 모아 봐요</small></h2>
+    <div class="add" style="margin:0 0 10px">
+      <input class="grow" id="tdTitle" placeholder="해야 할 것">
       <input type="date" id="tdDue" title="마감일(없어도 돼요)">
       <button class="p" id="tdAdd">추가</button>
     </div>
+    <div id="tdList"></div>
     <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요.</p>
-
-    <h2 id="hCool">📨 쿨메신저 <small id="coolAt"></small></h2>
-    <div id="coolList"></div>
   </section>
 
   <!-- 메일 -->
