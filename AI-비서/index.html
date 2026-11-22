@@ -14,8 +14,8 @@
 :root{--main:#5b4fd6;--soft:#ecebff;--bg:#f6f5fb;--card:#fff;--line:#e2e0f0;--text:#211f33;--sub:#7a7690;--ok:#2f9e44;--warn:#e8590c}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:100dvh;overflow:hidden} /* 화면 전체는 안 움직이고, 안쪽(대화·각 탭)만 스크롤 */
-header{background:var(--main);color:#fff;padding:8px 10px 8px 14px;display:flex;align-items:center;gap:6px;flex:none}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:var(--appH,100dvh);overflow:hidden} /* 화면 전체는 안 움직이고, 안쪽(대화·각 탭)만 스크롤 */
+header{background:var(--main);color:#fff;padding:calc(8px + env(safe-area-inset-top)) 10px 8px 14px;display:flex;align-items:center;gap:6px;flex:none}
 header h1{font-size:18px;margin:0;flex:1;white-space:nowrap}
 header button{background:transparent;border:0;color:#fff;font-size:22px;padding:4px 6px;cursor:pointer}
 .pill{background:rgba(255,255,255,.18);border-radius:99px;padding:4px 9px;font-size:12.5px;white-space:nowrap;cursor:pointer;border:0;color:#fff}
@@ -53,7 +53,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column;width:100%;max-wi
 .quick::-webkit-scrollbar{display:none}
 .chip{flex:none;border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 11px;font-size:13.5px;cursor:pointer;color:var(--text)}
 .chip:hover{border-color:var(--main)}
-.inbar{flex:none;display:flex;gap:6px;align-items:flex-end;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:var(--bg)}
+.inbar{flex:none;display:flex;gap:6px;align-items:flex-end;padding:8px 10px calc(12px + env(safe-area-inset-bottom));background:var(--bg)}
 .inbar textarea{flex:1;resize:none;border:1px solid var(--line);border-radius:14px;padding:10px 12px;font-size:16px;font-family:inherit;max-height:160px;min-height:68px;line-height:1.4;background:#fff} /* 두 줄이 잘리지 않게 */
 .ib{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .ib.send{background:var(--main);color:#fff;border-color:var(--main)}
@@ -334,7 +334,10 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.10.0';
+const VERSION = '0.10.1';
+// 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
+function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
+fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
 const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 const DEFAULT_LIMIT = 1000;
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
@@ -1010,7 +1013,7 @@ todo나 reply에 할 일이 있으면 todo=짧은 할 일 이름, due=마감(YYY
     ls.set('mailcls', JSON.stringify(MC));
   } catch (e) { mcErr = e.message; }
   mcBusy = false; renderMail();
-  tidyGmail();
+  await tidyGmail();
 }
 // 🗂️ 지메일 정리: '지메일 정리'를 허락한 계정은 나눈 대로 라벨(AI딸기/…)을 붙이고 광고는 보관함으로 (지우지 않아요)
 async function tidyGmail() {
@@ -1024,6 +1027,16 @@ async function tidyGmail() {
     if (r.errors?.length) mcErr = '지메일 정리: ' + r.errors.join(' / ');
     renderMail();
   } catch (e) { mcErr = '지메일 정리: ' + e.message; renderMail(); }
+}
+// 💬 대화에서 "메일 정리해 줘" → 메일 자동 정리를 바로 돌리고 결과를 알려 줘요 (지우지 않아요)
+async function tidyMailNow() {
+  if (!G.accounts.length) return '⚠️ 메일 정리: 먼저 ⚙️ → 🔗 구글 계정을 연결해 주세요';
+  if (!G.mails.length) return '📬 정리할 최근 3일 메일이 없어요';
+  await sortMails(false); await tidyGmail();
+  const cnt = {}; for (const m of G.mails) { const c = MC[m.id]?.cat; if (c) cnt[c] = (cnt[c] || 0) + 1; }
+  const tidied = G.mails.filter(m => MC[m.id]?.tidy).length, tidyOn = G.accounts.some(a => a.caps?.tidy);
+  const parts = Object.keys(MCAT).filter(k => cnt[k]).map(k => `${MCAT[k][0]} ${cnt[k]}`);
+  return `🗂️ 메일 정리: ${parts.join(' · ') || '나눈 메일 없음'}${tidyOn ? ` — 지메일 라벨 ${tidied}통${ls.get('mailArchive') !== 'off' ? '(광고는 보관함으로)' : ''}` : ' — 지메일 안까지 정리하려면 ⚙️ → 구글 계정 [🔧 범위] → "지메일 정리도"'}${mcErr ? ' ⚠️ ' + mcErr : ''}`;
 }
 function mailCard(m) {
   const c = MC[m.id], done = c?.done || {};
@@ -1327,7 +1340,7 @@ const SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event'] },
+          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event', 'tidy_mail'] },
           values: { type: 'ARRAY', items: { type: 'STRING' } },
           id: { type: 'STRING' }, date: { type: 'STRING' }, time: { type: 'STRING' }, end_time: { type: 'STRING' }, title: { type: 'STRING' },
           account: { type: 'STRING' }, to: { type: 'STRING' }, subject: { type: 'STRING' }, body: { type: 'STRING' },
@@ -1359,6 +1372,7 @@ function systemPrompt() {
    📱 [폰 캘린더]는 사용자 갤럭시 폰의 삼성 캘린더 등에서 읽어 온 일정이야([구글 일정]과 겹치는 건 이미 뺐어). 일정을 물어보면 [일정]·[구글 일정]·[폰 캘린더]를 모두 합쳐서 시간 순서로 대답해.
    📱 폰 캘린더 쓰기([넣을 수 있는 폰 캘린더]가 있을 때): 사용자가 새 일정을 넣어 달라고 하면 구글 계정이나 캘린더를 따로 말하지 않는 한 add_phone_event(account=폰 캘린더 이름, 말하지 않으면 ⭐기본, date, time, end_time, title, text=장소(있으면))로 폰 캘린더에 넣어. [폰 캘린더] 일정을 고치려면 update_phone_event(id=[폰 캘린더]의 id, 바뀌는 것만 date·time·end_time·title), 지우려면 delete_phone_event(id). (반복)이 붙은 일정은 고치거나 지울 수 없으니 폰 삼성 캘린더에서 직접 하라고 말해. 이것들도 [허락] 버튼을 눌러야 실행되고, 폰이 처리하는 데 잠깐(폰에서 허락하면 바로, PC에서 허락하면 최대 15분쯤) 걸린다고 알려 줘.
    📨 [쿨메신저]는 학교 쿨메신저 쪽지에서 쿨메신저 비서가 뽑아 둔 할 일·적을 것·기억할 것이야. 오늘 할 일·마감·브리핑을 말할 때 [할 일]과 함께 챙겨(학생 이름이 있으면 그대로 써도 돼). 사용자가 그중 하나를 끝냈다고 하면 done_cool(id=[쿨메신저]의 id)로 체크해(학교 PC 쿨메신저 비서 창에도 체크돼). 쿨메신저 항목은 add_todo로 따로 넣지 마.
+   🗂️ 메일 정리: 사용자가 메일을 정리·분류해 달라거나 필요 없는 메일·광고를 치워 달라고 하면 묻지 말고 tidy_mail을 담아. 이 앱이 메일을 답장할 것·할 일·일정·알림·광고로 나누고, [지메일 정리] 허락이 있으면 지메일에 AI딸기 라벨을 붙이고 광고는 보관함으로 옮겨(지우지는 않아. 보관함에서 언제든 다시 볼 수 있어). "직접 지우세요"라고 하지 마. 지금 허락 상태는 [지메일 정리]를 봐. 허락이 없으면 "⚙️ → 구글 계정 [🔧 범위] → 지메일 정리도 체크"를 알려 줘.
    ☀️ 아침 브리핑 알림: 사용자가 브리핑 시각을 바꾸거나 켜고 끄라고 하면 set_brief(time=HH:MM 24시간, mode=on 또는 off). "7시 반"은 07:30, "저녁 9시"는 21:00. 시각을 말하지 않고 켜 달라고만 하면 몇 시에 받을지 먼저 물어봐. 지금 설정은 [아침 브리핑]을 봐.
    📁 구글 더 쓰기([구글 계정]에 📁로 적힌 허락이 있을 때만):
    - 찾아보기: 드라이브 파일 찾기 find_drive(text=찾을 말), 파일 내용 읽기 read_drive(id=파일 id 또는 구글 문서·시트·슬라이드·설문 주소), 유튜브 영상 찾기 find_youtube(text=검색어). 이걸 담으면 reply는 "찾아볼게요"처럼 짧게만 써. 결과는 다음 차례에 [찾아본 결과]로 받아.
@@ -1376,6 +1390,7 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [일정] ${evs.map(e => `(${e.id}) ${e.date} ${e.time || '종일'} ${e.title}`).join(' / ') || '(없음)'}
 [할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
 [쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '적을 것', remember: '기억' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
+[지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
 [아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
 [PC 일꾼] ${W ? (workerOn() ? '켜짐' : '꺼짐') : '연결 안 됨'} / 맡긴 일: ${T.slice(0, 5).map(t => `${t.title}(${ST[t.status] || t.status})`).join(', ') || '(없음)'}
 [구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${capTxt(a)}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
@@ -1546,6 +1561,7 @@ async function send(text) {
       res.done.push(ok ? `📨 쿨메신저 체크: ${x.text.slice(0, 30)}` : `⚠️ 쿨메신저 체크 못 함: ${x.text.slice(0, 30)}`);
     }
     for (const a of (r.actions || []).filter(x => x.type === 'set_brief').slice(0, 1)) res.done.push(await setBrief(a));
+    if ((r.actions || []).some(x => x.type === 'tidy_mail')) res.done.push(await tidyMailNow());
     const am = { id: uid('c'), role: 'model', text: r.reply || '(대답이 비어 있어요)', acts: res.done, ts: Date.now() };
     if (res.wait.length) am.ask = { status: 'wait', items: res.wait.map(w => w.d), actions: res.wait.map(w => w.a) };
     put('chat', am); renderChat();
