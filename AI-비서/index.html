@@ -78,6 +78,7 @@ h2 small{color:var(--sub);font-weight:400;font-size:13px}
 .tdedit input{border:1px solid var(--main);border-radius:10px;padding:8px 10px;font-size:15px;font-family:inherit;background:#fff;color:#222;min-width:0}
 .tdedit input:first-child{flex:1 1 100%}
 .tdedit button{padding:7px 12px;font-size:14px}
+.add select{border:1px solid var(--line);border-radius:10px;padding:9px 6px;font-size:15px;font-family:inherit;background:#fff;color:#222}
 [data-td-edit]{cursor:pointer}
 .del{border:0;background:transparent;color:#bbb;font-size:18px;cursor:pointer;padding:4px}
 .del:hover{color:#e03131}
@@ -201,15 +202,18 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
   <section id="pTodo" class="page">
     <h2>✅ 체크리스트 <small>마감 디데이별로 모아 봐요</small></h2>
     <div class="add" style="margin:0 0 10px">
+      <select id="tdKind" title="무엇을 넣을까요?"><option value="todo">✅ 마감 할 일</option><option value="event">📅 일정</option><option value="remember">💡 알아 둘 것</option></select>
       <input class="grow" id="tdTitle" placeholder="해야 할 것">
       <input type="date" id="tdDue" title="마감일(없어도 돼요)">
+      <input type="time" id="tdTime" title="시각(없어도 돼요)" style="display:none">
       <button class="p" id="tdAdd">추가</button>
     </div>
     <div id="tdFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 4px"></div>
     <div id="tdList"></div>
-    <h2>📨 쿨메신저 알아 둘 것 <small id="coolAt"></small></h2>
+    <h2>💡 알아 둘 것 <small id="coolAt"></small></h2>
+    <div id="noteList"></div>
     <div id="coolList"></div>
-    <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요. 📨 표시는 쿨메신저 비서가 쪽지에서 뽑은 할 일이에요(체크하면 학교 PC 쿨메신저 비서 창에도 체크돼요).</p>
+    <p class="hint" style="margin-top:16px">💡 위 칸에서 ✅ 마감 할 일 · 📅 일정(일정 탭으로) · 💡 알아 둘 것 중에 골라 넣어요. 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 돼요. 📨 표시는 쿨메신저 비서가 쪽지에서 뽑은 할 일이에요(체크하면 학교 PC 쿨메신저 비서 창에도 체크돼요).</p>
   </section>
 
   <!-- 메일 -->
@@ -373,7 +377,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.16.1';
+const VERSION = '0.17.0';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -856,9 +860,9 @@ function renderCool() {
     const list = open.filter(x => x.kind === k && (k !== 'note' || !x.due)).sort(sort);
     if (!list.length) continue;
     const isOpen = coolMemoOpen[k];
-    h += `<div class="dhead"><a href="#" data-cool-fold="${k}" style="color:inherit;text-decoration:none">${isOpen ? '▾' : '▸'} ${COOL_K[k]} ${list.length}</a></div>` + (isOpen ? `<div class="box">${list.map(row).join('')}</div>` : '');
+    h += `<div class="dhead"><a href="#" data-cool-fold="${k}" style="color:inherit;text-decoration:none">${isOpen ? '▾' : '▸'} 📨 쿨메신저 ${COOL_K[k]} ${list.length}</a></div>` + (isOpen ? `<div class="box">${list.map(row).join('')}</div>` : '');
   }
-  if (!h) h = '<div class="box"><div class="none">알아 둘 것이 없어요</div></div>';
+  if (!h) h = S.todos.some(x => x.kind === 'remember' && !x.done) ? '' : '<div class="box"><div class="none">알아 둘 것이 없어요</div></div>';
   if (done.length) h += `<div class="hint" style="margin-top:8px"><a href="#" data-cool-done="1">${coolShowDone ? '끝낸 것 숨기기' : `끝낸 것 ${done.length}개 보기`}</a></div>` + (coolShowDone ? `<div class="box">${done.sort(sort).map(row).join('')}</div>` : '');
   box.innerHTML = h + '<p class="hint">여기서 체크하면 학교 PC의 쿨메신저 비서 창에도 1분 안에 체크돼요(학교 PC 일꾼이 켜져 있을 때). 반대로도 돼요.</p>';
 }
@@ -1278,7 +1282,7 @@ $('quick').onclick = e => {
 function welcomeHTML() {
   const t = today();
   const ev = allEvents().filter(e => e.date === t).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-  const td = S.todos.filter(x => !x.done);
+  const td = S.todos.filter(x => !x.done && x.kind !== 'remember');
   const late = td.filter(x => x.due && x.due < t).length;
   const unread = G.mails.filter(m => m.unread).length;
   let h = `<div class="welcome">안녕하세요! 😊 <b>${dLabel(t)}</b>이에요.<br>`;
@@ -1547,7 +1551,7 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [내 정보] ${ls.get('me') || '(없음)'}
 [기억] ${S.memos.map(m => `(${m.id}) ${m.text}`).join(' / ') || '(없음)'}
 [일정] ${evs.map(e => `(${e.id}) ${e.date} ${e.time || '종일'} ${e.title}`).join(' / ') || '(없음)'}
-[할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
+[할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.kind === 'remember' ? '[알아 둘 것] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
 [쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '일정', remember: '알아 둘 것' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
 [지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
 [아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
@@ -1773,10 +1777,11 @@ const dTag = n => n === 0 ? 'D-day' : n > 0 ? `D-${n}` : `D+${-n}`;
 let tdEdit = ''; // ✏️ 고치는 중인 체크리스트 항목('me:id' 또는 'cool:id')
 function renderTodo() {
   const t = today();
-  const keep = tdEdit && $('tdEditT') ? { t: $('tdEditT').value, d: $('tdEditD').value } : null; // 다시 그려도 쓰던 글자 그대로
+  const keep = tdEdit && $('tdEditT') ? { t: $('tdEditT').value, d: $('tdEditD')?.value || '' } : null; // 다시 그려도 쓰던 글자 그대로
   const coolTd = owner ? coolOpen().filter(x => x.kind === 'todo').map(x => ({ ...x, title: x.text, src: 'cool' })) : [];
+  renderNotes(keep);
   const all = [
-    ...S.todos.filter(x => !x.done).map(x => ({ ...x, src: 'me' })),
+    ...S.todos.filter(x => !x.done && x.kind !== 'remember').map(x => ({ ...x, src: 'me' })),
     ...G.tasks.map(x => ({ ...x, src: 'g' })),
     ...coolTd
   ].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'));
@@ -1809,7 +1814,7 @@ function renderTodo() {
   if (!h) h = '<div class="box"><div class="none">해야 할 것이 없어요 🎉</div></div>';
   if (tdF === 'cool' && coolTd.length) { $('tdList').innerHTML = h; focusEdit(); return badge(); }
   // 끝낸 것은 최근 7일 것만 아래에 흐리게
-  const done = S.todos.filter(x => x.done && (x.doneAt || '') >= addDays(t, -7)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
+  const done = S.todos.filter(x => x.done && x.kind !== 'remember' && (x.doneAt || '') >= addDays(t, -7)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
   if (done.length) h += `<div class="dhead">✔️ 끝낸 것 <small style="color:var(--sub);font-weight:400">최근 7일</small></div><div class="box">${done.map(x => `<div class="row done"><input type="checkbox" data-chk="${x.id}" checked><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small>${dLabel(x.due)}까지였음</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`).join('')}</div>`;
   $('tdList').innerHTML = h;
   focusEdit();
@@ -1864,7 +1869,7 @@ $('pPlan').onclick = async e => {
   renderPlan();
 };
 async function saveTdEdit(key) {
-  const title = $('tdEditT').value.trim(), due = $('tdEditD').value;
+  const title = $('tdEditT').value.trim(), due = $('tdEditD')?.value || '';
   if (!title) return toast('할 일 이름을 넣어 주세요');
   const [src, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
   if (src === 'me') {
@@ -1879,6 +1884,16 @@ async function saveTdEdit(key) {
   }
   tdEdit = ''; renderPlan(); toast('고쳤어요 ✏️');
 }
+// 💡 내가 넣은 알아 둘 것(S.todos 중 kind='remember', 마감 없음) — 체크하면 사라져요
+function renderNotes(keep) {
+  const box = $('noteList'); if (!box) return;
+  const list = S.todos.filter(x => x.kind === 'remember' && !x.done);
+  box.innerHTML = list.length ? `<div class="box">${list.map(x => { const key = 'me:' + x.id;
+    if (tdEdit === key) return `<div class="row"><div class="tdedit"><input id="tdEditT" value="${esc(keep ? keep.t : x.title)}" placeholder="알아 둘 것"><button class="p" data-td-save="${esc(key)}">저장</button><button class="g" data-td-cancel="1">취소</button></div></div>`;
+    return `<div class="row"><input type="checkbox" data-chk="${x.id}" title="다 봤어요"><div class="t" data-td-edit="${esc(key)}"><div data-td-edit="${esc(key)}">${esc(x.title)}</div><small>🍓 내가 넣음</small></div><button class="del" data-td-edit="${esc(key)}" title="고치기">✏️</button><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
+  }).join('')}</div>` : '';
+  const i = box.querySelector('#tdEditT'); if (i && !keep) setTimeout(() => i.focus());
+}
 const planClick = $('pPlan').onclick;
 $('pTodo').onclick = e => {
   const ed = e.target.closest('[data-td-edit]');
@@ -1891,7 +1906,7 @@ $('pTodo').onclick = e => {
   if (e.target.closest('#coolList') || e.target.dataset.cool) return coolClick(e);
   return planClick(e); // 내 할 일·구글 할 일 체크·지우기는 일정 탭과 같은 처리
 };
-$('tdList').addEventListener('keydown', e => { // 고치는 칸에서 Enter = 저장, Esc = 취소
+$('pTodo').addEventListener('keydown', e => { // 고치는 칸에서 Enter = 저장, Esc = 취소
   if (!e.target.closest('.tdedit') || e.isComposing) return;
   if (e.key === 'Enter') { e.preventDefault(); saveTdEdit(tdEdit); }
   else if (e.key === 'Escape') { tdEdit = ''; renderTodo(); }
@@ -1921,10 +1936,29 @@ $('evAdd').onclick = async () => {
   put('event', { id: uid('e'), date, time: $('evT').value, title });
   $('evTitle').value = ''; $('evT').value = ''; renderPlan(); toast('일정을 넣었어요');
 };
+// 무엇을 넣을지 고르면 칸이 바뀌어요: 할 일 = 마감일, 일정 = 날짜+시각, 알아 둘 것 = 글만
+function tdKindUI() {
+  const k = $('tdKind').value;
+  $('tdTitle').placeholder = { todo: '해야 할 것', event: '일정 이름', remember: '알아 둘 것' }[k];
+  $('tdDue').style.display = k === 'remember' ? 'none' : '';
+  $('tdDue').title = k === 'event' ? '날짜' : '마감일(없어도 돼요)';
+  $('tdTime').style.display = k === 'event' ? '' : 'none';
+  ls.set('tdKind', k);
+}
+$('tdKind').value = ls.get('tdKind', 'todo'); if (!$('tdKind').value) $('tdKind').value = 'todo';
+$('tdKind').onchange = tdKindUI; tdKindUI();
 $('tdAdd').onclick = () => {
-  const title = $('tdTitle').value.trim(); if (!title) return toast('할 일을 적어 주세요');
-  put('todo', { id: uid('t'), title, due: $('tdDue').value, done: false });
-  $('tdTitle').value = ''; $('tdDue').value = ''; renderPlan();
+  const k = $('tdKind').value, title = $('tdTitle').value.trim(), due = $('tdDue').value;
+  if (!title) return toast({ todo: '할 일을 적어 주세요', event: '일정 이름을 적어 주세요', remember: '알아 둘 것을 적어 주세요' }[k]);
+  if (k === 'event') {
+    if (!due) return toast('일정 날짜를 골라 주세요');
+    put('event', { id: uid('e'), date: due, time: $('tdTime').value, title });
+    toast(`📅 ${dLabel(due)} 일정으로 넣었어요(일정 탭)`);
+  } else if (k === 'remember') {
+    put('todo', { id: uid('t'), title, kind: 'remember', due: '', done: false });
+    toast('💡 알아 둘 것에 넣었어요');
+  } else put('todo', { id: uid('t'), title, due, done: false });
+  $('tdTitle').value = ''; $('tdDue').value = ''; $('tdTime').value = ''; renderPlan();
 };
 $('evTitle').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) $('evAdd').click(); };
 $('tdTitle').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) $('tdAdd').click(); };
