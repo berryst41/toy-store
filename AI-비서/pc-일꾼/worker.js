@@ -504,14 +504,38 @@ let coolInfo = null;
 async function coolSync() {
   const itemsF = path.join(COOL_DIR, 'items.json'), doneF = path.join(COOL_DIR, 'done.json');
   if (!fs.existsSync(itemsF)) return (coolInfo = null); // 쿨메신저 비서가 없는 PC(예: 집 PC)
-  const items = readJ(itemsF, null), doneArr = readJ(doneF, []);
-  if (!Array.isArray(items) || !Array.isArray(doneArr)) return; // 쓰는 중일 수 있어요 → 다음 번에
+  const myF = path.join(COOL_DIR, 'my.json'); // (v0.9) 직접 넣은 항목: 쿨메신저 비서 창 ➕(my-…)·AI 비서 앱(app-…)
+  const items = readJ(itemsF, null), doneArr = readJ(doneF, []), mine = fs.existsSync(myF) ? readJ(myF, null) : [];
+  if (!Array.isArray(items) || !Array.isArray(doneArr) || !Array.isArray(mine)) return; // 쓰는 중일 수 있어요 → 다음 번에
   const pc = new Set(doneArr.map(String));
-  const st = readJ(COOL_STATE, { base: {}, sig: {} });
+  const st = readJ(COOL_STATE, { base: {}, sig: {} }); st.pulled ||= {};
   const srv = new Map((await B.coolAll()).map(r => [r.id, r]));
+  const rowOf = it => ({
+    id: String(it?.id || ''), kind: COOL_KINDS.includes(it.kind) ? it.kind : 'todo', text: String(it.text || '').slice(0, 500),
+    due: /^\d{4}-\d{2}-\d{2}$/.test(it.due || '') ? it.due : '', time: /^\d{2}:\d{2}$/.test(it.time || '') ? it.time : '',
+    sender: String(it.sender || '').slice(0, 60), recv: String(it.recv || '').slice(0, 20), fav: !!it.fav
+  });
+  // 앱에서 넣은 것(app-…) → my.json에 더해 쿨메신저 비서 창에도 보이게. 창에서 지운 것(pulled인데 파일에 없음)은 아래에서 '사라짐'.
+  // 앱에서 고친 직접 항목(PC 쪽은 그대로인데 서버 글이 다름) → my.json도 고쳐요.
+  let myDirty = false, pulledN = 0;
+  const inMine = new Map(mine.filter(x => x?.id).map(x => [String(x.id), x]));
+  for (const [id, s] of srv) {
+    if (s.gone || !/^app-/.test(id) || st.pulled[id] || inMine.has(id)) continue;
+    const x = { id, msg: null, kind: s.kind, text: s.text, due: s.due || '', time: s.time || '', fav: false, sender: s.sender || '📱 AI 비서', recv: s.recv || '', added: new Date().toISOString() };
+    mine.push(x); inMine.set(id, x); st.pulled[id] = true; myDirty = true; pulledN++;
+  }
+  for (const [id, x] of inMine) {
+    const s = srv.get(id); if (!s || s.gone) continue;
+    const r = rowOf(x), sv = rowOf(s);
+    if (st.sig[id] === JSON.stringify(r) && (r.kind !== sv.kind || r.text !== sv.text || r.due !== sv.due || r.time !== sv.time)) {
+      Object.assign(x, { kind: sv.kind, text: sv.text, due: sv.due, time: sv.time }); myDirty = true; pulledN++;
+    }
+    if (/^app-/.test(id)) st.pulled[id] = true;
+  }
+  if (myDirty) { const tmp = myF + '.aiw.tmp'; fs.writeFileSync(tmp, JSON.stringify(mine), 'utf8'); fs.renameSync(tmp, myF); }
   const up = [], gone = [], seen = new Set(), base = {};
   let fromApp = 0, fromPc = 0;
-  for (const it of items) {
+  for (const it of [...items, ...mine]) {
     const id = String(it?.id || ''); if (!id || seen.has(id)) continue; seen.add(id);
     const row = {
       id, kind: COOL_KINDS.includes(it.kind) ? it.kind : 'todo', text: String(it.text || '').slice(0, 500),
