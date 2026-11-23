@@ -536,12 +536,8 @@ async function coolSync() {
   const up = [], gone = [], seen = new Set(), base = {};
   let fromApp = 0, fromPc = 0;
   for (const it of [...items, ...mine]) {
-    const id = String(it?.id || ''); if (!id || seen.has(id)) continue; seen.add(id);
-    const row = {
-      id, kind: COOL_KINDS.includes(it.kind) ? it.kind : 'todo', text: String(it.text || '').slice(0, 500),
-      due: /^\d{4}-\d{2}-\d{2}$/.test(it.due || '') ? it.due : '', time: /^\d{2}:\d{2}$/.test(it.time || '') ? it.time : '',
-      sender: String(it.sender || '').slice(0, 60), recv: String(it.recv || '').slice(0, 20), fav: !!it.fav
-    };
+    if (!it) continue;
+    const row = rowOf(it), id = row.id; if (!id || seen.has(id)) continue; seen.add(id);
     const s = srv.get(id), b = st.base[id], p = pc.has(id);
     // 체크 맞추기: 지난번 맞춘 값(b)과 달라진 쪽을 따라가요. 둘 다 바뀌었으면 앱(폰)이 이겨요.
     let done = p;
@@ -569,8 +565,9 @@ async function coolSync() {
   if (up.length) await B.coolUpsert(up);
   if (gone.length) await B.coolGone(gone);
   st.base = base;
+  for (const id of Object.keys(st.pulled)) if (!srv.has(id)) delete st.pulled[id];
   fs.writeFileSync(COOL_STATE, JSON.stringify(st));
-  if (up.length || gone.length || fromApp) say(`📨 쿨메신저: 올림 ${up.length}개${gone.length ? ` · 사라짐 ${gone.length}` : ''}${fromPc ? ` (PC 체크 ${fromPc})` : ''}${fromApp ? ` · 앱 체크 ${fromApp}개를 쿨메신저 비서에 반영` : ''}`);
+  if (up.length || gone.length || fromApp || pulledN) say(`📨 쿨메신저: 올림 ${up.length}개${gone.length ? ` · 사라짐 ${gone.length}` : ''}${fromPc ? ` (PC 체크 ${fromPc})` : ''}${fromApp ? ` · 앱 체크 ${fromApp}개를 쿨메신저 비서에 반영` : ''}${pulledN ? ` · 앱에서 넣은·고친 것 ${pulledN}개를 쿨메신저 비서 창에` : ''}`);
   return (coolInfo = { n: seen.size, at: new Date().toISOString() });
 }
 
