@@ -206,6 +206,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <input class="grow" id="tdTitle" placeholder="해야 할 것">
       <input type="date" id="tdDue" title="마감일(없어도 돼요)">
       <input type="time" id="tdTime" title="시각(없어도 돼요)" style="display:none">
+      <label title="체크하면 학교 PC 쿨메신저 비서 창에도 들어가요(학교 PC 일꾼이 켜져 있을 때 1분 안에)" style="display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:.9em"><input type="checkbox" id="tdCool">📨 쿨메신저 비서에도</label>
       <button class="p" id="tdAdd">추가</button>
     </div>
     <div id="tdFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 4px"></div>
@@ -1947,10 +1948,29 @@ function tdKindUI() {
 }
 $('tdKind').value = ls.get('tdKind', 'todo'); if (!$('tdKind').value) $('tdKind').value = 'todo';
 $('tdKind').onchange = tdKindUI; tdKindUI();
-$('tdAdd').onclick = () => {
+$('tdCool').checked = ls.get('tdCool') === '1';
+$('tdCool').onchange = () => ls.set('tdCool', $('tdCool').checked ? '1' : '');
+// (v0.18) 📨 쿨메신저 비서에도: ai_cool에 app-… 줄을 넣으면 학교 PC 일꾼이 쿨메신저 비서 창(my.json)에도 넣어요
+async function addCoolItem(k, text, due, time) {
+  if (!owner || !user) { toast('⚙️ 설정에서 로그인해야 쿨메신저 비서에 넣을 수 있어요'); return false; }
+  const kind = { todo: 'todo', event: 'note', remember: 'remember' }[k];
+  const n = new Date(), p = v => String(v).padStart(2, '0');
+  const row = { user_id: user.id, id: 'app-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, text: text.slice(0, 500),
+    due: k === 'remember' ? '' : due || '', time: k === 'event' ? time || '' : '', sender: '📱 AI 딸기',
+    recv: `${n.getFullYear()}/${p(n.getMonth() + 1)}/${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}`, fav: false, done: false, done_src: null, gone: false };
+  const { data, error } = await sb.from('ai_cool').insert(row).select('id');
+  if (error || !data?.[0]) { toast('쿨메신저 비서에 넣지 못했어요: ' + (error?.message || '확인 안 됨')); return false; }
+  C.push(row); ls.set('cool', JSON.stringify(C)); renderCool(); renderTodo(); renderPlan();
+  return true;
+}
+$('tdAdd').onclick = async () => {
   const k = $('tdKind').value, title = $('tdTitle').value.trim(), due = $('tdDue').value;
   if (!title) return toast({ todo: '할 일을 적어 주세요', event: '일정 이름을 적어 주세요', remember: '알아 둘 것을 적어 주세요' }[k]);
-  if (k === 'event') {
+  if (k === 'event' && !due) return toast('일정 날짜를 골라 주세요');
+  if ($('tdCool').checked) {
+    if (!await addCoolItem(k, title, due, $('tdTime').value)) return;
+    toast('📨 넣었어요 · 학교 PC 쿨메신저 비서 창에도 1분 안에 들어가요' + (k === 'todo' && !due ? ' (마감이 없어서 💡 알아 둘 것으로)' : ''));
+  } else if (k === 'event') {
     if (!due) return toast('일정 날짜를 골라 주세요');
     put('event', { id: uid('e'), date: due, time: $('tdTime').value, title });
     toast(`📅 ${dLabel(due)} 일정으로 넣었어요(일정 탭)`);
