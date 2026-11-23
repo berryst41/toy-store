@@ -8,8 +8,10 @@ $Dir   = $PSScriptRoot
 $Home2 = Join-Path $env:LOCALAPPDATA 'AI비서일꾼'
 $Lnk   = Join-Path ([Environment]::GetFolderPath('Startup')) 'AI 비서 PC 일꾼.lnk'
 $Lock  = Join-Path $Home2 '켜짐.json'
-$Ps    = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$Args0 = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
+# 윈도우 11은 powershell을 '터미널' 창으로 열어 -WindowStyle Hidden이 안 먹어요(작업 표시줄에 검은 창, 닫으면 꺼짐)
+# → conhost --headless 로 창 없이 켜요 (v0.9.1)
+$Ps    = Join-Path $env:SystemRoot 'System32\conhost.exe'
+$Args0 = "--headless `"$(Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')`" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
 
 function Stop-Worker {
     if (-not (Test-Path $Lock)) { return $false }
