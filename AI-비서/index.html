@@ -373,7 +373,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.16.0';
+const VERSION = '0.16.1';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -824,7 +824,8 @@ let C = [], CW = null, coolShowDone = false, cchan = null, coolMemoOpen = {};
 let tdF = ls.get('tdF', 'all'); // ✅ 할 일 탭 거르기: all | me | cool
 try { C = JSON.parse(ls.get('cool', '[]')); } catch (e) {}
 const COOL_K = { todo: '✅ 마감 할 일', note: '📅 일정', remember: '💡 알아 둘 것' }; // (v0.15.1) note는 예전 '적어야 할 것' — 대부분 일정이라 일정으로
-const coolLive = () => C.filter(x => !x.gone);
+// (v0.16.1) 마감일 없는 할 일(수시로 하는 일)은 '알아 둘 것'으로 봐요 — 사용자 결정
+const coolLive = () => C.filter(x => !x.gone).map(x => x.kind === 'todo' && !x.due ? { ...x, kind: 'remember' } : x);
 // 쿨메신저 비서 창처럼: 기한 지난 '일정·알아 둘 것'은 숨겨요(할 일은 '마감 지남'으로 보여요)
 const coolOpen = () => coolLive().filter(x => !x.done && (x.kind === 'todo' || !x.due || x.due >= today()));
 async function loadCool() {
