@@ -110,3 +110,4 @@
 - 2026-11-22 21:40 · AI 비서 v0.13.2: busFrom(a, 사용자 말) — Gemini가 watch_bus의 dep/arr/date를 비워 보내서, title·text·사용자 말에서 'A에서/→ B', 'N시 M분 전/부터'(오후·저녁·밤이면 +12), 내일/모레, N자리 파싱. 날짜 없으면 시각이 지났으면 내일. 프롬프트에 watch_bus 예시 JSON과 '허락 없이 맡겨짐'
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.13.3 — 허락이 필요 없는 일(할 일·일정·기억 넣기)인데 "허락해 주세요"라고 말하던 것 고침(프롬프트 + 허락 카드 없으면 그 문장 빼기)
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.14.0 — ✅ 할 일 탭(pTodo, renderTodo: S.todos+G.tasks 디데이 묶음, renderPlan 끝에서 부름, 클릭은 pPlan 처리기 공유), 일정 입력칸 맨 위로 (사용자 요청)
+- 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.14.1 — 탭 순서 할 일↔일정 바꿈 (사용자 요청)
