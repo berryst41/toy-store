@@ -113,3 +113,4 @@
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.14.1 — 탭 순서 할 일↔일정 바꿈 (사용자 요청)
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.15.0 — 쿨메신저를 할 일 탭으로(renderTodo에 coolOpen kind=todo 섞기 src='cool', data-cool 체크는 coolClick, 거르기 tdF ls 'tdF', renderCool은 note·remember만 접기 coolMemoOpen). 사용자: 일단 넣어 보고 고치기로 함
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.15.1 — 쿨메신저 kind 뜻 바꿈(todo=마감 할 일, note=일정, remember=알아 둘 것; 값은 그대로). coolEvents()로 note+due를 allEvents에 섞음(id c_…, e.cool, ✓=data-cool-hide→setCoolDone). 날짜 없는 note는 할 일 탭 아래. ⚠️ 서버 buildBrief는 아직 kind=todo만 봄(쿨메신저 일정은 아침 브리핑에 안 나옴) — 다음에 ai-google 배포할 때 note도 '오늘 일정'에 넣기
+- 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.16.0 — 체크리스트 고치기(tdEdit='me:id'|'cool:id', data-td-edit 제목·✏️ → 이름+date 입력 줄, saveTdEdit). 내 할 일은 put('todo'), 쿨메신저 할 일은 ai_cool text·due만 update(+select 확인). 일꾼은 PC 쪽 내용(sig)이 바뀔 때만 다시 올리니 앱에서 고친 건 유지되지만, 쿨메신저 비서 창/items.json에는 안 들어감. 구글 할 일은 아직 못 고침

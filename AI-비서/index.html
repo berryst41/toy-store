@@ -74,6 +74,11 @@ h2 small{color:var(--sub);font-weight:400;font-size:13px}
 .row .t small{color:var(--sub);font-size:12.5px}
 .row.done .t div{text-decoration:line-through;color:var(--sub)}
 .row input[type=checkbox]{width:22px;height:22px;accent-color:var(--main);flex:none}
+.tdedit{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.tdedit input{border:1px solid var(--main);border-radius:10px;padding:8px 10px;font-size:15px;font-family:inherit;background:#fff;color:#222;min-width:0}
+.tdedit input:first-child{flex:1 1 100%}
+.tdedit button{padding:7px 12px;font-size:14px}
+[data-td-edit]{cursor:pointer}
 .del{border:0;background:transparent;color:#bbb;font-size:18px;cursor:pointer;padding:4px}
 .del:hover{color:#e03131}
 .when{flex:none;min-width:54px;font-size:13px;color:var(--main);font-weight:700}
@@ -368,7 +373,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.15.1';
+const VERSION = '0.16.0';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -1764,8 +1769,10 @@ async function send(text) {
 const dDiff = d => Math.round((new Date(d + 'T00:00') - new Date(today() + 'T00:00')) / 864e5);
 const dTag = n => n === 0 ? 'D-day' : n > 0 ? `D-${n}` : `D+${-n}`;
 
+let tdEdit = ''; // ✏️ 고치는 중인 체크리스트 항목('me:id' 또는 'cool:id')
 function renderTodo() {
   const t = today();
+  const keep = tdEdit && $('tdEditT') ? { t: $('tdEditT').value, d: $('tdEditD').value } : null; // 다시 그려도 쓰던 글자 그대로
   const coolTd = owner ? coolOpen().filter(x => x.kind === 'todo').map(x => ({ ...x, title: x.text, src: 'cool' })) : [];
   const all = [
     ...S.todos.filter(x => !x.done).map(x => ({ ...x, src: 'me' })),
@@ -1782,12 +1789,14 @@ function renderTodo() {
   }
   const keys = [...groups.keys()].sort((a, b) => (a === 'late' ? '0' : a === 'none' ? '9' : a).localeCompare(b === 'late' ? '0' : b === 'none' ? '9' : b));
   const row = x => {
+    const key = x.src + ':' + x.id;
+    if (x.src !== 'g' && tdEdit === key) return `<div class="row"><div class="tdedit"><input id="tdEditT" value="${esc(keep ? keep.t : x.title)}" placeholder="해야 할 것"><input type="date" id="tdEditD" value="${esc(keep ? keep.d : x.due || '')}" title="마감일(비우면 마감 없음)"><button class="p" data-td-save="${esc(key)}">저장</button><button class="g" data-td-cancel="1">취소</button></div></div>`;
     const late = x.due && x.due < t;
     const tag = late ? `<span class="tag" style="color:var(--warn);font-weight:700">${dTag(dDiff(x.due))}</span> ` : '';
-    if (x.src === 'cool') return `<div class="row"><input type="checkbox" data-cool="${esc(x.id)}"><div class="t"><div>${tag}${x.fav ? '⭐ ' : ''}${esc(x.title)}</div><small${late ? ' style="color:var(--warn)"' : ''}>📨 ${esc([x.time, x.sender].filter(Boolean).join(' · ') || '쿨메신저')}${late ? ' · ' + dLabel(x.due) + ' 마감 지남' : ''}</small></div></div>`;
+    if (x.src === 'cool') return `<div class="row"><input type="checkbox" data-cool="${esc(x.id)}"><div class="t" data-td-edit="${esc(key)}"><div data-td-edit="${esc(key)}">${tag}${x.fav ? '⭐ ' : ''}${esc(x.title)}</div><small${late ? ' style="color:var(--warn)"' : ''}>📨 ${esc([x.time, x.sender].filter(Boolean).join(' · ') || '쿨메신저')}${late ? ' · ' + dLabel(x.due) + ' 마감 지남' : ''}</small></div><button class="del" data-td-edit="${esc(key)}" title="고치기">✏️</button></div>`;
     return x.src === 'g'
       ? `<div class="row"><input type="checkbox" data-gtd="${esc(x.id)}"><div class="t"><div>${tag}${esc(x.title)}</div><small>${dotH(x.color)}☑️ ${esc(x.label)}${late ? ' · ' + dLabel(x.due) : ''}</small></div></div>`
-      : `<div class="row"><input type="checkbox" data-chk="${x.id}"><div class="t"><div>${tag}${esc(x.title)}</div>${late ? `<small style="color:var(--warn)">${dLabel(x.due)} 마감 지남</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
+      : `<div class="row"><input type="checkbox" data-chk="${x.id}"><div class="t" data-td-edit="${esc(key)}"><div data-td-edit="${esc(key)}">${tag}${esc(x.title)}</div>${late ? `<small style="color:var(--warn)">${dLabel(x.due)} 마감 지남</small>` : ''}</div><button class="del" data-td-edit="${esc(key)}" title="고치기">✏️</button><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
   };
   const head = k => {
     if (k === 'late') return `⚠️ 마감 지남`;
@@ -1797,12 +1806,14 @@ function renderTodo() {
   };
   let h = keys.map(k => `<div class="dhead ${k === t ? 'today' : ''}">${head(k)} <small style="color:var(--sub);font-weight:400">${groups.get(k).length}개</small></div><div class="box">${groups.get(k).map(row).join('')}</div>`).join('');
   if (!h) h = '<div class="box"><div class="none">해야 할 것이 없어요 🎉</div></div>';
-  if (tdF === 'cool' && coolTd.length) { $('tdList').innerHTML = h; return badge(); }
+  if (tdF === 'cool' && coolTd.length) { $('tdList').innerHTML = h; focusEdit(); return badge(); }
   // 끝낸 것은 최근 7일 것만 아래에 흐리게
   const done = S.todos.filter(x => x.done && (x.doneAt || '') >= addDays(t, -7)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
   if (done.length) h += `<div class="dhead">✔️ 끝낸 것 <small style="color:var(--sub);font-weight:400">최근 7일</small></div><div class="box">${done.map(x => `<div class="row done"><input type="checkbox" data-chk="${x.id}" checked><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small>${dLabel(x.due)}까지였음</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`).join('')}</div>`;
   $('tdList').innerHTML = h;
+  focusEdit();
   badge();
+  function focusEdit() { const i = $('tdEditT'); if (i && !keep) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
   function badge() { // 탭 이름 옆 숫자 = 내일까지 마감(지난 것 포함)
     const nb = document.querySelector('nav button[data-p=pTodo]');
     if (nb) { const n = all.filter(x => x.due && x.due <= addDays(t, 1)).length; nb.textContent = '✅ 할 일' + (n ? ` ${n}` : ''); }
@@ -1851,13 +1862,39 @@ $('pPlan').onclick = async e => {
   else return;
   renderPlan();
 };
+async function saveTdEdit(key) {
+  const title = $('tdEditT').value.trim(), due = $('tdEditD').value;
+  if (!title) return toast('할 일 이름을 넣어 주세요');
+  const [src, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+  if (src === 'me') {
+    const x = S.todos.find(y => y.id === id); if (!x) { tdEdit = ''; return renderTodo(); }
+    put('todo', { ...x, title, due: okDate(due) ? due : '' });
+  } else if (src === 'cool') { // 📨 앱(서버)에서만 고쳐요 — 쿨메신저 비서 창 글자는 그대로
+    const x = C.find(y => y.id === id); if (!x) { tdEdit = ''; return renderTodo(); }
+    const d = okDate(due) ? due : '';
+    const { data, error } = await sb.from('ai_cool').update({ text: title.slice(0, 500), due: d }).eq('id', id).select('text,due');
+    if (error || data?.[0]?.text !== title.slice(0, 500)) return toast('⚠️ 서버에 저장하지 못했어요. 인터넷을 확인해 주세요', 4000);
+    x.text = data[0].text; x.due = data[0].due; ls.set('cool', JSON.stringify(C));
+  }
+  tdEdit = ''; renderPlan(); toast('고쳤어요 ✏️');
+}
 const planClick = $('pPlan').onclick;
 $('pTodo').onclick = e => {
+  const ed = e.target.closest('[data-td-edit]');
+  if (ed) { tdEdit = ed.dataset.tdEdit; return renderTodo(); }
+  if (e.target.dataset.tdCancel) { tdEdit = ''; return renderTodo(); }
+  if (e.target.dataset.tdSave) return saveTdEdit(e.target.dataset.tdSave);
+  if (e.target.closest('.tdedit')) return;
   const f = e.target.closest('[data-tdf]');
   if (f) { tdF = f.dataset.tdf; ls.set('tdF', tdF); return renderTodo(); }
   if (e.target.closest('#coolList') || e.target.dataset.cool) return coolClick(e);
   return planClick(e); // 내 할 일·구글 할 일 체크·지우기는 일정 탭과 같은 처리
 };
+$('tdList').addEventListener('keydown', e => { // 고치는 칸에서 Enter = 저장, Esc = 취소
+  if (!e.target.closest('.tdedit') || e.isComposing) return;
+  if (e.key === 'Enter') { e.preventDefault(); saveTdEdit(tdEdit); }
+  else if (e.key === 'Escape') { tdEdit = ''; renderTodo(); }
+});
 $('evAdd').onclick = async () => {
   const title = $('evTitle').value.trim(), date = $('evD').value, where = $('evWhere').value;
   if (!title || !date) return toast('날짜와 일정 이름을 넣어 주세요');
