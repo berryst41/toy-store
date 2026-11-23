@@ -202,7 +202,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
     </div>
     <div id="tdFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 4px"></div>
     <div id="tdList"></div>
-    <h2>📨 쿨메신저 메모 <small id="coolAt"></small></h2>
+    <h2>📨 쿨메신저 알아 둘 것 <small id="coolAt"></small></h2>
     <div id="coolList"></div>
     <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요. 📨 표시는 쿨메신저 비서가 쪽지에서 뽑은 할 일이에요(체크하면 학교 PC 쿨메신저 비서 창에도 체크돼요).</p>
   </section>
@@ -368,7 +368,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.15.0';
+const VERSION = '0.15.1';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -818,9 +818,9 @@ function phoneWriteSet() {
 let C = [], CW = null, coolShowDone = false, cchan = null, coolMemoOpen = {};
 let tdF = ls.get('tdF', 'all'); // ✅ 할 일 탭 거르기: all | me | cool
 try { C = JSON.parse(ls.get('cool', '[]')); } catch (e) {}
-const COOL_K = { todo: '✅ 해야 할 일', note: '📝 적어야 할 것', remember: '💡 기억할 것' };
+const COOL_K = { todo: '✅ 마감 할 일', note: '📅 일정', remember: '💡 알아 둘 것' }; // (v0.15.1) note는 예전 '적어야 할 것' — 대부분 일정이라 일정으로
 const coolLive = () => C.filter(x => !x.gone);
-// 쿨메신저 비서 창처럼: 기한 지난 '적을 것·기억할 것'은 숨겨요(할 일은 '마감 지남'으로 보여요)
+// 쿨메신저 비서 창처럼: 기한 지난 '일정·알아 둘 것'은 숨겨요(할 일은 '마감 지남'으로 보여요)
 const coolOpen = () => coolLive().filter(x => !x.done && (x.kind === 'todo' || !x.due || x.due >= today()));
 async function loadCool() {
   if (!owner) return;
@@ -828,6 +828,7 @@ async function loadCool() {
   if (error) return;
   C = data || []; ls.set('cool', JSON.stringify(C));
   if ($('pTodo').classList.contains('on')) { renderCool(); renderTodo(); }
+  if ($('pPlan').classList.contains('on')) renderPlan();
   renderChat();
 }
 function renderCool() {
@@ -845,13 +846,13 @@ function renderCool() {
   };
   const sort = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (b.recv || '').localeCompare(a.recv || '');
   let h = '';
-  for (const k of ['note', 'remember']) { // ✅ 해야 할 일은 위 체크리스트에 디데이별로 섞여 있어요
-    const list = open.filter(x => x.kind === k).sort(sort);
+  for (const k of ['remember', 'note']) { // ✅ 마감 할 일은 위 체크리스트에, 📅 날짜 있는 일정은 일정 탭에 있어요
+    const list = open.filter(x => x.kind === k && (k !== 'note' || !x.due)).sort(sort);
     if (!list.length) continue;
     const isOpen = coolMemoOpen[k];
     h += `<div class="dhead"><a href="#" data-cool-fold="${k}" style="color:inherit;text-decoration:none">${isOpen ? '▾' : '▸'} ${COOL_K[k]} ${list.length}</a></div>` + (isOpen ? `<div class="box">${list.map(row).join('')}</div>` : '');
   }
-  if (!h) h = '<div class="box"><div class="none">적어 둘 것·기억할 것이 없어요</div></div>';
+  if (!h) h = '<div class="box"><div class="none">알아 둘 것이 없어요</div></div>';
   if (done.length) h += `<div class="hint" style="margin-top:8px"><a href="#" data-cool-done="1">${coolShowDone ? '끝낸 것 숨기기' : `끝낸 것 ${done.length}개 보기`}</a></div>` + (coolShowDone ? `<div class="box">${done.sort(sort).map(row).join('')}</div>` : '');
   box.innerHTML = h + '<p class="hint">여기서 체크하면 학교 PC의 쿨메신저 비서 창에도 1분 안에 체크돼요(학교 PC 일꾼이 켜져 있을 때). 반대로도 돼요.</p>';
 }
@@ -1523,7 +1524,7 @@ function systemPrompt() {
    📅 예약을 잡아 달라면(병원·미용실·식당 같은 네이버 예약, 방탈출, 고속·시외버스) do_on_site 대신 book_site(url=예약 페이지 주소, title=무엇(가게·테마 이름과 할 것), date=YYYY-MM-DD, time=원하는 시간대 시작 HH:MM, end_time=시간대 끝 HH:MM, text=인원·옵션, goal=안 되면 괜찮은 대안(사용자가 말했을 때만), mode=ask(기본: 마지막 확정 버튼 앞에서 물어봄) 또는 auto(사용자가 "알아서 끝까지·묻지 말고"라고 할 때만. 돈이 안 드는 예약만 자동이고 결제는 언제나 물어봄), at=예약이 열리는 시각 YYYY-MM-DDTHH:MM(사용자가 "몇 시에 열리면 바로 잡아 줘"라고 할 때), retry=자리 없으면 다시 볼 간격(분, 사용자가 "자리 날 때까지"라고 하면 30, 30보다 작게 하지 마)). 코레일·SRT(기차)만 매크로 예매가 금지돼 계정이 정지될 수 있으니 기차는 book_site·do_on_site·watch_site 모두 하지 말고 직접 예매하라고 말해(버스는 해당 없음 — 버스 알림은 watch_bus). 정각 예약(at)은 마지막 확정을 꼭 물어본다고 알려 줘. 주소를 모르면 네이버 지도·예약 페이지 링크를 달라고 물어봐. 예약되면 폰 기본 캘린더에 저절로 들어간다고 알려 줘. book_site도 [허락] 카드가 먼저 떠.
    📱 [폰 캘린더]는 사용자 갤럭시 폰의 삼성 캘린더 등에서 읽어 온 일정이야([구글 일정]과 겹치는 건 이미 뺐어). 일정을 물어보면 [일정]·[구글 일정]·[폰 캘린더]를 모두 합쳐서 시간 순서로 대답해.
    📱 폰 캘린더 쓰기([넣을 수 있는 폰 캘린더]가 있을 때): 사용자가 새 일정을 넣어 달라고 하면 구글 계정이나 캘린더를 따로 말하지 않는 한 add_phone_event(account=폰 캘린더 이름, 말하지 않으면 ⭐기본, date, time, end_time, title, text=장소(있으면))로 폰 캘린더에 넣어. [폰 캘린더] 일정을 고치려면 update_phone_event(id=[폰 캘린더]의 id, 바뀌는 것만 date·time·end_time·title), 지우려면 delete_phone_event(id). (반복)이 붙은 일정은 scope도 넣어: 사용자가 "이번만/이번 주만/그날만"이면 one, "매주 전부/반복 다/앞으로 전부"면 all, 말하지 않았으면 one(허락 카드에서 사용자가 "반복 전체"로 바꿀 수 있어). 반복 전체(all) 고치기는 제목·장소·시각만 바뀌고 날짜·반복 규칙은 그대로야. 이것들도 [허락] 버튼을 눌러야 실행되고, 보통 몇 초 안에 폰에 들어가(폰이 꺼져 있으면 켜진 뒤에).
-   📨 [쿨메신저]는 학교 쿨메신저 쪽지에서 쿨메신저 비서가 뽑아 둔 할 일·적을 것·기억할 것이야. 오늘 할 일·마감·브리핑을 말할 때 [할 일]과 함께 챙겨(학생 이름이 있으면 그대로 써도 돼). 사용자가 그중 하나를 끝냈다고 하면 done_cool(id=[쿨메신저]의 id)로 체크해(학교 PC 쿨메신저 비서 창에도 체크돼). 쿨메신저 항목은 add_todo로 따로 넣지 마.
+   📨 [쿨메신저]는 학교 쿨메신저 쪽지에서 쿨메신저 비서가 뽑아 둔 마감 할 일·일정·알아 둘 것이야. 일정은 [일정]에도 함께 들어 있어. 오늘 할 일·마감·브리핑을 말할 때 [할 일]과 함께 챙겨(학생 이름이 있으면 그대로 써도 돼). 사용자가 그중 하나를 끝냈다고 하면 done_cool(id=[쿨메신저]의 id)로 체크해(학교 PC 쿨메신저 비서 창에도 체크돼). 쿨메신저 항목은 add_todo로 따로 넣지 마.
    🗂️ 메일 정리: 사용자가 메일을 정리·분류해 달라거나 필요 없는 메일·광고를 치워 달라고 하면 묻지 말고 tidy_mail을 담아. 이 앱이 메일을 답장할 것·할 일·일정·알림·광고로 나누고, [지메일 정리] 허락이 있으면 지메일에 AI딸기 라벨을 붙이고 광고는 보관함으로 옮겨(지우지는 않아. 보관함에서 언제든 다시 볼 수 있어). "직접 지우세요"라고 하지 마. 지금 허락 상태는 [지메일 정리]를 봐. 허락이 없으면 "⚙️ → 구글 계정 [🔧 범위] → 지메일 정리도 체크"를 알려 줘.
    ☀️ 아침 브리핑 알림: 사용자가 브리핑 시각을 바꾸거나 켜고 끄라고 하면 set_brief(time=HH:MM 24시간, mode=on 또는 off). "7시 반"은 07:30, "저녁 9시"는 21:00. 시각을 말하지 않고 켜 달라고만 하면 몇 시에 받을지 먼저 물어봐. 지금 설정은 [아침 브리핑]을 봐.
    📁 구글 더 쓰기([구글 계정]에 📁로 적힌 허락이 있을 때만):
@@ -1541,7 +1542,7 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [기억] ${S.memos.map(m => `(${m.id}) ${m.text}`).join(' / ') || '(없음)'}
 [일정] ${evs.map(e => `(${e.id}) ${e.date} ${e.time || '종일'} ${e.title}`).join(' / ') || '(없음)'}
 [할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
-[쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '적을 것', remember: '기억' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
+[쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '일정', remember: '알아 둘 것' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
 [지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
 [아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
 [PC 일꾼] ${W ? (workerOn() ? '켜짐' : '꺼짐') : '연결 안 됨'} / 맡긴 일: ${T.slice(0, 5).map(t => `${t.title}(${ST[t.status] || t.status})`).join(', ') || '(없음)'}
@@ -1552,7 +1553,9 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [폰 캘린더] ${phoneEvents().filter(e => e.date >= addDays(t, -1) && e.date <= addDays(t, 30)).slice(0, 150).map(e => `(${e.id}) [${e.label}]${e.rec ? '(반복)' : ''} ${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''}${e.endDate ? '(~' + e.endDate + ')' : ''} ${e.title}${e.loc ? ' @' + e.loc : ''}`).join(' / ') || (P.length ? '(없음)' : '(폰 연결 안 됨)')}
 [최근 메일] ${G.mails.slice(0, 20).map(m => `[${m.label}] ${MC[m.id] ? '{' + MCAT[MC[m.id].cat][0] + '} ' : ''}${m.unread ? '(안 읽음) ' : ''}${fmtWhen(m.date)} 보낸이:${m.from} / 제목:${m.subject} / ${m.snippet.slice(0, 120)}`).join('\n') || '(없음)'}`;
 }
-const allEvents = () => [...S.events, ...G.events.map(e => ({ ...e, g: true })), ...phoneEvents()];
+// 📨 쿨메신저 비서가 뽑은 일정(kind=note, 날짜 있는 것)도 일정 탭·브리핑에 함께
+const coolEvents = () => owner ? coolOpen().filter(x => x.kind === 'note' && okDate(x.due)).map(x => ({ id: 'c_' + x.id, cid: x.id, date: x.due, time: x.time || '', title: x.text, sender: x.sender, cool: true })) : [];
+const allEvents = () => [...S.events, ...G.events.map(e => ({ ...e, g: true })), ...phoneEvents(), ...coolEvents()];
 // 구글 AI가 바쁠 때(503·500) 저절로 다시 하고, 그래도 안 되면 다른 무료 모델로 바꿔서 해요
 const BACKUP_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1745,8 +1748,8 @@ async function send(text) {
   let h = '', last = '';
   for (const e of evs) {
     if (e.date !== last) { if (last) h += '</div>'; h += `<div class="dhead ${e.date === t ? 'today' : ''}">${dLabel(e.date)}</div><div class="box">`; last = e.date; }
-    const src = e.p ? `<small>${dotH(e.color)}📱 ${esc(e.label)}${e.loc ? ' · ' + esc(e.loc) : ''}</small>` : e.g ? `<small>${dotH(e.color)}${esc(e.label)}</small>` : '<small>🍓 AI 비서</small>';
-    h += `<div class="row"><span class="when">${esc(e.time || '종일')}${e.end ? `<br><span class="tag">~${esc(e.end)}</span>` : ''}</span><div class="t"><div>${esc(e.title)}${e.endDate ? ` <span class="tag">~${esc(dLabel(e.endDate))}</span>` : ''}</div>${G.accounts.length || P.length ? src : ''}</div>${e.p ? `<button class="del" data-del-pev="${esc(e.id)}" title="폰에서 지우기">✕</button>` : `<button class="del" ${e.g ? `data-del-gev="${e.id}"` : `data-del-ev="${e.id}"`} title="삭제">✕</button>`}</div>`;
+    const src = e.cool ? `<small>📨 쿨메신저${e.sender ? ' · ' + esc(e.sender) : ''}</small>` : e.p ? `<small>${dotH(e.color)}📱 ${esc(e.label)}${e.loc ? ' · ' + esc(e.loc) : ''}</small>` : e.g ? `<small>${dotH(e.color)}${esc(e.label)}</small>` : '<small>🍓 AI 비서</small>';
+    h += `<div class="row"><span class="when">${esc(e.time || '종일')}${e.end ? `<br><span class="tag">~${esc(e.end)}</span>` : ''}</span><div class="t"><div>${esc(e.title)}${e.endDate ? ` <span class="tag">~${esc(dLabel(e.endDate))}</span>` : ''}</div>${G.accounts.length || P.length || e.cool ? src : ''}</div>${e.cool ? `<button class="del" data-cool-hide="${esc(e.cid)}" title="다 봤어요(쿨메신저 비서에서도 끝냄)">✓</button>` : e.p ? `<button class="del" data-del-pev="${esc(e.id)}" title="폰에서 지우기">✕</button>` : `<button class="del" ${e.g ? `data-del-gev="${e.id}"` : `data-del-ev="${e.id}"`} title="삭제">✕</button>`}</div>`;
   }
   if (last) h += '</div>';
   // 📱 폰에 부탁한 일(넣기·고치기·지우기) — 처리 중이거나 막 끝난 것
@@ -1807,6 +1810,11 @@ function renderTodo() {
 }
 $('pPlan').onclick = async e => {
   const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev, gtd = e.target.dataset.gtd, dp = e.target.dataset.delPev, cq = e.target.dataset.cancelPq;
+  const ch = e.target.dataset.coolHide;
+  if (ch) { // 📨 쿨메신저 일정 → 끝냄 표시(쿨메신저 비서 창에서도 사라져요)
+    const ok = await setCoolDone(ch, true);
+    toast(ok ? '다 본 일정으로 표시했어요' : '⚠️ 저장하지 못했어요', 3000); renderPlan(); return;
+  }
   if (cq) { // 아직 폰이 안 가져간 부탁 취소
     const { data } = await sb.from('ai_phone_cmd').delete().eq('id', cq).eq('status', 'wait').select('id');
     toast(data?.length ? '부탁을 취소했어요' : '폰이 벌써 처리 중이라 취소 못 했어요'); loadPQ(); return;
