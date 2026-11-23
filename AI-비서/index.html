@@ -190,9 +190,6 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <button class="p" id="evAdd">추가</button>
     </div>
     <div id="evList"></div>
-
-    <h2>📨 쿨메신저 <small id="coolAt"></small></h2>
-    <div id="coolList"></div>
   </section>
 
   <!-- 체크리스트(할 일) — 일정과 따로, 디데이별로 -->
@@ -203,8 +200,11 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <input type="date" id="tdDue" title="마감일(없어도 돼요)">
       <button class="p" id="tdAdd">추가</button>
     </div>
+    <div id="tdFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 4px"></div>
     <div id="tdList"></div>
-    <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요.</p>
+    <h2>📨 쿨메신저 메모 <small id="coolAt"></small></h2>
+    <div id="coolList"></div>
+    <p class="hint" style="margin-top:16px">💡 대화창에서 "금요일까지 출장 신청서 내기 할 일에 넣어줘"처럼 말해도 여기에 들어와요. 📨 표시는 쿨메신저 비서가 쪽지에서 뽑은 할 일이에요(체크하면 학교 PC 쿨메신저 비서 창에도 체크돼요).</p>
   </section>
 
   <!-- 메일 -->
@@ -368,7 +368,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.14.1';
+const VERSION = '0.15.0';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -582,7 +582,7 @@ async function loadTasks() {
     sb.from('ai_workers').select('*').order('last_seen', { ascending: false }).limit(5)
   ]);
   T = data || []; W = w.data?.[0] || null; CW = (w.data || []).find(x => x.info?.cool) || null;
-  renderWork(); renderWorkerSet(); renderChat(); if ($('pPlan').classList.contains('on')) renderCool();
+  renderWork(); renderWorkerSet(); renderChat(); if ($('pTodo').classList.contains('on')) { renderCool(); renderTodo(); }
 }
 async function refreshTask(id) {
   const { data } = await sb.from('ai_tasks').select('*').eq('id', id).maybeSingle();
@@ -815,7 +815,8 @@ function phoneWriteSet() {
 }
 
 /* ---------- 📨 쿨메신저 비서 정리 항목 (학교 PC 일꾼이 올려 줘요. 쪽지 원문은 없어요) ---------- */
-let C = [], CW = null, coolShowDone = false, cchan = null;
+let C = [], CW = null, coolShowDone = false, cchan = null, coolMemoOpen = {};
+let tdF = ls.get('tdF', 'all'); // ✅ 할 일 탭 거르기: all | me | cool
 try { C = JSON.parse(ls.get('cool', '[]')); } catch (e) {}
 const COOL_K = { todo: '✅ 해야 할 일', note: '📝 적어야 할 것', remember: '💡 기억할 것' };
 const coolLive = () => C.filter(x => !x.gone);
@@ -826,7 +827,7 @@ async function loadCool() {
   const { data, error } = await sb.from('ai_cool').select('id,kind,text,due,time,sender,recv,fav,done,done_src,gone,updated_at').eq('gone', false);
   if (error) return;
   C = data || []; ls.set('cool', JSON.stringify(C));
-  if ($('pPlan').classList.contains('on')) renderCool();
+  if ($('pTodo').classList.contains('on')) { renderCool(); renderTodo(); }
   renderChat();
 }
 function renderCool() {
@@ -844,11 +845,13 @@ function renderCool() {
   };
   const sort = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (b.recv || '').localeCompare(a.recv || '');
   let h = '';
-  for (const k of Object.keys(COOL_K)) {
+  for (const k of ['note', 'remember']) { // ✅ 해야 할 일은 위 체크리스트에 디데이별로 섞여 있어요
     const list = open.filter(x => x.kind === k).sort(sort);
-    if (list.length) h += `<div class="dhead">${COOL_K[k]} ${list.length}</div><div class="box">${list.map(row).join('')}</div>`;
+    if (!list.length) continue;
+    const isOpen = coolMemoOpen[k];
+    h += `<div class="dhead"><a href="#" data-cool-fold="${k}" style="color:inherit;text-decoration:none">${isOpen ? '▾' : '▸'} ${COOL_K[k]} ${list.length}</a></div>` + (isOpen ? `<div class="box">${list.map(row).join('')}</div>` : '');
   }
-  if (!h) h = '<div class="box"><div class="none">쿨메신저 할 일을 다 했어요 🎉</div></div>';
+  if (!h) h = '<div class="box"><div class="none">적어 둘 것·기억할 것이 없어요</div></div>';
   if (done.length) h += `<div class="hint" style="margin-top:8px"><a href="#" data-cool-done="1">${coolShowDone ? '끝낸 것 숨기기' : `끝낸 것 ${done.length}개 보기`}</a></div>` + (coolShowDone ? `<div class="box">${done.sort(sort).map(row).join('')}</div>` : '');
   box.innerHTML = h + '<p class="hint">여기서 체크하면 학교 PC의 쿨메신저 비서 창에도 1분 안에 체크돼요(학교 PC 일꾼이 켜져 있을 때). 반대로도 돼요.</p>';
 }
@@ -858,14 +861,16 @@ async function setCoolDone(id, done) {
   const { data, error } = await sb.from('ai_cool').update({ done, done_src: 'app' }).eq('id', id).select('done');
   return !error && data?.[0]?.done === done; // 서버에 정말 바뀌었는지 확인
 }
-$('coolList').onclick = async e => {
+async function coolClick(e) {
   if (e.target.dataset.coolDone) { e.preventDefault(); coolShowDone = !coolShowDone; return renderCool(); }
+  const fold = e.target.closest('[data-cool-fold]');
+  if (fold) { e.preventDefault(); const k = fold.dataset.coolFold; coolMemoOpen[k] = !coolMemoOpen[k]; return renderCool(); }
   const id = e.target.dataset.cool; if (!id) return;
   const ok = await setCoolDone(id, e.target.checked);
   if (!ok) { toast('⚠️ 서버에 저장하지 못했어요. 인터넷을 확인해 주세요', 4000); loadCool(); return; }
-  setTimeout(renderCool, 250);
+  setTimeout(() => { renderCool(); renderTodo(); }, 250);
   if (!CW || Date.now() - new Date(CW.last_seen).getTime() > 90000) toast('저장했어요. 학교 PC 일꾼이 켜지면 쿨메신저 비서에도 체크돼요', 4000);
-};
+}
 
 /* ---------- 💡 먼저 제안하기 (규칙으로, AI 사용량 안 씀) ---------- */
 function suggestions() {
@@ -1239,14 +1244,14 @@ $('mailRefresh').onclick = async () => { toast('메일 새로 받는 중…'); a
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === b.dataset.p));
-  if (b.dataset.p === 'pPlan') { renderPlan(); renderCool(); }
+  if (b.dataset.p === 'pPlan') renderPlan();
   if (b.dataset.p === 'pMemo') renderMemo();
   if (b.dataset.p === 'pMail') { renderMail(); gRefresh().then(() => { renderMail(); sortMails(); }); }
   if (b.dataset.p === 'pPlan') gRefresh();
-  if (b.dataset.p === 'pTodo') { renderPlan(); gRefresh().then(renderTodo); }
+  if (b.dataset.p === 'pTodo') { renderPlan(); renderCool(); gRefresh().then(renderTodo); }
   if (b.dataset.p === 'pWork') { renderWork(); loadTasks(); }
 });
-function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pTodo').classList.contains('on')) renderPlan(); if ($('pPlan').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
+function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pTodo').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
 
 /* ---------- 빠른 버튼 ---------- */
 const QUICK = [
@@ -1755,12 +1760,18 @@ async function send(text) {
 // ✅ 체크리스트 — 할 일(🍓)과 구글 할 일(☑️)을 마감 디데이별로 묶어 보여 줘요
 const dDiff = d => Math.round((new Date(d + 'T00:00') - new Date(today() + 'T00:00')) / 864e5);
 const dTag = n => n === 0 ? 'D-day' : n > 0 ? `D-${n}` : `D+${-n}`;
+
 function renderTodo() {
   const t = today();
-  const open = [
+  const coolTd = owner ? coolOpen().filter(x => x.kind === 'todo').map(x => ({ ...x, title: x.text, src: 'cool' })) : [];
+  const all = [
     ...S.todos.filter(x => !x.done).map(x => ({ ...x, src: 'me' })),
-    ...G.tasks.map(x => ({ ...x, src: 'g' }))
-  ].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+    ...G.tasks.map(x => ({ ...x, src: 'g' })),
+    ...coolTd
+  ].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'));
+  const nMe = all.filter(x => x.src !== 'cool').length;
+  $('tdFilter').innerHTML = coolTd.length ? [['all', `전체 ${all.length}`], ['me', `내 것 ${nMe}`], ['cool', `📨 쿨메신저 ${coolTd.length}`]].map(([k, l]) => `<button class="chip" data-tdf="${k}" style="${tdF === k ? 'background:var(--main);color:#fff;border-color:var(--main)' : ''}">${l}</button>`).join('') : '';
+  const open = all.filter(x => !coolTd.length || tdF === 'all' || (tdF === 'cool') === (x.src === 'cool'));
   const groups = new Map(); // 마감 지남 / 날짜마다 / 마감 없음
   for (const x of open) {
     const k = !x.due ? 'none' : x.due < t ? 'late' : x.due;
@@ -1770,6 +1781,7 @@ function renderTodo() {
   const row = x => {
     const late = x.due && x.due < t;
     const tag = late ? `<span class="tag" style="color:var(--warn);font-weight:700">${dTag(dDiff(x.due))}</span> ` : '';
+    if (x.src === 'cool') return `<div class="row"><input type="checkbox" data-cool="${esc(x.id)}"><div class="t"><div>${tag}${x.fav ? '⭐ ' : ''}${esc(x.title)}</div><small${late ? ' style="color:var(--warn)"' : ''}>📨 ${esc([x.time, x.sender].filter(Boolean).join(' · ') || '쿨메신저')}${late ? ' · ' + dLabel(x.due) + ' 마감 지남' : ''}</small></div></div>`;
     return x.src === 'g'
       ? `<div class="row"><input type="checkbox" data-gtd="${esc(x.id)}"><div class="t"><div>${tag}${esc(x.title)}</div><small>${dotH(x.color)}☑️ ${esc(x.label)}${late ? ' · ' + dLabel(x.due) : ''}</small></div></div>`
       : `<div class="row"><input type="checkbox" data-chk="${x.id}"><div class="t"><div>${tag}${esc(x.title)}</div>${late ? `<small style="color:var(--warn)">${dLabel(x.due)} 마감 지남</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
@@ -1782,12 +1794,16 @@ function renderTodo() {
   };
   let h = keys.map(k => `<div class="dhead ${k === t ? 'today' : ''}">${head(k)} <small style="color:var(--sub);font-weight:400">${groups.get(k).length}개</small></div><div class="box">${groups.get(k).map(row).join('')}</div>`).join('');
   if (!h) h = '<div class="box"><div class="none">해야 할 것이 없어요 🎉</div></div>';
+  if (tdF === 'cool' && coolTd.length) { $('tdList').innerHTML = h; return badge(); }
   // 끝낸 것은 최근 7일 것만 아래에 흐리게
   const done = S.todos.filter(x => x.done && (x.doneAt || '') >= addDays(t, -7)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
   if (done.length) h += `<div class="dhead">✔️ 끝낸 것 <small style="color:var(--sub);font-weight:400">최근 7일</small></div><div class="box">${done.map(x => `<div class="row done"><input type="checkbox" data-chk="${x.id}" checked><div class="t"><div>${esc(x.title)}</div>${x.due ? `<small>${dLabel(x.due)}까지였음</small>` : ''}</div><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`).join('')}</div>`;
   $('tdList').innerHTML = h;
-  const nb = document.querySelector('nav button[data-p=pTodo]');
-  if (nb) { const n = open.filter(x => x.due && x.due <= addDays(t, 1)).length; nb.textContent = '✅ 할 일' + (n ? ` ${n}` : ''); }
+  badge();
+  function badge() { // 탭 이름 옆 숫자 = 내일까지 마감(지난 것 포함)
+    const nb = document.querySelector('nav button[data-p=pTodo]');
+    if (nb) { const n = all.filter(x => x.due && x.due <= addDays(t, 1)).length; nb.textContent = '✅ 할 일' + (n ? ` ${n}` : ''); }
+  }
 }
 $('pPlan').onclick = async e => {
   const d1 = e.target.dataset.delEv, d2 = e.target.dataset.delTd, c = e.target.dataset.chk, dg = e.target.dataset.delGev, gtd = e.target.dataset.gtd, dp = e.target.dataset.delPev, cq = e.target.dataset.cancelPq;
@@ -1827,7 +1843,13 @@ $('pPlan').onclick = async e => {
   else return;
   renderPlan();
 };
-$('pTodo').onclick = $('pPlan').onclick; // 체크·지우기는 같은 처리
+const planClick = $('pPlan').onclick;
+$('pTodo').onclick = e => {
+  const f = e.target.closest('[data-tdf]');
+  if (f) { tdF = f.dataset.tdf; ls.set('tdF', tdF); return renderTodo(); }
+  if (e.target.closest('#coolList') || e.target.dataset.cool) return coolClick(e);
+  return planClick(e); // 내 할 일·구글 할 일 체크·지우기는 일정 탭과 같은 처리
+};
 $('evAdd').onclick = async () => {
   const title = $('evTitle').value.trim(), date = $('evD').value, where = $('evWhere').value;
   if (!title || !date) return toast('날짜와 일정 이름을 넣어 주세요');

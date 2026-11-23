@@ -111,3 +111,4 @@
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.13.3 — 허락이 필요 없는 일(할 일·일정·기억 넣기)인데 "허락해 주세요"라고 말하던 것 고침(프롬프트 + 허락 카드 없으면 그 문장 빼기)
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.14.0 — ✅ 할 일 탭(pTodo, renderTodo: S.todos+G.tasks 디데이 묶음, renderPlan 끝에서 부름, 클릭은 pPlan 처리기 공유), 일정 입력칸 맨 위로 (사용자 요청)
 - 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.14.1 — 탭 순서 할 일↔일정 바꿈 (사용자 요청)
+- 2026-11-23 · 학교 PC Claude Code: AI 비서 v0.15.0 — 쿨메신저를 할 일 탭으로(renderTodo에 coolOpen kind=todo 섞기 src='cool', data-cool 체크는 coolClick, 거르기 tdF ls 'tdF', renderCool은 note·remember만 접기 coolMemoOpen). 사용자: 일단 넣어 보고 고치기로 함
