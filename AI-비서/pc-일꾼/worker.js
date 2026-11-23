@@ -84,7 +84,7 @@ const B = TEST ? testBackend() : {
     const { error } = await sb.from('ai_items').upsert({ id, user_id: me.id, kind: 'event', data: { date: ev.date, time: ev.time || '', title: ev.title }, deleted: false });
     if (error) throw error; return '📅 비서 일정';
   },
-  async coolAll() { const { data, error } = await sb.from('ai_cool').select('id,done,done_src,gone'); if (error) throw error; return data; },
+  async coolAll() { const { data, error } = await sb.from('ai_cool').select('id,kind,text,due,time,sender,recv,fav,done,done_src,gone'); if (error) throw error; return data; },
   async coolUpsert(rows) { for (let i = 0; i < rows.length; i += 200) { const { error } = await sb.from('ai_cool').upsert(rows.slice(i, i + 200).map(r => ({ ...r, user_id: me.id }))); if (error) throw error; } },
   async coolGone(ids) { const { error } = await sb.from('ai_cool').update({ gone: true }).in('id', ids); if (error) throw error; }
 };
