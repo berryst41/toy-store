@@ -386,7 +386,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.20.0';
+const VERSION = '0.21.0';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -415,6 +415,7 @@ S.chat.forEach((m, i) => { if (!m.id) m.id = uid('c'); if (!m.ts) m.ts = Date.no
 let dirty = {}; try { dirty = JSON.parse(ls.get('dirty', '{}')); } catch (e) {}
 const saveLocal = () => { ls.set('data', JSON.stringify(S)); ls.set('dirty', JSON.stringify(dirty)); };
 saveLocal(); // v0.1 자료를 새 이름으로 바로 옮겨 두기
+setTimeout(pruneChat, 0); // 30일 넘은 건 로그인 안 했어도 이 기기에서 정리
 
 /* ---------- 날짜 도우미 ---------- */
 const pad = n => String(n).padStart(2, '0');
@@ -465,6 +466,41 @@ function put(kind, obj) {
   if (i >= 0) arr[i] = obj; else arr.push(obj);
   dirty[obj.id] = { kind, deleted: false };
   saveLocal(); schedulePush();
+}
+// 🧹 대화 보관 (사용자 결정 2026-11-24): 서버엔 30일, 이 기기엔 7일만.
+// 7일 넘은 건 [📜 지난 대화 보기]에서 서버로부터 불러와 보여 줘요(기기엔 다시 저장 안 함).
+// 30일 넘은 건 서버에서 '지움 표시'(내용 비움) → 그 표시도 30일 뒤 서버에서 아예 지워요.
+const CHAT_KEEP_DAYS = 30, CHAT_DEVICE_DAYS = 7, DAY_MS = 86400000;
+function pruneChat() {
+  const cut60 = Date.now() - CHAT_KEEP_DAYS * DAY_MS, cut7 = Date.now() - CHAT_DEVICE_DAYS * DAY_MS;
+  const before = S.chat.length;
+  for (const m of S.chat) if ((m.ts || 0) < cut60) dirty[m.id] = { kind: 'chat', deleted: true };
+  // 로그인해서 서버에 다 올라간 것만 기기에서 덜어 내요(안 올라간 건 지우면 영영 없어지니까)
+  S.chat = S.chat.filter(m => (m.ts || 0) >= cut60 && ((m.ts || 0) >= cut7 || !owner || dirty[m.id]));
+  if (S.chat.length !== before) { saveLocal(); schedulePush(); }
+  return S.chat.length !== before;
+}
+async function serverChats() { // 서버에 남은 대화 전부(최대 30일 치)
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from('ai_items').select('id,data').eq('kind', 'chat').eq('deleted', false).range(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...data.map(r => ({ ...r.data, id: r.id }))); if (data.length < 1000) break;
+  }
+  return out;
+}
+async function pruneServer() { // 하루 한 번: 30일 넘은 대화 내용을 서버에서 지워요
+  if (!owner || ls.get('chatPruned') === today()) return;
+  try {
+    const cut = Date.now() - CHAT_KEEP_DAYS * DAY_MS;
+    const old = (await serverChats()).filter(m => (m.ts || 0) < cut);
+    for (let i = 0; i < old.length; i += 500) {
+      const { error } = await sb.from('ai_items').upsert(old.slice(i, i + 500).map(m => ({ id: m.id, kind: 'chat', data: {}, deleted: true, user_id: user.id })));
+      if (error) return;
+    }
+    await sb.from('ai_items').delete().eq('kind', 'chat').eq('deleted', true).lt('updated_at', new Date(cut).toISOString());
+    ls.set('chatPruned', today());
+  } catch (e) {}
 }
 function remove(kind, id) {
   S[LIST[kind]] = S[LIST[kind]].filter(x => x.id !== id);
@@ -939,7 +975,7 @@ async function startSession(u) {
     if (ls.get('me')) await pushProfile(); else await pullProfile();
     ls.set('uploadedFor', u.id); saveLocal();
   } else await pullProfile();
-  await pushNow(); await pullNow(); await loadUsage();
+  await pushNow(); await pullNow(); if (pruneChat()) { await pushNow(); renderChat(); } pruneServer(); await loadUsage();
   if (chan) sb.removeChannel(chan);
   chan = sb.channel('ai-items-' + u.id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_items', filter: `user_id=eq.${u.id}` }, p => {
@@ -1409,17 +1445,28 @@ function msgHTML(m) {
   return `<div class="m a">${md(m.text)}${acts ? `<div>${acts}</div>` : ''}${askHTML(m)}<div class="tools"><button data-copy="${m.id}">📋 복사</button>${chk}</div></div>`;
 }
 // 어제까지의 대화는 지우지 않고 접어 둬요 → 오늘 브리핑 카드가 늘 대화 맨 위 가까이에 있어요
-let showOld = false;
+// 펼치면 기기에 있는 7일 치 + 서버에서 불러온 더 오래된 것(olderChat, 기기엔 저장 안 함)을 함께 보여 줘요
+let showOld = false, olderChat = null, olderBusy = false;
 function renderChat(extra = '') {
   const near = $('msgs').scrollHeight - $('msgs').scrollTop - $('msgs').clientHeight < 80;
-  const t = today(), list = S.chat.slice(-100);
+  const t = today(), list = S.chat.slice(-100), have = new Set(S.chat.map(m => m.id));
   const old = list.filter(m => ymd(new Date(m.ts || 0)) < t), now = list.filter(m => ymd(new Date(m.ts || 0)) >= t);
-  const oldHTML = !old.length ? '' : showOld
-    ? `<button class="oldbtn" data-old="0">📜 지난 대화 접기</button>${old.map(msgHTML).join('')}<div class="daysep">— 오늘 —</div>`
-    : `<button class="oldbtn" data-old="1">📜 지난 대화 ${old.length}개 보기 (지워지지 않고 저장돼 있어요)</button>`;
+  const older = (olderChat || []).filter(m => !have.has(m.id));
+  const oldHTML = !showOld
+    ? (old.length || owner ? `<button class="oldbtn" data-old="1">📜 지난 대화 보기${old.length ? ` (최근 ${old.length}개)` : ''}</button>` : '')
+    : `<button class="oldbtn" data-old="0">📜 지난 대화 접기</button>`
+      + (olderBusy ? '<div class="daysep">서버에서 불러오는 중… ⏳</div>' : older.length ? older.map(msgHTML).join('') + '<div class="daysep">— 여기까지 서버에서 불러온 대화 (30일 지나면 지워져요) —</div>' : '')
+      + old.map(msgHTML).join('') + '<div class="daysep">— 오늘 —</div>';
   $('msgs').innerHTML = oldHTML + welcomeHTML() + now.map(msgHTML).join('') + extra;
   if (near || extra) $('msgs').scrollTop = $('msgs').scrollHeight;
   requestAnimationFrame(briefPopCheck);
+}
+async function loadOlder() {
+  if (!owner || olderChat || olderBusy) return;
+  olderBusy = true; renderChat();
+  try { olderChat = (await serverChats()).sort((a, b) => (a.ts || 0) - (b.ts || 0)); }
+  catch (e) { toast('⚠️ 지난 대화를 못 불러왔어요: ' + e.message, 4000); }
+  olderBusy = false; renderChat(); $('msgs').querySelector('.welcome')?.scrollIntoView({ block: 'start' });
 }
 // ☀️ 브리핑 카드가 화면 밖으로 올라가면 [☀️ 브리핑] 버튼이 떠요 → 누르면 팝업으로 봐요
 function briefPopCheck() {
@@ -1439,14 +1486,14 @@ $('briefPop').onclick = e => {
 };
 $('msgs').onclick = async e => {
   const ob = e.target.closest('[data-old]');
-  if (ob) { showOld = ob.dataset.old === '1'; renderChat(); $('msgs').querySelector('.welcome')?.scrollIntoView({ block: 'start' }); return; }
+  if (ob) { showOld = ob.dataset.old === '1'; renderChat(); $('msgs').querySelector('.welcome')?.scrollIntoView({ block: 'start' }); if (showOld) loadOlder(); return; }
   if (e.target.closest('[data-open-set]')) return openSet();
   if (e.target.closest('[data-go-work]')) return document.querySelector('nav button[data-p=pWork]').click();
   const sgb = e.target.closest('[data-sug]');
   if (sgb) { const s = suggestions()[+sgb.dataset.sug]; if (s) send(s[1]); return; }
   const c = e.target.closest('[data-copy]');
   if (c) {
-    const txt = S.chat.find(m => m.id === c.dataset.copy)?.text || '';
+    const txt = [...S.chat, ...(olderChat || [])].find(m => m.id === c.dataset.copy)?.text || '';
     (navigator.clipboard?.writeText(txt) || Promise.reject()).then(() => toast('복사했어요'), () => {
       const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('복사했어요');
     });
