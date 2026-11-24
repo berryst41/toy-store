@@ -526,13 +526,16 @@ async function pullProfile() {
 }
 let srvKey = '';
 const briefCfg = () => { try { return { on: false, time: '07:30', ...JSON.parse(ls.get('brief', '{}')) }; } catch (e) { return { on: false, time: '07:30' }; } };
-async function pushProfile() {
+// patch.brief가 있을 때만 아침 브리핑 설정을 바꿔요. 없으면 서버에 있던 걸 그대로 둬요
+// (예전엔 이 기기의 옛 값·기본값 '꺼짐'을 그대로 올려서, 다른 기기에서 ⚙️ 저장만 눌러도 브리핑이 꺼졌어요)
+async function pushProfile(patch = {}) {
   if (!owner) return;
-  if (!ls.get('gkey') && !srvKey) { // 이 기기에 키가 없으면 서버 키를 지우지 않게 먼저 받아 와요
-    const { data } = await sb.from('ai_profile').select('settings').maybeSingle();
-    srvKey = data?.settings?.gkey || ''; if (srvKey) ls.set('gkey', srvKey);
-  }
-  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { limit: +ls.get('limit') || DEFAULT_LIMIT, brief: briefCfg(), gkey: ls.get('gkey') || srvKey || undefined }, updated_at: new Date().toISOString() });
+  const { data } = await sb.from('ai_profile').select('settings').maybeSingle();
+  const sv = data?.settings || {};
+  if (!ls.get('gkey') && !srvKey) { srvKey = sv.gkey || ''; if (srvKey) ls.set('gkey', srvKey); } // 이 기기에 키가 없으면 서버 키를 지우지 않게
+  const brief = patch.brief || sv.brief || briefCfg();
+  ls.set('brief', JSON.stringify(brief));
+  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { ...sv, limit: +ls.get('limit') || DEFAULT_LIMIT, brief, gkey: ls.get('gkey') || srvKey || undefined }, updated_at: new Date().toISOString() });
 }
 
 /* ---------- 아침 브리핑 알림 (웹 푸시) ---------- */
@@ -567,7 +570,7 @@ async function setBrief(a) {
   const nb = { on: !off, time };
   ls.set('brief', JSON.stringify(nb)); renderBrief();
   if (!owner) return `☀️ 아침 브리핑 ${off ? '끔' : time} — ⚠️ 로그인해야 알림이 와요`;
-  await pushProfile();
+  await pushProfile({ brief: nb });
   const { data } = await sb.from('ai_profile').select('settings').maybeSingle();
   const sv = data?.settings?.brief, ok = sv && sv.on === nb.on && sv.time === nb.time;
   if (!ok) return '⚠️ 아침 브리핑 설정을 서버에 저장하지 못했어요';
@@ -2033,7 +2036,10 @@ function openSet() {
   $('sKey').value = ls.get('gkey'); $('sModel').value = ls.get('gmodel') || DEFAULT_MODEL; $('sMe').value = ls.get('me');
   $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); renderG(); renderBrief(); renderPhoneSet(); $('mSet').classList.add('show');
   if (owner) gConfig().then(renderG);
+  if (owner) pullProfile().then(() => { briefAtOpen = JSON.stringify(briefCfg()); renderBrief(); }); // 다른 기기에서 바꾼 브리핑 설정을 먼저 받아 와요
+  briefAtOpen = JSON.stringify(briefCfg());
 }
+let briefAtOpen = '';
 $('bSet').onclick = openSet;
 $('sClose').onclick = () => $('mSet').classList.remove('show');
 $('sSave').onclick = () => {
