@@ -50,6 +50,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column;width:100%;max-wi
 .ask.done{border-color:var(--line);background:#f8f9fa}
 .m.err{align-self:flex-start;background:#fff4e6;border:1px solid #ffd8a8;color:#a14b00;font-size:14px}
 .typing{align-self:flex-start;color:var(--sub);font-size:14px;padding:4px 8px}
+.rt{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14.5px}.rt .t{flex:1}.rt input{width:20px;height:20px;accent-color:var(--main)}
 .oldbtn{align-self:center;background:none;border:1px dashed var(--line);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--sub);cursor:pointer}
 .daysep{align-self:center;font-size:12px;color:var(--sub)}
 .welcome{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;line-height:1.7;font-size:14.5px}
@@ -343,8 +344,14 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <input type="time" id="bTime" value="07:30">
     </div>
     <div class="btns" style="margin-top:8px"><button class="g" id="bPush">🔔 이 기기에서 알림 받기</button><button class="g" id="bTest">📨 지금 시험으로 받아 보기</button></div>
+    <div style="margin-top:10px;font-size:15px">🌤️ 날씨 지역: <b id="wxName">안 정함</b></div>
+    <div class="add" style="margin-top:6px"><input id="wxQ" placeholder="예: 세종, 서울 강남구, 대전 유성구"><button class="g" id="wxFind">찾기</button><button class="g" id="wxHere">📍 지금 위치</button></div>
     <div class="hint" id="bHint">정한 시각에 오늘 일정·마감·안 읽은 메일·💡 제안을 알림으로 보내요(AI 사용량은 안 써요). 알림을 누르면 앱이 열리고 브리핑을 자세히 해 줘요. 알림 받을 기기마다 [🔔 알림 받기]를 한 번씩 눌러 주세요.</div>
   </div>
+
+  <h4>⏰ 반복 일 <small style="font-weight:400;color:var(--sub)">정한 때마다 저절로</small></h4>
+  <div id="rtSet" style="margin-top:6px"></div>
+  <div class="hint">대화창에 "매주 금요일 오후 4시에 다음 주 일정 정리해 줘"처럼 말하면 생겨요. 그 시각에 PC 일꾼이 켜져 있으면 일꾼이 해서 폰 알림으로 보내고, 꺼져 있었으면 앱을 열 때 대신 해요. 결과는 대화에 남아요(AI 사용량 1번씩 써요).</div>
 
   <h4>🖥️ PC 일꾼 <small style="font-weight:400;color:var(--sub)">대신 누르기·빈자리 지켜보기</small></h4>
   <div id="wkSet" style="margin-top:6px"></div>
@@ -386,7 +393,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.21.0';
+const VERSION = '0.22.0';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -563,12 +570,209 @@ async function pullProfile() {
     if (data.me) ls.set('me', data.me);
     if (data.settings?.limit) ls.set('limit', String(data.settings.limit));
     if (data.settings?.brief) ls.set('brief', JSON.stringify(data.settings.brief));
+    if (data.settings?.weather && JSON.stringify(data.settings.weather) !== ls.get('weather')) { setWxLoc(data.settings.weather, false); loadWx(true).then(() => renderChat()); }
+    RT = data.settings?.routines || []; RT_LAST = data.settings?.rt_last || {}; ls.set('routines', JSON.stringify(RT)); renderRt();
     // 🔑 AI 키: 다른 기기(폰·PC)에서 넣은 키가 있으면 이 기기에도 저절로 (로그인한 주인만 보는 칸)
     srvKey = data.settings?.gkey || '';
     if (srvKey && !ls.get('gkey')) { ls.set('gkey', srvKey); renderUsage?.(); }
   }
 }
 let srvKey = '';
+
+/* ---------- 🌤️ 날씨 (Open-Meteo: 무료·키 없음) ---------- */
+// 지역은 ai_profile.settings.weather {name, lat, lon} — 한 기기에서 정하면 다른 기기에도 와요.
+// 알림 받는 기기의 서비스 워커(sw.js)도 쓰도록 'ai-cfg' 캐시에 적어 둬요 → 아침 브리핑 알림에 날씨 한 줄이 붙어요.
+const WX_ICON = c => c === 0 ? '☀️ 맑음' : c <= 2 ? '🌤️ 구름 조금' : c === 3 ? '☁️ 흐림' : c <= 48 ? '🌫️ 안개' : c <= 57 ? '🌦️ 이슬비' : c <= 67 ? '🌧️ 비' : c <= 77 ? '🌨️ 눈' : c <= 82 ? '🌧️ 소나기' : c <= 86 ? '🌨️ 눈' : '⛈️ 뇌우';
+const wxLoc = () => { try { return JSON.parse(ls.get('weather') || 'null'); } catch (e) { return null; } };
+let WX = (() => { try { return JSON.parse(ls.get('wx') || 'null'); } catch (e) { return null; } })();
+function setWxLoc(L, push = true) {
+  ls.set('weather', JSON.stringify(L)); WX = null; ls.del('wx');
+  try { caches.open('ai-cfg').then(c => c.put(new URL('__wx', location.href).href, new Response(JSON.stringify(L)))); } catch (e) {}
+  if (push && owner) pushProfile({ weather: L });
+  if ($('wxName')) $('wxName').textContent = L?.name || '안 정함';
+}
+const dustGrade = (pm10, pm25) => Math.max(pm10 <= 30 ? 0 : pm10 <= 80 ? 1 : pm10 <= 150 ? 2 : 3, pm25 <= 15 ? 0 : pm25 <= 35 ? 1 : pm25 <= 75 ? 2 : 3);
+async function loadWx(force) {
+  const L = wxLoc(); if (!L) { WX = null; return null; }
+  const key = L.lat + ',' + L.lon;
+  if (!force && WX && WX.day === today() && WX.key === key && Date.now() - WX.at < 3600e3) return WX;
+  try {
+    const q = `latitude=${L.lat}&longitude=${L.lon}&timezone=Asia%2FSeoul`;
+    const [f, a] = await Promise.all([
+      fetch(`https://api.open-meteo.com/v1/forecast?${q}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&current=temperature_2m&forecast_days=2`).then(r => r.json()),
+      fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${q}&hourly=pm10,pm2_5&forecast_days=1`).then(r => r.json()).catch(() => null)]);
+    const d = f.daily; if (!d) return WX;
+    let dust = -1;
+    if (a?.hourly) { const hs = a.hourly.time.map((t, i) => i).filter(i => { const h = +a.hourly.time[i].slice(11, 13); return h >= 8 && h <= 17; }); dust = Math.max(-1, ...hs.map(i => dustGrade(a.hourly.pm10[i] ?? 0, a.hourly.pm2_5[i] ?? 0))); }
+    WX = { day: today(), key, at: Date.now(), name: L.name, now: Math.round(f.current?.temperature_2m ?? NaN), code: d.weather_code[0], max: Math.round(d.temperature_2m_max[0]), min: Math.round(d.temperature_2m_min[0]), pop: d.precipitation_probability_max[0] ?? 0, dust,
+      tom: { code: d.weather_code[1], max: Math.round(d.temperature_2m_max[1]), min: Math.round(d.temperature_2m_min[1]), pop: d.precipitation_probability_max[1] ?? 0 } };
+    ls.set('wx', JSON.stringify(WX));
+  } catch (e) {}
+  return WX;
+}
+const DUST = ['좋음', '보통', '나쁨', '매우 나쁨'];
+function wxText(w = WX) {
+  if (!w) return '';
+  const tips = [];
+  if (w.pop >= 50) tips.push('☔ 우산 챙기세요');
+  if (w.dust >= 2) tips.push('😷 미세먼지 — 마스크·바깥 활동 조심');
+  if (w.max - w.min >= 10) tips.push('🧥 일교차가 커요');
+  if (w.min <= -5) tips.push('🧣 많이 추워요');
+  return `${w.name} ${WX_ICON(w.code)} ${w.min}~${w.max}°${isNaN(w.now) ? '' : ` (지금 ${w.now}°)`} · 비 올 확률 ${w.pop}%${w.dust >= 0 ? ` · 미세먼지 ${DUST[w.dust]}` : ''}${tips.length ? ' — ' + tips.join(', ') : ''}`;
+}
+// 지역 이름 → 좌표 (Open-Meteo 지명 검색, 안 되면 OpenStreetMap)
+async function geoFind(q) {
+  q = String(q || '').trim(); if (!q) throw new Error('지역 이름을 넣어 주세요');
+  try {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=ko&countryCode=KR`).then(x => x.json());
+    const g = r.results?.[0]; if (g) return { name: q, lat: +g.latitude.toFixed(3), lon: +g.longitude.toFixed(3) };
+  } catch (e) {}
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&accept-language=ko&q=${encodeURIComponent(q)}`).then(x => x.json());
+  if (!r[0]) throw new Error(`"${q}"을(를) 못 찾았어요. 시·군·구 이름으로 다시 해 주세요`);
+  return { name: q, lat: +(+r[0].lat).toFixed(3), lon: +(+r[0].lon).toFixed(3) };
+}
+async function setWeatherBy(q) { const L = await geoFind(q); setWxLoc(L); await loadWx(true); renderChat(); return `🌤️ 날씨 지역: ${L.name}${WX ? ' — ' + wxText() : ''}`; }
+$('wxFind').onclick = async () => { try { toast(await setWeatherBy($('wxQ').value), 5000); $('wxQ').value = ''; } catch (e) { toast('⚠️ ' + e.message, 4000); } };
+$('wxHere').onclick = () => {
+  if (!navigator.geolocation) return toast('이 기기는 위치를 못 알려 줘요. 지역 이름으로 찾아 주세요');
+  navigator.geolocation.getCurrentPosition(async p => {
+    const lat = +p.coords.latitude.toFixed(3), lon = +p.coords.longitude.toFixed(3);
+    let name = '내 위치';
+    try { const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=14&accept-language=ko&lat=${lat}&lon=${lon}`).then(x => x.json()); const ad = r.address || {}; name = [ad.city || ad.county || ad.province || '', ad.borough || ad.suburb || ad.town || ad.village || ''].filter(Boolean).join(' ') || name; } catch (e) {}
+    setWxLoc({ name, lat, lon }); await loadWx(true); renderChat(); toast('🌤️ 날씨 지역: ' + name + (WX ? ' — ' + wxText() : ''), 5000);
+  }, () => toast('위치 허락이 필요해요. 지역 이름으로 찾아도 돼요', 4000), { timeout: 10000 });
+};
+
+/* ---------- ⏰ 반복 일 ---------- */
+// ai_profile.settings.routines [{id,title,text,time,days:[0..6],on}], 한 날짜에 한 번: settings.rt_last {id: 'YYYY-MM-DD'}
+// PC 일꾼이 그 시각(~2시간 안)에 하고, 일꾼이 못 했으면 앱이 열려 있을 때 10분 뒤부터 대신 해요.
+let RT = (() => { try { return JSON.parse(ls.get('routines') || '[]'); } catch (e) { return []; } })(), RT_LAST = {};
+const WDN = ['일', '월', '화', '수', '목', '금', '토'];
+function parseDays(v) {
+  const s = (Array.isArray(v) ? v : [v]).join(',');
+  if (/매일|날마다|everyday/.test(s)) return [0, 1, 2, 3, 4, 5, 6];
+  const out = new Set();
+  if (/평일|주중/.test(s)) [1, 2, 3, 4, 5].forEach(d => out.add(d));
+  if (/주말/.test(s)) [0, 6].forEach(d => out.add(d));
+  for (const ch of s.replace(/평일|주중|주말|요일/g, '')) { const i = WDN.indexOf(ch); if (i >= 0) out.add(i); }
+  for (const n of s.match(/\b[0-6]\b/g) || []) out.add(+n);
+  return [...out].sort();
+}
+const daysTxt = ds => ds.length === 7 ? '매일' : ds.join() === '1,2,3,4,5' ? '평일' : ds.join() === '0,6' ? '주말' : '매주 ' + ds.map(d => WDN[d]).join('·');
+async function saveRoutines(list) {
+  RT = list; ls.set('routines', JSON.stringify(RT)); renderRt();
+  if (!owner) return false;
+  await pushProfile({ routines: RT });
+  const { data } = await sb.from('ai_profile').select('settings').maybeSingle();
+  return JSON.stringify(data?.settings?.routines || []) === JSON.stringify(RT);
+}
+async function addRoutine(a) {
+  const days = parseDays(a.values?.length ? a.values : a.mode || ''), time = okTime(a.time);
+  if (!owner) return '⚠️ 반복 일은 로그인해야 쓸 수 있어요';
+  if (!days.length || !time || !(a.text || a.title)) return '⚠️ 반복 일을 못 만들었어요(요일·시각·할 일이 필요해요)';
+  const r = { id: uid('r'), title: (a.title || a.text).trim().slice(0, 40), text: (a.text || a.title).trim(), time, days, on: true };
+  const ok = await saveRoutines([...RT, r]);
+  return ok ? `⏰ 반복 일 만듦: ${daysTxt(days)} ${time} — ${r.title}` : '⚠️ 반복 일을 서버에 저장하지 못했어요';
+}
+async function delRoutine(id) { const r = RT.find(x => x.id === id); if (!r) return '⚠️ 그 반복 일을 못 찾았어요'; await saveRoutines(RT.filter(x => x.id !== id)); return `🗑️ 반복 일 지움: ${r.title}`; }
+function renderRt() {
+  const el = $('rtSet'); if (!el) return;
+  el.innerHTML = RT.length ? RT.map(r => `<div class="rt"><input type="checkbox" data-rt-on="${r.id}" ${r.on !== false ? 'checked' : ''} title="켜기·끄기"><div class="t"><b>${daysTxt(r.days || [])} ${esc(r.time)}</b> · ${esc(r.title)}<br><small style="color:var(--sub)">${esc(r.text)}${RT_LAST[r.id] ? ` · 마지막 ${esc(RT_LAST[r.id].slice(5).replace('-', '/'))}` : ''}</small></div><button class="del" data-rt-del="${r.id}" title="지우기">✕</button></div>`).join('') : '<div class="hint" style="margin:0">아직 없어요.</div>';
+}
+$('rtSet').onclick = async e => {
+  const d = e.target.closest('[data-rt-del]'), o = e.target.closest('[data-rt-on]');
+  if (d) { if (confirm('이 반복 일을 지울까요?')) toast(await delRoutine(d.dataset.rtDel)); }
+  else if (o) { await saveRoutines(RT.map(r => r.id === o.dataset.rtOn ? { ...r, on: o.checked } : r)); toast(o.checked ? '켰어요' : '껐어요'); }
+};
+let rtBusy = false;
+async function runDueRoutines() {
+  if (!owner || rtBusy || !ls.get('gkey') || busy) return;
+  const t = today(), d = new Date(), nowM = d.getHours() * 60 + d.getMinutes();
+  const due = RT.filter(r => r.on !== false && (r.days || []).includes(d.getDay()) && nowM >= (+r.time.slice(0, 2) * 60 + +r.time.slice(3)) + 10);
+  if (!due.length) return;
+  rtBusy = true;
+  try {
+    for (const r of due) {
+      const { data } = await sb.from('ai_profile').select('settings').maybeSingle();
+      const last = data?.settings?.rt_last || {}; RT_LAST = last;
+      if (last[r.id] === t) continue; // 일꾼이나 다른 기기가 벌써 했어요
+      RT_LAST = { ...last, [r.id]: t }; await pushProfile({ rt_last: RT_LAST }); // 먼저 표시 → 두 번 안 하게
+      try {
+        await gRefresh();
+        const out = await gemini([{ role: 'user', parts: [{ text: `[⏰ 반복 일 "${r.title}" — 사용자가 정해 둔 시각이라 저절로 하는 거야. actions는 비우고, reply에 결과만 깔끔하게 써]\n${r.text}` }] }]);
+        put('chat', { id: uid('c'), role: 'model', text: `⏰ **${r.title}** (${daysTxt(r.days)} ${r.time})\n\n${out.reply || '(대답이 비어 있어요)'}`, acts: ['⏰ 반복 일 — 일꾼이 꺼져 있어서 앱이 대신 했어요'], ts: Date.now() });
+        renderChat();
+      } catch (e) { put('chat', { id: uid('c'), role: 'model', text: `⚠️ 반복 일 "${r.title}"을(를) 못 했어요: ${e.message}`, ts: Date.now() }); renderChat(); }
+    }
+  } finally { rtBusy = false; renderRt(); }
+}
+setInterval(() => { if (!document.hidden) runDueRoutines(); }, 120000);
+
+/* ---------- 📄 워드 파일로 받기 (라이브러리 없이 직접 만들어요) ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC_T[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) { // 압축 없이 묶기(STORE) — 워드·한글 모두 열어요
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const put16 = (v, o, x) => v.setUint16(o, x, true), put32 = (v, o, x) => v.setUint32(o, x, true);
+  for (const f of files) {
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    put32(h, 0, 0x04034b50); put16(h, 4, 20); put16(h, 6, 0x0800); put16(h, 8, 0); put16(h, 10, 0); put16(h, 12, 0x21); put32(h, 14, crc); put32(h, 18, data.length); put32(h, 22, data.length); put16(h, 26, name.length); put16(h, 28, 0);
+    const c = new DataView(new ArrayBuffer(46));
+    put32(c, 0, 0x02014b50); put16(c, 4, 20); put16(c, 6, 20); put16(c, 8, 0x0800); put16(c, 10, 0); put16(c, 12, 0); put16(c, 14, 0x21); put32(c, 16, crc); put32(c, 20, data.length); put32(c, 24, data.length); put16(c, 28, name.length); put16(c, 30, 0); put16(c, 32, 0); put16(c, 34, 0); put16(c, 36, 0); put32(c, 38, 0); put32(c, 42, off);
+    parts.push(h, name, data); central.push(c, name); off += 30 + name.length + data.length;
+  }
+  const size = central.reduce((s, x) => s + x.byteLength, 0), e = new DataView(new ArrayBuffer(22));
+  put32(e, 0, 0x06054b50); put16(e, 8, files.length); put16(e, 10, files.length); put32(e, 12, size); put32(e, 16, off);
+  return new Blob([...parts, ...central, e], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+const xesc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+function docxRuns(text, base = '') { // **굵게**만 살리고 나머지 마크다운 기호는 걷어 내요
+  text = text.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '$1 ($2)').replace(/`([^`]+)`/g, '$1').replace(/(^|[^*])\*([^*\s][^*]*)\*(?!\*)/g, '$1$2');
+  return text.split(/(\*\*[^*]+\*\*)/).filter(Boolean).map(t => { const b = /^\*\*.*\*\*$/.test(t); return `<w:r><w:rPr>${base}${b ? '<w:b/>' : ''}</w:rPr><w:t xml:space="preserve">${xesc(b ? t.slice(2, -2) : t)}</w:t></w:r>`; }).join('');
+}
+function mdToDocx(md) {
+  const F = '<w:rFonts w:ascii="맑은 고딕" w:hAnsi="맑은 고딕" w:eastAsia="맑은 고딕"/>';
+  const SP = '<w:spacing w:after="80" w:line="300" w:lineRule="auto"/>';
+  const para = (runs, ppr = '') => `<w:p><w:pPr>${ppr || SP}</w:pPr>${runs}</w:p>`;
+  const EMPTY = para('');
+  const lines = String(md).replace(/\r/g, '').split('\n'), out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i], s = L.trim();
+    if (/^\|.*\|$/.test(s)) { // 표
+      const rows = []; while (i < lines.length && /^\|.*\|$/.test(lines[i].trim())) { const r = lines[i].trim(); if (!/^\|[\s:|-]+\|$/.test(r)) rows.push(r.slice(1, -1).split('|').map(c => c.trim())); i++; } i--;
+      if (!rows.length) continue;
+      const n = Math.max(...rows.map(r => r.length)), bd = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(k => `<w:${k} w:val="single" w:sz="4" w:space="0" w:color="888888"/>`).join('');
+      out.push(`<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>${bd}</w:tblBorders></w:tblPr><w:tblGrid>${'<w:gridCol/>'.repeat(n)}</w:tblGrid>${rows.map((r, ri) => `<w:tr>${Array.from({ length: n }, (_, ci) => `<w:tc><w:tcPr>${ri === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="EEEEEE"/>' : ''}</w:tcPr><w:p>${docxRuns(r[ci] || '', F + (ri === 0 ? '<w:b/>' : '') + '<w:sz w:val="20"/>')}</w:p></w:tc>`).join('')}</w:tr>`).join('')}</w:tbl>`, EMPTY);
+      continue;
+    }
+    const h = s.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { const sz = [36, 30, 26, 24][h[1].length - 1]; out.push(para(docxRuns(h[2], F + `<w:b/><w:sz w:val="${sz}"/>`), h[1].length === 1 ? '<w:spacing w:before="120" w:after="200"/><w:jc w:val="center"/>' : '<w:spacing w:before="160" w:after="80"/>')); continue; }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(s)) { out.push(para('', '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>' + SP)); continue; }
+    const li = L.match(/^(\s*)[-*•]\s+(.*)$/), ol = L.match(/^(\s*)(\d+[.)])\s+(.*)$/);
+    if (li) { const lv = Math.min(3, Math.floor(li[1].length / 2)); out.push(para(docxRuns('• ' + li[2], F + '<w:sz w:val="22"/>'), SP + `<w:ind w:left="${360 + lv * 360}" w:hanging="240"/>`)); continue; }
+    if (ol) { const lv = Math.min(3, Math.floor(ol[1].length / 2)); out.push(para(docxRuns(ol[2] + ' ' + ol[3], F + '<w:sz w:val="22"/>'), SP + `<w:ind w:left="${360 + lv * 360}" w:hanging="300"/>`)); continue; }
+    if (!s) { if (out.length && out[out.length - 1] !== EMPTY) out.push(EMPTY); continue; }
+    out.push(para(docxRuns(s.replace(/^>\s?/, ''), F + '<w:sz w:val="22"/>')));
+  }
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${out.join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1418" w:right="1134" w:bottom="1418" w:left="1134" w:header="851" w:footer="851" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+}
+function makeDocx(md) {
+  return zipStore([
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>' },
+    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>' },
+    { name: 'word/document.xml', data: mdToDocx(md) }
+  ]);
+}
+function docxName(md) {
+  const h = String(md).match(/^#{1,3}\s+(.+)$/m), first = h ? h[1] : String(md).split('\n').find(l => l.trim()) || '문서';
+  return (first.replace(/[*#`\[\]()]/g, '').replace(/[\\/:*?"<>|]/g, ' ').trim().slice(0, 30) || '문서') + `-${today()}.docx`;
+}
+function downloadDocx(md) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(makeDocx(md)); a.download = docxName(md);
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('📄 워드 파일을 받았어요 (한글 프로그램에서도 열려요)', 3500);
+}
 const briefCfg = () => { try { return { on: false, time: '07:30', ...JSON.parse(ls.get('brief', '{}')) }; } catch (e) { return { on: false, time: '07:30' }; } };
 // patch.brief가 있을 때만 아침 브리핑 설정을 바꿔요. 없으면 서버에 있던 걸 그대로 둬요
 // (예전엔 이 기기의 옛 값·기본값 '꺼짐'을 그대로 올려서, 다른 기기에서 ⚙️ 저장만 눌러도 브리핑이 꺼졌어요)
@@ -579,7 +783,9 @@ async function pushProfile(patch = {}) {
   if (!ls.get('gkey') && !srvKey) { srvKey = sv.gkey || ''; if (srvKey) ls.set('gkey', srvKey); } // 이 기기에 키가 없으면 서버 키를 지우지 않게
   const brief = patch.brief || sv.brief || briefCfg();
   ls.set('brief', JSON.stringify(brief));
-  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { ...sv, limit: +ls.get('limit') || DEFAULT_LIMIT, brief, gkey: ls.get('gkey') || srvKey || undefined }, updated_at: new Date().toISOString() });
+  const { brief: _b, ...rest } = patch; // 날씨 지역·반복 일 등 바꾼 칸만 더해요
+  await sb.from('ai_profile').upsert({ user_id: user.id, me: ls.get('me'), settings: { ...sv, ...rest, limit: +ls.get('limit') || DEFAULT_LIMIT, brief, gkey: ls.get('gkey') || srvKey || undefined }, updated_at: new Date().toISOString() });
+  return { ...sv, ...rest };
 }
 
 /* ---------- 아침 브리핑 알림 (웹 푸시) ---------- */
@@ -975,7 +1181,7 @@ async function startSession(u) {
     if (ls.get('me')) await pushProfile(); else await pullProfile();
     ls.set('uploadedFor', u.id); saveLocal();
   } else await pullProfile();
-  await pushNow(); await pullNow(); if (pruneChat()) { await pushNow(); renderChat(); } pruneServer(); await loadUsage();
+  await pushNow(); await pullNow(); if (pruneChat()) { await pushNow(); renderChat(); } pruneServer(); setTimeout(runDueRoutines, 3000); await loadUsage();
   if (chan) sb.removeChannel(chan);
   chan = sb.channel('ai-items-' + u.id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_items', filter: `user_id=eq.${u.id}` }, p => {
@@ -1334,6 +1540,8 @@ function welcomeHTML() {
   const late = td.filter(x => x.due && x.due < t).length;
   const unread = G.mails.filter(m => m.unread).length;
   let h = `<div class="welcome">안녕하세요! 😊 <b>${dLabel(t)}</b>이에요.<br>`;
+  if (WX && WX.day === t) h += `${esc(wxText())}<br>`;
+  else if (!wxLoc()) h += `<span data-open-set="1" style="color:var(--sub);font-size:13px;cursor:pointer;text-decoration:underline">🌤️ 날씨 지역을 정하면 여기와 아침 브리핑에 날씨가 나와요 → 설정</span><br>`;
   if (unread) h += `안 읽은 메일 <b>${unread}통</b> (최근 3일)<br>`;
   const wait = T.filter(x => x.status === 'need_ok').length;
   if (wait) h += `<div class="banner" data-go-work="1" style="background:#fff4e6;color:#d9480f">✋ PC 일꾼이 허락을 기다려요 (${wait}개) → 보러 가기</div>`;
@@ -1442,7 +1650,7 @@ function msgHTML(m) {
   if (m.role === 'user') return `<div class="m u">${esc(m.text)}${m.file ? `<div style="font-size:12px;opacity:.85;margin-top:4px">📎 ${esc(m.file)}</div>` : ''}</div>`;
   const acts = (m.acts || []).map(a => `<span class="act">${esc(a)}</span>`).join('');
   const chk = m.check === true ? '<span class="chk">✔️ 저장 확인</span>' : m.check === false ? '<span class="chk no">⚠️ 아직 서버에 저장 안 됨(연결 확인)</span>' : '';
-  return `<div class="m a">${md(m.text)}${acts ? `<div>${acts}</div>` : ''}${askHTML(m)}<div class="tools"><button data-copy="${m.id}">📋 복사</button>${chk}</div></div>`;
+  return `<div class="m a">${md(m.text)}${acts ? `<div>${acts}</div>` : ''}${askHTML(m)}<div class="tools"><button data-copy="${m.id}">📋 복사</button>${(m.text || '').length >= 120 ? `<button data-docx="${m.id}" title="워드 파일(.docx)로 받기 — 한글에서도 열려요">📄 워드</button>` : ''}${chk}</div></div>`;
 }
 // 어제까지의 대화는 지우지 않고 접어 둬요 → 오늘 브리핑 카드가 늘 대화 맨 위 가까이에 있어요
 // 펼치면 기기에 있는 7일 치 + 서버에서 불러온 더 오래된 것(olderChat, 기기엔 저장 안 함)을 함께 보여 줘요
@@ -1491,6 +1699,8 @@ $('msgs').onclick = async e => {
   if (e.target.closest('[data-go-work]')) return document.querySelector('nav button[data-p=pWork]').click();
   const sgb = e.target.closest('[data-sug]');
   if (sgb) { const s = suggestions()[+sgb.dataset.sug]; if (s) send(s[1]); return; }
+  const dx = e.target.closest('[data-docx]');
+  if (dx) { const m = [...S.chat, ...(olderChat || [])].find(x => x.id === dx.dataset.docx); if (m) downloadDocx(m.text); return; }
   const c = e.target.closest('[data-copy]');
   if (c) {
     const txt = [...S.chat, ...(olderChat || [])].find(m => m.id === c.dataset.copy)?.text || '';
@@ -1583,7 +1793,7 @@ const SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event', 'tidy_mail', 'book_site', 'watch_bus'] },
+          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event', 'tidy_mail', 'book_site', 'watch_bus', 'set_weather', 'add_routine', 'delete_routine'] },
           values: { type: 'ARRAY', items: { type: 'STRING' } },
           id: { type: 'STRING' }, date: { type: 'STRING' }, time: { type: 'STRING' }, end_time: { type: 'STRING' }, title: { type: 'STRING' },
           account: { type: 'STRING' }, to: { type: 'STRING' }, subject: { type: 'STRING' }, body: { type: 'STRING' },
@@ -1622,6 +1832,9 @@ function systemPrompt() {
    📨 [쿨메신저]는 학교 쿨메신저 쪽지에서 쿨메신저 비서가 뽑아 둔 마감 할 일·일정·알아 둘 것이야. 일정은 [일정]에도 함께 들어 있어. 오늘 할 일·마감·브리핑을 말할 때 [할 일]과 함께 챙겨(학생 이름이 있으면 그대로 써도 돼). 사용자가 그중 하나를 끝냈다고 하면 done_cool(id=[쿨메신저]의 id)로 체크해(학교 PC 쿨메신저 비서 창에도 체크돼). 쿨메신저 항목은 add_todo로 따로 넣지 마.
    🗂️ 메일 정리: 사용자가 메일을 정리·분류해 달라거나 필요 없는 메일·광고를 치워 달라고 하면 묻지 말고 tidy_mail을 담아. 이 앱이 메일을 답장할 것·할 일·일정·알림·광고로 나누고, [지메일 정리] 허락이 있으면 지메일에 AI딸기 라벨을 붙이고 광고는 보관함으로 옮겨(지우지는 않아. 보관함에서 언제든 다시 볼 수 있어). "직접 지우세요"라고 하지 마. 지금 허락 상태는 [지메일 정리]를 봐. 허락이 없으면 "⚙️ → 구글 계정 [🔧 범위] → 지메일 정리도 체크"를 알려 줘.
    ☀️ 아침 브리핑 알림: 사용자가 브리핑 시각을 바꾸거나 켜고 끄라고 하면 set_brief(time=HH:MM 24시간, mode=on 또는 off). "7시 반"은 07:30, "저녁 9시"는 21:00. 시각을 말하지 않고 켜 달라고만 하면 몇 시에 받을지 먼저 물어봐. 지금 설정은 [아침 브리핑]을 봐.
+   🌤️ 날씨: [날씨]를 보고 대답해(옷차림·우산·미세먼지·체육 같은 바깥 활동 조언도). 사용자가 날씨 지역을 정하거나 바꾸라고 하면 set_weather(text=지역 이름, 예: "세종", "서울 강남구"). 다른 지역이나 며칠 뒤 날씨는 아직 모른다고 해.
+   ⏰ 반복 일: 사용자가 "매주 금요일 4시에 다음 주 일정 정리해 줘", "평일 아침 8시마다 오늘 할 일 알려 줘"처럼 정해진 때마다 해 달라고 하면 add_routine(title=짧은 이름, text=그때 AI에게 시킬 말(그것만 읽어도 알게 자세히, 예: "다음 주 월~금 일정과 마감 할 일을 요일별로 정리하고 준비할 것을 알려 줘"), time=HH:MM 24시간, values=요일 목록 예 ["금"] / 매일이면 ["매일"] / 평일이면 ["평일"] / 주말이면 ["주말"]). 시각을 말하지 않았으면 먼저 물어봐. 그만하거나 지우라면 delete_routine(id=[반복 일]의 id). 매달·격주는 아직 못 한다고 해. 반복 일은 결과를 대화와 알림으로 보여 주기만 하고 일정·할 일을 바꾸지는 않아. 바로 만들어지니 "만들어 뒀어요"라고 해. 매일 아침 브리핑 알림 자체는 set_brief야.
+   📄 문서 파일: 가정통신문·기안문·안내문·계획서처럼 문서를 써 줬으면 reply 끝에 "아래 📄 워드 버튼을 누르면 파일로 받아요(한글에서도 열려요)"를 한 줄 붙여. 문서 본문은 # 제목, ## 소제목, - 목록, | 표 | 로 써.
    📁 구글 더 쓰기([구글 계정]에 📁로 적힌 허락이 있을 때만):
    - 찾아보기: 드라이브 파일 찾기 find_drive(text=찾을 말), 파일 내용 읽기 read_drive(id=파일 id 또는 구글 문서·시트·슬라이드·설문 주소), 유튜브 영상 찾기 find_youtube(text=검색어). 이걸 담으면 reply는 "찾아볼게요"처럼 짧게만 써. 결과는 다음 차례에 [찾아본 결과]로 받아.
    - [찾아본 결과]를 받으면 그걸로 처음 질문에 대답해. 파일·영상은 [제목](링크) 모양으로 링크를 붙여. 설문은 문항별로 요약해. 찾기 결과에서 파일 하나를 골라 내용까지 봐야 하면 read_drive를 한 번 더 써도 돼.
@@ -1639,6 +1852,8 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.kind === 'remember' ? '[알아 둘 것] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
 [쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '일정', remember: '알아 둘 것' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
 [지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
+[날씨] ${WX && WX.day === t ? wxText() + (WX.tom ? ` / 내일 ${WX_ICON(WX.tom.code)} ${WX.tom.min}~${WX.tom.max}° 비 ${WX.tom.pop}%` : '') : wxLoc() ? '(아직 못 받아 옴)' : '(지역 안 정함 — ⚙️ 설정이나 대화로 정할 수 있어)'}
+[반복 일] ${RT.map(r => `(${r.id}) ${daysTxt(r.days || [])} ${r.time} ${r.title}${r.on === false ? ' [꺼 둠]' : ''}: ${r.text}`).join(' / ') || '(없음)'}
 [아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
 [PC 일꾼] ${W ? (workerOn() ? '켜짐' : '꺼짐') : '연결 안 됨'} / 맡긴 일: ${T.slice(0, 5).map(t => `${t.title}(${ST[t.status] || t.status})`).join(', ') || '(없음)'}
 [구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${capTxt(a)}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
@@ -1822,6 +2037,9 @@ async function send(text) {
       res.done.push(ok ? `📨 쿨메신저 체크: ${x.text.slice(0, 30)}` : `⚠️ 쿨메신저 체크 못 함: ${x.text.slice(0, 30)}`);
     }
     for (const a of (r.actions || []).filter(x => x.type === 'set_brief').slice(0, 1)) res.done.push(await setBrief(a));
+    for (const a of (r.actions || []).filter(x => x.type === 'set_weather').slice(0, 1)) { try { res.done.push(await setWeatherBy(a.text || a.title)); } catch (err) { res.done.push('⚠️ ' + err.message); } }
+    for (const a of (r.actions || []).filter(x => x.type === 'add_routine').slice(0, 3)) res.done.push(await addRoutine(a));
+    for (const a of (r.actions || []).filter(x => x.type === 'delete_routine')) res.done.push(await delRoutine(a.id));
     if ((r.actions || []).some(x => x.type === 'tidy_mail')) res.done.push(await tidyMailNow());
     let reply = r.reply || '';
     if (!res.wait.length) reply = reply.replace(/[^.!?\n]*허락(해|하여|을 눌러)\s*주세요[.!?~]?/g, '').replace(/[ \t]+\n/g, '\n').trim(); // 허락 카드가 없는데 "허락해 주세요"라고 하면 그 문장 빼기
@@ -2115,7 +2333,7 @@ $('aSyncNow').onclick = async () => { await pushNow(); await pullNow(); toast('�
 /* ---------- 설정 ---------- */
 function openSet() {
   $('sKey').value = ls.get('gkey'); $('sModel').value = ls.get('gmodel') || DEFAULT_MODEL; $('sMe').value = ls.get('me');
-  $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); renderG(); renderBrief(); renderPhoneSet(); $('mSet').classList.add('show');
+  $('sLimit').value = ls.get('limit') || DEFAULT_LIMIT; $('sVer').textContent = `AI 비서 v${VERSION}`; renderAcct(); renderG(); renderBrief(); renderPhoneSet(); renderRt(); $('wxName').textContent = wxLoc()?.name || '안 정함'; $('mSet').classList.add('show');
   if (owner) gConfig().then(renderG);
   if (owner) pullProfile().then(() => { briefAtOpen = JSON.stringify(briefCfg()); renderBrief(); }); // 다른 기기에서 바꾼 브리핑 설정을 먼저 받아 와요
   briefAtOpen = JSON.stringify(briefCfg());
@@ -2156,6 +2374,9 @@ document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e =
 /* ---------- 시작 ---------- */
 $('evD').value = today();
 setSync('local'); loadUsage(); renderChat();
+loadWx().then(w => { if (w) renderChat(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadWx().then(w => { if (w) renderChat(); }); runDueRoutines(); } });
+try { const L = wxLoc(); if (L) caches.open('ai-cfg').then(c => c.put(new URL('__wx', location.href).href, new Response(JSON.stringify(L)))); } catch (e) {}
 if (sb) {
   sb.auth.onAuthStateChange((ev, session) => {
     const u = session?.user || null;
