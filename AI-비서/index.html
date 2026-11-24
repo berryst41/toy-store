@@ -2045,8 +2045,10 @@ $('sClose').onclick = () => $('mSet').classList.remove('show');
 $('sSave').onclick = () => {
   ls.set('gkey', $('sKey').value.trim()); ls.set('gmodel', $('sModel').value.trim() || DEFAULT_MODEL);
   ls.set('me', $('sMe').value.trim()); ls.set('limit', String(+$('sLimit').value || DEFAULT_LIMIT));
-  const bOn = $('bOn').checked; ls.set('brief', JSON.stringify({ on: bOn, time: $('bTime').value || '07:30' }));
-  pushProfile(); renderUsage(); $('mSet').classList.remove('show');
+  const bOn = $('bOn').checked, nb = { on: bOn, time: $('bTime').value || '07:30' };
+  const briefChanged = JSON.stringify(nb) !== briefAtOpen; // 브리핑 칸을 실제로 바꿨을 때만 서버에 올려요
+  if (briefChanged) ls.set('brief', JSON.stringify(nb));
+  pushProfile(briefChanged ? { brief: nb } : {}); renderUsage(); $('mSet').classList.remove('show');
   toast(bOn && !owner ? '저장했어요. 아침 브리핑 알림은 로그인해야 와요' : bOn && !ls.get('pushOn') ? '저장했어요. 알림을 받으려면 [🔔 이 기기에서 알림 받기]도 눌러 주세요' : '저장했어요', 4500);
 };
 $('sClearChat').onclick = () => { if (!confirm('대화 내용만 지울까요? (일정·할 일·기억은 그대로예요)')) return; [...S.chat].forEach(m => remove('chat', m.id)); renderChat(); toast('대화를 지웠어요'); };
