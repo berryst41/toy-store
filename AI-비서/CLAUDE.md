@@ -48,13 +48,13 @@
 **전체 계획은 `계획.md`가 정본이에요(2026-11-20 사용자와 정함).** 요약: 전화 대행 빼고 피클처럼 — 일정(구글 캘린더)·메일(지메일), 구글 계정 여러 개 모두 연결·기억·먼저 제안·예약·쇼핑·빈자리 알림·대신 누르기. 실행·결제 전 반드시 허락, 실행 후 실제 상태 재확인, 남은 사용량 표시. 서버(Vercel+Supabase) 쓰기로 함. 비밀번호는 서버에 저장하지 않고 PC 일꾼이 PC 크롬 로그인 상태를 빌려 씀, 카드 번호 저장 안 함.
 - [ ] 실제 키로 v0.1 써 보고 프롬프트 다듬기
 - [x] 1단계 (v0.2.0): 서버 저장·동기화, 사용량 표시, 지우기 확인 카드, 저장 재확인
-- [ ] 사용자가 실제로 가입·로그인해서 폰↔PC 동기화 되는지 확인 (가입 후 SQL로 ai_owner·ai_items 확인)
+- [x] 사용자가 실제로 가입·로그인해서 폰↔PC 동기화 되는지 확인 (가입 후 SQL로 ai_owner·ai_items 확인)
 - [x] 2단계 앞부분 (v0.3.0): 구글 계정 여러 개 연결, 캘린더 합쳐 보기·넣기·지우기, 메일 탭·요약·답장, 허락 후 실행·확인
 - [x] 사용자가 구글연결-설정.md 따라 GOOGLE_CLIENT_ID/SECRET 넣기 → 앱 게시(프로덕션, 미인증) → 계정 3개 연결됨(2026-11-21)
-- [ ] v0.7.3: 계정 3개 [🔧 범위]로 다시 허락 → `ai_google_accounts.scopes`에 calendar.calendarlist.readonly 있는지 확인
+- [x] v0.7.3: 계정 3개 [🔧 범위]로 다시 허락 → `ai_google_accounts.scopes`에 calendar.calendarlist.readonly 있는지 확인
 - [x] 삼성 캘린더 읽기 = B안 캘린더 다리 (v0.8.0, 2026-11-21). 사용자: 갤럭시 S26·안드로이드 17, APK 직접 설치 OK, 읽기만.
 - [ ] 사용자가 GitHub 시크릿 `CALBRIDGE_KEYSTORE` 넣기 → workflow_dispatch로 다시 빌드 → 릴리스 주소 확인
-- [ ] 실제 S26에 설치 후 `ai_phone_cal`에 줄이 생기는지, 삼성 캘린더 type 이름 확인
+- [x] 실제 S26에 설치 후 `ai_phone_cal`에 줄이 생기는지, 삼성 캘린더 type 이름 확인
 - [x] 2단계 나머지 (v0.4.0): 기억 키우기, 아침 브리핑 알림, 먼저 제안
 - [x] 3단계 (v0.5.0): PC 일꾼 — 빈자리 지켜보기·대신 하기·허락·결과 확인
 - [x] **v0.6.0 (2026-11-20): 쿨메신저 연동** — 표 `ai_cool`(user_id+id 기본키, kind/text/due/time/sender/recv/fav/done/done_src(pc|app)/gone, RLS 주인, realtime). 일꾼 `coolSync()` 20초마다: items.json·done.json 읽기 → 체크는 `%LOCALAPPDATA%AI비서일꾼쿨메신저-맞춤.json`의 지난 값(base)과 비교해 바뀐 쪽을 따름(둘 다면 앱) → 앱 체크는 done.json에 원자적 쓰기. 사라진 항목은 gone=true. **upsert 줄은 칸을 모두 같게**(supabase-js가 빠진 칸을 null로 채움). 쿨메신저 비서 window.ps1 v0.2.4가 done.json 바뀌면 다시 읽음(school 저장소). 앱: 📅 탭 아래 📨 쿨메신저, AI 문맥 [쿨메신저]·[아침 브리핑], actions done_cool / set_brief(time, mode on|off, 서버 다시 읽어 확인), 서버 브리핑에 쿨메신저 마감. 시험: `AIW_TEST` json에 `{home, coolDir, cool:[], tasks:[]}`.
@@ -122,3 +122,4 @@
 - 2026-11-24 · 학교 PC Claude Code: AI 비서 v0.19.0 — renderChat이 ts 기준 어제까지 대화를 접음(showOld, .oldbtn data-old, .daysep), welcome 카드는 오늘 대화 바로 위. 펼칠 때 welcome으로 scrollIntoView. 데이터·AI에 보내는 최근 16개는 그대로. Playwright 시험 통과
 - 2026-11-24 · 학교 PC Claude Code: AI 비서 v0.20.0 — #bBriefPop(pChat 오른쪽 위, .welcome이 msgs 밖이면 show; msgs scroll·renderChat 뒤 briefPopCheck) → #mBrief 모달에 welcomeHTML(). 모달 안 칩·배너는 #briefPop 클릭 위임. Playwright 시험 통과
 - 2026-11-24 · 학교 PC Claude Code: AI 비서 v0.21.0 — 대화 보관(사용자 결정): CHAT_KEEP_DAYS=30(서버), CHAT_DEVICE_DAYS=7(기기). pruneChat: 30일↑ dirty deleted, 7일↑는 owner이고 dirty 없을 때만 기기에서 덜어 냄(비로그인은 30일까지 기기 유지). pruneServer 하루 1번(ls chatPruned): serverChats()로 30일↑ 찾아 upsert {data:{},deleted:true}, deleted 표시도 30일 지나면 hard delete(RLS가 막으면 조용히 넘어감). 지난 대화 펼치면 loadOlder()로 서버 대화(olderChat, 기기 저장 안 함) 함께 표시. Playwright 시험 통과(실서버 시험은 안 함)
+- 2026-11-24 · 학교 PC Claude Code: 사용자 확인 — 캘린더 다리 설치·폰 일정, 구글 범위 다시 허락, 폰↔PC 동기화 모두 잘 됨. 아침 브리핑(0.18.1 고침)은 다음 날 아침 확인 남음. 피클 비교 후 다음 후보: 날씨 브리핑 → 한글·워드 파일 → 쇼핑 → 반복 일
