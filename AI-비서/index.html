@@ -46,6 +46,8 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column;width:100%;max-wi
 .ask.done{border-color:var(--line);background:#f8f9fa}
 .m.err{align-self:flex-start;background:#fff4e6;border:1px solid #ffd8a8;color:#a14b00;font-size:14px}
 .typing{align-self:flex-start;color:var(--sub);font-size:14px;padding:4px 8px}
+.oldbtn{align-self:center;background:none;border:1px dashed var(--line);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--sub);cursor:pointer}
+.daysep{align-self:center;font-size:12px;color:var(--sub)}
 .welcome{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;line-height:1.7;font-size:14.5px}
 .welcome b{color:var(--main)}
 .banner{background:var(--soft);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13.5px;cursor:pointer}
@@ -1400,12 +1402,21 @@ function msgHTML(m) {
   const chk = m.check === true ? '<span class="chk">✔️ 저장 확인</span>' : m.check === false ? '<span class="chk no">⚠️ 아직 서버에 저장 안 됨(연결 확인)</span>' : '';
   return `<div class="m a">${md(m.text)}${acts ? `<div>${acts}</div>` : ''}${askHTML(m)}<div class="tools"><button data-copy="${m.id}">📋 복사</button>${chk}</div></div>`;
 }
+// 어제까지의 대화는 지우지 않고 접어 둬요 → 오늘 브리핑 카드가 늘 대화 맨 위 가까이에 있어요
+let showOld = false;
 function renderChat(extra = '') {
   const near = $('msgs').scrollHeight - $('msgs').scrollTop - $('msgs').clientHeight < 80;
-  $('msgs').innerHTML = welcomeHTML() + S.chat.slice(-100).map(msgHTML).join('') + extra;
+  const t = today(), list = S.chat.slice(-100);
+  const old = list.filter(m => ymd(new Date(m.ts || 0)) < t), now = list.filter(m => ymd(new Date(m.ts || 0)) >= t);
+  const oldHTML = !old.length ? '' : showOld
+    ? `<button class="oldbtn" data-old="0">📜 지난 대화 접기</button>${old.map(msgHTML).join('')}<div class="daysep">— 오늘 —</div>`
+    : `<button class="oldbtn" data-old="1">📜 지난 대화 ${old.length}개 보기 (지워지지 않고 저장돼 있어요)</button>`;
+  $('msgs').innerHTML = oldHTML + welcomeHTML() + now.map(msgHTML).join('') + extra;
   if (near || extra) $('msgs').scrollTop = $('msgs').scrollHeight;
 }
 $('msgs').onclick = async e => {
+  const ob = e.target.closest('[data-old]');
+  if (ob) { showOld = ob.dataset.old === '1'; renderChat(); $('msgs').querySelector('.welcome')?.scrollIntoView({ block: 'start' }); return; }
   if (e.target.closest('[data-open-set]')) return openSet();
   if (e.target.closest('[data-go-work]')) return document.querySelector('nav button[data-p=pWork]').click();
   const sgb = e.target.closest('[data-sug]');
