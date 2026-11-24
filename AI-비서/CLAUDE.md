@@ -120,3 +120,4 @@
 - 2026-11-23 · 학교 PC Claude Code: PC 일꾼 v0.9.1 — autostart.ps1 바로가기를 conhost.exe --headless powershell …로(윈도우 11 기본 터미널이 -WindowStyle Hidden을 무시해 작업 표시줄에 빈 창이 남고 닫으면 꺼지던 것). 학교 PC는 -Install 다시 함
 - 2026-11-24 · 학교 PC Claude Code: AI 비서 v0.18.1 — 아침 브리핑이 저절로 꺼지던 버그. pushProfile()이 이 기기 ls 'brief'(기본 on:false·옛 값)를 늘 올려 덮어썼음(⚙️ 저장·새 기기 첫 로그인). 이제 서버 settings를 읽어 합치고 patch.brief 있을 때만 brief 변경, openSet에서 pullProfile 후 briefAtOpen과 다를 때만 올림
 - 2026-11-24 · 학교 PC Claude Code: AI 비서 v0.19.0 — renderChat이 ts 기준 어제까지 대화를 접음(showOld, .oldbtn data-old, .daysep), welcome 카드는 오늘 대화 바로 위. 펼칠 때 welcome으로 scrollIntoView. 데이터·AI에 보내는 최근 16개는 그대로. Playwright 시험 통과
+- 2026-11-24 · 학교 PC Claude Code: AI 비서 v0.20.0 — #bBriefPop(pChat 오른쪽 위, .welcome이 msgs 밖이면 show; msgs scroll·renderChat 뒤 briefPopCheck) → #mBrief 모달에 welcomeHTML(). 모달 안 칩·배너는 #briefPop 클릭 위임. Playwright 시험 통과

@@ -27,6 +27,10 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column;width:100%;max-wi
 .page{display:none;flex:1;min-height:0;overflow:auto;padding:12px 14px}
 .page.on{display:block}
 #pChat.on{display:flex;flex-direction:column;padding:0}
+#pChat{position:relative}
+#bBriefPop{position:absolute;top:10px;right:12px;z-index:5;display:none;background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:13.5px;box-shadow:0 2px 8px rgba(0,0,0,.12);cursor:pointer}
+#bBriefPop.show{display:block}
+#mBrief .welcome{border:0;padding:4px 0}
 #msgs{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .m{max-width:88%;padding:10px 12px;border-radius:14px;line-height:1.6;font-size:15px;word-break:break-word}
 .m.u{align-self:flex-end;background:var(--main);color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
@@ -176,6 +180,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
   <!-- 대화 -->
   <section id="pChat" class="page on">
     <div id="msgs"></div>
+    <button id="bBriefPop" title="오늘 브리핑 카드 보기">☀️ 브리핑</button>
     <div class="quick" id="quick"></div>
     <div class="att" id="att"><span id="attName"></span><button id="attX" title="빼기">✕</button></div>
     <div class="inbar">
@@ -280,6 +285,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 </main>
 
 <!-- 설정 창 -->
+<div class="modal" id="mBrief"><div class="sheet"><div id="briefPop"></div><div style="text-align:right;margin-top:8px"><button class="chip" id="briefPopX">닫기</button></div></div></div>
 <div class="modal" id="mSet"><div class="sheet">
   <h3>⚙️ 설정</h3>
 
@@ -380,7 +386,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.19.0';
+const VERSION = '0.20.0';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -1413,7 +1419,24 @@ function renderChat(extra = '') {
     : `<button class="oldbtn" data-old="1">📜 지난 대화 ${old.length}개 보기 (지워지지 않고 저장돼 있어요)</button>`;
   $('msgs').innerHTML = oldHTML + welcomeHTML() + now.map(msgHTML).join('') + extra;
   if (near || extra) $('msgs').scrollTop = $('msgs').scrollHeight;
+  requestAnimationFrame(briefPopCheck);
 }
+// ☀️ 브리핑 카드가 화면 밖으로 올라가면 [☀️ 브리핑] 버튼이 떠요 → 누르면 팝업으로 봐요
+function briefPopCheck() {
+  const w = $('msgs').querySelector('.welcome'), box = $('msgs').getBoundingClientRect();
+  const hidden = !w || w.getBoundingClientRect().bottom < box.top + 40 || w.getBoundingClientRect().top > box.bottom - 40;
+  $('bBriefPop').classList.toggle('show', hidden);
+}
+$('msgs').addEventListener('scroll', briefPopCheck, { passive: true });
+$('bBriefPop').onclick = () => { $('briefPop').innerHTML = welcomeHTML(); $('mBrief').classList.add('show'); };
+$('briefPopX').onclick = () => $('mBrief').classList.remove('show');
+$('briefPop').onclick = e => {
+  const hit = e.target.closest('[data-sug],[data-open-set],[data-go-work]'); if (!hit) return;
+  $('mBrief').classList.remove('show');
+  if (hit.dataset.sug != null) { const s = suggestions()[+hit.dataset.sug]; if (s) send(s[1]); }
+  else if (hit.dataset.openSet) openSet();
+  else document.querySelector('nav button[data-p=pWork]').click();
+};
 $('msgs').onclick = async e => {
   const ob = e.target.closest('[data-old]');
   if (ob) { showOld = ob.dataset.old === '1'; renderChat(); $('msgs').querySelector('.welcome')?.scrollIntoView({ block: 'start' }); return; }
