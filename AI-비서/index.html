@@ -393,7 +393,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.23.0';
+const VERSION = '0.23.1';
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -663,7 +663,7 @@ const daysTxt = ds => ds.length === 7 ? '매일' : ds.join() === '1,2,3,4,5' ? '
 const rtSpan = r => r.from || r.until ? ` (${r.from ? dLabel(r.from) : ''}~${r.until ? dLabel(r.until) : ''})` : '';
 const rtLive = (r, t) => (!r.from || r.from <= t) && (!r.until || r.until >= t); // 기간 안인지
 // "아침·점심·저녁"처럼 시각을 말로 하면 기본 시각으로 바꿔요
-const TIME_WORD = [[/새벽/, '06:00'], [/아침|기상/, '08:00'], [/점심|낮/, '12:30'], [/저녁/, '18:30'], [/밤|자기\s*전|취침/, '22:00']];
+const TIME_WORD = [[/새벽/, '06:00'], [/아침|기상/, '07:00'], [/점심|낮/, '12:00'], [/저녁/, '17:30'], [/밤|자기\s*전|취침/, '22:00']];
 function routineTime(a) {
   const t = String(a.time || '').trim(), m = t.match(/^(\d{1,2}):(\d{2})$/);
   if (m && +m[1] < 24) return pad(+m[1]) + ':' + m[2];
@@ -1864,7 +1864,7 @@ function systemPrompt() {
    ☀️ 아침 브리핑 알림: 사용자가 브리핑 시각을 바꾸거나 켜고 끄라고 하면 set_brief(time=HH:MM 24시간, mode=on 또는 off). "7시 반"은 07:30, "저녁 9시"는 21:00. 시각을 말하지 않고 켜 달라고만 하면 몇 시에 받을지 먼저 물어봐. 지금 설정은 [아침 브리핑]을 봐.
    🌤️ 날씨: [날씨]를 보고 대답해(옷차림·우산·미세먼지·체육 같은 바깥 활동 조언도). 사용자가 날씨 지역을 정하거나 바꾸라고 하면 set_weather(text=지역 이름, 예: "세종", "서울 강남구"). 다른 지역이나 며칠 뒤 날씨는 아직 모른다고 해.
    ⏰ 반복 일: 사용자가 "매주 금요일 4시에 다음 주 일정 정리해 줘", "평일 아침 8시마다 오늘 할 일 알려 줘"처럼 정해진 때마다 해 달라고 하면 add_routine(title=짧은 이름, text=그때 AI에게 시킬 말(그것만 읽어도 알게 자세히, 예: "다음 주 월~금 일정과 마감 할 일을 요일별로 정리하고 준비할 것을 알려 줘"), time=HH:MM 24시간, values=요일 목록 예 ["금"] / 매일이면 ["매일"] / 평일이면 ["평일"] / 주말이면 ["주말"]). 그만하거나 지우라면 delete_routine(id=[반복 일]의 id). 매달·격주는 아직 못 한다고 해. 반복 일은 결과를 대화와 알림으로 보여 주기만 하고 일정·할 일을 바꾸지는 않아. 매일 아침 브리핑 알림 자체는 set_brief야.
-   🔔 반복 알림(약 먹기·물 마시기·스트레칭처럼 "~할 때 알려 줘", "~하라고 알려 줘"): add_routine에 remind=true를 넣고 text=알림에 보일 말(예: "💊 점심 약 드실 시간이에요"). 시각마다 add_routine을 하나씩 따로 담아(아침·점심·저녁이면 3개, 최대 6개). 시각을 정확히 말하지 않아도 되묻지 말고 기본 시각을 써: 아침 08:00, 점심 12:30, 저녁 18:30, 자기 전 22:00 — 그리고 reply에 쓴 시각을 밝혀(바꾸고 싶으면 말해 달라고). 정말 아무 때인지 모를 때만 물어봐.
+   🔔 반복 알림(약 먹기·물 마시기·스트레칭처럼 "~할 때 알려 줘", "~하라고 알려 줘"): add_routine에 remind=true를 넣고 text=알림에 보일 말(예: "💊 점심 약 드실 시간이에요"). 시각마다 add_routine을 하나씩 따로 담아(아침·점심·저녁이면 3개, 최대 6개). 시각을 정확히 말하지 않아도 되묻지 말고 기본 시각을 써: 아침 07:00, 점심 12:00, 저녁 17:30, 자기 전 22:00 — 그리고 reply에 쓴 시각을 밝혀(바꾸고 싶으면 말해 달라고). 정말 아무 때인지 모를 때만 물어봐.
    📆 기간: "3일간·이번 주만·금요일까지"처럼 기간이 있으면 date=시작일(오늘부터면 비워도 돼), until=마지막 날(YYYY-MM-DD, 그날까지 포함), values=["매일"]. "오늘부터 3일간"은 오늘 포함 3일이라 until=오늘+2일(아래 달력으로 정확히 계산하고 reply에 "○일(○)까지"라고 날짜를 밝혀). 기간이 끝나면 저절로 지워져.
    ✅ 사용자가 "오늘 아침 약은 먹었어"처럼 오늘 그 회차는 이미 했다고 하면 그 시각의 add_routine에 done_today=true를 넣어(오늘만 건너뛰고 내일부터 알려 줘). 이미 지난 시각은 앱이 알아서 오늘 건너뛰어.
    반복 일·반복 알림은 [허락] 없이 바로 만들어지지만, 결과는 아래 줄에 따로 표시되니 reply에서는 "만들어 둘게요"처럼 말해.
