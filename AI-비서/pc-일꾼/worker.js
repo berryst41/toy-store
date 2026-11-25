@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.10.0';
+const VERSION = '0.10.1';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST?.home || (TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼'));
 fs.mkdirSync(HOME, { recursive: true });
@@ -652,9 +652,17 @@ async function routineTick() {
   if (!list.length) return;
   const d = TEST?.now ? new Date(TEST.now) : new Date(), t = ymdL(d), nowM = d.getHours() * 60 + d.getMinutes();
   for (const r of list) {
+    if ((r.from && r.from > t) || (r.until && r.until < t)) continue; // 기간 밖(예: "3일간만")이면 안 해요
     if (!(r.days || []).includes(d.getDay()) || !/^\d{2}:\d{2}$/.test(r.time || '')) continue;
     const at = +r.time.slice(0, 2) * 60 + +r.time.slice(3);
     if (nowM < at || nowM > at + 120 || (st.rt_last || {})[r.id] === t) continue;
+    if (r.remind) { // 🔔 알림만(약 먹기 등): AI 없이 글 그대로 폰 알림
+      if (!(await B.markRt(r.id, t))) continue;
+      say('🔔 반복 알림:', r.title);
+      await B.addChat(`🔔 **${r.title}** (${r.time})\n\n${r.text}`);
+      await B.notify('🔔 ' + r.title, r.text.slice(0, 280), 'ai-routine');
+      continue;
+    }
     if (!cfg.gkey) { say('⚠️ Gemini 키가 없어서 반복 일을 못 해요:', r.title); continue; }
     if (!(await B.markRt(r.id, t))) continue; // 앱이나 다른 PC가 벌써 했어요
     say('⏰ 반복 일:', r.title);
