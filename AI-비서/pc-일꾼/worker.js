@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path'), os = require('os'), readline =
 
 const SB_URL = 'https://aaiplfmwljguzsvgdxit.supabase.co';
 const SB_KEY = 'sb_publishable_CJMXrbPYqKs8a1cxvYyQbw_iJtzslLD'; // 공개용 키(안전)
-const VERSION = '0.9.1';
+const VERSION = '0.10.0';
 const TEST = process.env.AIW_TEST ? JSON.parse(fs.readFileSync(process.env.AIW_TEST, 'utf8')) : null; // 시험용(가짜 서버·가짜 AI)
 const HOME = TEST?.home || (TEST ? fs.mkdtempSync(path.join(os.tmpdir(), 'aiw-')) : path.join(process.env.LOCALAPPDATA || os.homedir(), 'AI비서일꾼'));
 fs.mkdirSync(HOME, { recursive: true });
@@ -68,7 +68,24 @@ const B = TEST ? testBackend() : {
   async claim(t) { const { data } = await sb.from('ai_tasks').update({ status: 'running', spec: { ...(t.spec || {}), by: cfg.name } }).eq('id', t.id).eq('status', 'queued').select('id'); return !!data?.length; },
   async update(id, patch) { const { error } = await sb.from('ai_tasks').update(patch).eq('id', id); if (error) say('⚠️ 저장 실패', error.message); },
   async add(row) { await sb.from('ai_tasks').insert({ ...row, user_id: me.id }); },
-  async notify(title, body) { try { await sb.functions.invoke('ai-google', { body: { action: 'notify', title, body } }); } catch (e) { /* 알림 실패는 넘어가요 */ } },
+  async notify(title, body, tag) { try { await sb.functions.invoke('ai-google', { body: { action: 'notify', title, body, ...(tag ? { tag } : {}) } }); } catch (e) { /* 알림 실패는 넘어가요 */ } },
+  // ⏰ 반복 일 (v0.10): 앱이 ai_profile.settings.routines에 적어 둔 걸 정한 시각에 해요
+  async profile() { const { data, error } = await sb.from('ai_profile').select('me,settings').maybeSingle(); if (error) throw error; return data || { settings: {} }; },
+  async markRt(id, day) { // 한 날짜에 한 번만: 다시 읽어서 아직 안 했을 때만 표시하고 true
+    const { data } = await sb.from('ai_profile').select('settings').maybeSingle(); const st = data?.settings || {};
+    if ((st.rt_last || {})[id] === day) return false;
+    const { error } = await sb.from('ai_profile').update({ settings: { ...st, rt_last: { ...(st.rt_last || {}), [id]: day } }, updated_at: new Date().toISOString() }).eq('user_id', me.id);
+    if (error) throw error; return true;
+  },
+  async addChat(text) { const id = 'c' + Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6); const { error } = await sb.from('ai_items').upsert({ id, user_id: me.id, kind: 'chat', data: { role: 'model', text, acts: ['⏰ 반복 일 — PC 일꾼이 했어요'], ts: Date.now() }, deleted: false }); if (error) throw error; },
+  async ctx(from, to) {
+    const [items, cool, phone, g] = await Promise.all([
+      sb.from('ai_items').select('kind,data').eq('deleted', false).in('kind', ['event', 'todo', 'memo']),
+      sb.from('ai_cool').select('kind,text,due,time,sender').eq('done', false).eq('gone', false),
+      sb.from('ai_phone_cal').select('calendars,events'),
+      sb.functions.invoke('ai-google', { body: { action: 'context', from, to, max: 10 } }).catch(() => ({ data: null }))]);
+    return { items: items.data || [], cool: cool.data || [], phone: phone.data || [], g: g?.data && !g.data.error ? g.data : null };
+  },
   async beat(info) { await sb.from('ai_workers').upsert({ user_id: me.id, name: cfg.name, last_seen: new Date().toISOString(), info }); },
   // 📅 예약이 끝나면 캘린더에 넣기: 폰 캘린더(⚙️ 기본, 보통 공유용)가 있으면 캘린더 다리에 쪽지, 없으면 비서 일정에
   async addCal(ev) {
@@ -101,7 +118,11 @@ function testBackend() {
     async get(id) { const r = rows.find(x => x.id === id); if (r && r.status === 'need_ok' && TEST.answer) { r.answer = TEST.answer; r.status = 'running'; } return r; },
     async update(id, p) { Object.assign(rows.find(x => x.id === id), p); if (p.status || p.step) say('  ↳', id, p.status || '', p.step || ''); },
     async add(row) { rows.push({ id: 't' + rows.length, status: 'queued', log: [], ...row }); },
-    async notify(t, b) { say('🔔 알림:', t, '/', b); (TEST.notified ||= []).push(t); },
+    async notify(t, b, tag) { say('🔔 알림:', t, '/', b); (TEST.notified ||= []).push(t + (tag ? ' #' + tag : '')); },
+    async profile() { return TEST.profile || { settings: {} }; },
+    async markRt(id, day) { const st = (TEST.profile ||= { settings: {} }).settings; st.rt_last ||= {}; if (st.rt_last[id] === day) return false; st.rt_last[id] = day; return true; },
+    async addChat(text) { (TEST.chat ||= []).push(text); },
+    async ctx() { return TEST.ctx || { items: [], cool: [], phone: [], g: null }; },
     async addCal(ev) { (TEST.cal ||= []).push(ev); return '📅 시험 캘린더'; },
     async beat() {}
   };
@@ -571,6 +592,80 @@ async function coolSync() {
   return (coolInfo = { n: seen.size, at: new Date().toISOString() });
 }
 
+/* ============ ⏰ 반복 일 (v0.10) ============ */
+// 앱에서 "매주 금요일 4시에 다음 주 일정 정리해 줘"라고 하면 settings.routines에 들어가요.
+// 일꾼은 1분마다 보고, 정한 시각부터 2시간 안이고 오늘 아직 안 했으면(rt_last) 해요 → 대화에 남기고 폰 알림.
+// 일꾼이 꺼져 있어서 못 했으면 앱이 열릴 때 대신 해요(앱 runDueRoutines).
+const pad2 = n => String(n).padStart(2, '0');
+const ymdL = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const addDaysL = (s, n) => { const d = new Date(s + 'T00:00'); d.setDate(d.getDate() + n); return ymdL(d); };
+const WDK = ['일', '월', '화', '수', '목', '금', '토'];
+async function geminiText(system, text) {
+  if (TEST) { const r = TEST.gemini.shift(); if (!r) throw new Error('시험 AI 답이 떨어졌어요'); return typeof r === 'string' ? r : r.reply || ''; }
+  for (const model of [cfg.model, 'gemini-2.5-flash-lite', 'gemini-flash-latest'].filter((m, i, a) => a.indexOf(m) === i)) {
+    for (let tryN = 0; tryN < 2; tryN++) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': cfg.gkey },
+        body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text }] }], generationConfig: { temperature: 0.5 } })
+      });
+      if (res.status === 503 || res.status === 500) { await sleep(5000); continue; }
+      if (res.status === 429) break; // 모델마다 한도가 따로라 다음 모델로
+      if (!res.ok) throw new Error(`AI 오류 ${res.status}: ${(await res.text()).slice(0, 150)}`);
+      const d = await res.json(), out = d.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+      if (out) return out.trim();
+      throw new Error('AI가 답을 주지 않았어요');
+    }
+  }
+  throw new Error('AI가 바쁘거나 오늘 무료 한도를 다 썼어요');
+}
+async function routinePrompt(me) {
+  const d = new Date(), t = ymdL(d), c = await B.ctx(addDaysL(t, -1), addDaysL(t, 30));
+  const inRange = x => x && x >= addDaysL(t, -1) && x <= addDaysL(t, 30);
+  const evs = [];
+  for (const i of c.items) if (i.kind === 'event' && inRange(i.data.date)) evs.push(`${i.data.date} ${i.data.time || '종일'} ${i.data.title}`);
+  for (const e of c.g?.events || []) if (inRange(e.date)) evs.push(`${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''} ${e.title} [${e.label || '구글'}]`);
+  for (const p of c.phone) {
+    const cals = new Map((p.calendars || []).map(x => [String(x.id), x]));
+    for (const e of p.events || []) { const cl = cals.get(String(e.cal)); if (cl && cl.visible === false) continue; if (inRange(e.date)) evs.push(`${e.date} ${e.time || '종일'}${e.end ? '~' + e.end : ''} ${e.title || '(제목 없음)'} [폰]`); }
+  }
+  for (const x of c.cool) if (x.kind === 'note' && inRange(x.due)) evs.push(`${x.due} ${x.time || '종일'} ${x.text} [쿨메신저]`);
+  const uniq = [...new Set(evs)].sort();
+  const todos = c.items.filter(i => i.kind === 'todo' && !i.data.done && i.data.kind !== 'remember').map(i => `${i.data.title}${i.data.due ? ' ~' + i.data.due : ''}`);
+  const coolT = c.cool.filter(x => x.kind === 'todo').map(x => `${x.text}${x.due ? ' ~' + x.due : ''}`);
+  const memos = c.items.filter(i => i.kind === 'memo').map(i => i.data.text);
+  const cal14 = Array.from({ length: 14 }, (_, i) => { const x = addDaysL(t, i); return `${x}(${WDK[new Date(x + 'T00:00').getDay()]})`; }).join(', ');
+  return `너는 사용자의 개인 AI 비서야. 한국어로 쉽고 친절하게, 핵심부터 짧게 써. 마크다운(## 소제목, - 목록, **굵게**)을 써도 돼.
+지금은 사용자가 정해 둔 "반복 일"을 정해진 시각에 저절로 하는 중이라 사용자에게 되물을 수 없어. 아래 자료만 보고 대답하고 없는 일정은 지어내지 마.
+[지금] ${t} ${WDK[d.getDay()]}요일 ${pad2(d.getHours())}:${pad2(d.getMinutes())}
+[달력] ${cal14}
+[내 정보] ${me || '(없음)'}
+[기억] ${memos.join(' / ') || '(없음)'}
+[일정] ${uniq.join(' / ') || '(없음)'}
+[할 일] ${todos.join(' / ') || '(없음)'}
+[쿨메신저 할 일] ${coolT.join(' / ') || '(없음)'}
+[최근 메일] ${(c.g?.mails || []).slice(0, 10).map(m => `${m.from}: ${m.subject}`).join(' / ') || '(없음)'}`;
+}
+let rtLastCheck = 0;
+async function routineTick() {
+  if (!TEST && Date.now() - rtLastCheck < 60000) return; rtLastCheck = Date.now();
+  const prof = await B.profile(), st = prof.settings || {}, list = (st.routines || []).filter(r => r.on !== false);
+  if (!list.length) return;
+  const d = TEST?.now ? new Date(TEST.now) : new Date(), t = ymdL(d), nowM = d.getHours() * 60 + d.getMinutes();
+  for (const r of list) {
+    if (!(r.days || []).includes(d.getDay()) || !/^\d{2}:\d{2}$/.test(r.time || '')) continue;
+    const at = +r.time.slice(0, 2) * 60 + +r.time.slice(3);
+    if (nowM < at || nowM > at + 120 || (st.rt_last || {})[r.id] === t) continue;
+    if (!cfg.gkey) { say('⚠️ Gemini 키가 없어서 반복 일을 못 해요:', r.title); continue; }
+    if (!(await B.markRt(r.id, t))) continue; // 앱이나 다른 PC가 벌써 했어요
+    say('⏰ 반복 일:', r.title);
+    try {
+      const out = await geminiText(await routinePrompt(prof.me), `[⏰ 반복 일 "${r.title}"]\n${r.text}`);
+      await B.addChat(`⏰ **${r.title}** (${r.time})\n\n${out}`);
+      await B.notify('⏰ ' + r.title, out.replace(/[#*`>|]/g, '').replace(/\n{2,}/g, '\n').trim().slice(0, 280), 'ai-routine');
+    } catch (e) { say('⚠️ 반복 일 실패:', r.title, e.message); await B.notify('⚠️ 반복 일을 못 했어요', `${r.title}\n${e.message}`, 'ai-routine'); }
+  }
+}
+
 /* ============ 시작 ============ */
 (async () => {
   console.log(HIDDEN ? `🖥️ AI 비서 PC 일꾼 v${VERSION} — 숨어서 켜졌어요` : `🖥️ AI 비서 PC 일꾼 v${VERSION}\n   이 검은 창을 닫으면 일꾼도 꺼져요. 일꾼이 여는 브라우저 창은 닫지 말고 그대로 두세요.`);
@@ -600,6 +695,7 @@ async function coolSync() {
     try {
       if (Date.now() - lastCool > (TEST ? 0 : 20000)) { lastCool = Date.now(); await coolSync().catch(e => say('⚠️ 쿨메신저 맞추기 실패:', e.message)); }
       if (Date.now() - lastBeat > 30000) { lastBeat = Date.now(); await B.beat({ v: VERSION, running: running.size, cool: coolInfo }); }
+      await routineTick().catch(e => say('⚠️ 반복 일 확인 실패:', e.message));
       for (const t of await B.tasks(['queued'])) {
         if (running.has(t.id)) continue;
         // ⏰ 정각 예약은 10분 전에 창을 열고, 🔁 다시 해 보기는 정한 시각이 되면 시작해요
@@ -617,5 +713,5 @@ async function coolSync() {
     if (TEST && !running.size && !(await B.tasks(['queued'])).length) break;
     await sleep(3000);
   }
-  if (TEST) { fs.writeFileSync(process.env.AIW_TEST + '.out.json', JSON.stringify({ rows: B.rows, cool: B.cool, notified: TEST.notified || [] }, null, 1)); if (ctx) await ctx.close(); process.exit(0); }
+  if (TEST) { fs.writeFileSync(process.env.AIW_TEST + '.out.json', JSON.stringify({ rows: B.rows, cool: B.cool, notified: TEST.notified || [], chat: TEST.chat || [], rt_last: TEST.profile?.settings?.rt_last || {} }, null, 1)); if (ctx) await ctx.close(); process.exit(0); }
 })().catch(e => { console.error('\n❌', e.message); if (!TEST && !HIDDEN) ask('Enter를 누르면 닫혀요').then(() => process.exit(1)); else process.exit(1); });
