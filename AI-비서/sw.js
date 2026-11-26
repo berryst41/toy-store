@@ -1,6 +1,6 @@
 // 서비스 워커: 항상 인터넷에서 최신 파일을 먼저 받고, 안 되면(오프라인) 저장해 둔 걸 써요.
 // → 코드를 고쳐 올리면 앱을 다시 설치하지 않아도 다음에 열 때 바로 바뀌어요.
-const CACHE = 'ai-secretary-v0.22.0';
+const CACHE = 'ai-secretary-v0.23.4';
 // 아침 브리핑 알림 받기 → 누르면 앱 열기
 // ☀️ 아침 브리핑이면 앱이 'ai-cfg' 캐시에 적어 둔 날씨 지역으로 오늘 날씨를 받아 한 줄 붙여요(4초 안에 못 받으면 그냥 보내요)
 const WX_ICON = c => c === 0 ? '☀️ 맑음' : c <= 2 ? '🌤️ 구름 조금' : c === 3 ? '☁️ 흐림' : c <= 48 ? '🌫️ 안개' : c <= 57 ? '🌦️ 이슬비' : c <= 67 ? '🌧️ 비' : c <= 77 ? '🌨️ 눈' : c <= 82 ? '🌧️ 소나기' : c <= 86 ? '🌨️ 눈' : '⛈️ 뇌우';
@@ -26,7 +26,7 @@ self.addEventListener('push', e => {
     if (/아침 브리핑/.test(d.title || '')) { const w = await wxLine(); if (w) d.body = w + '\n' + (d.body || ''); }
     // ⏰ 반복 일 알림(일꾼이 tag ai-routine으로 보냄)은 누르면 대화 화면으로
     const url = d.tag === 'ai-routine' ? './' : d.url || './';
-    await self.registration.showNotification(d.title || 'AI berryst', { body: d.body || '', tag: d.tag || 'ai', icon: 'icon-192.png', badge: 'icon-192.png', data: { url } });
+    await self.registration.showNotification(d.title || 'AI berryst', { body: d.body || '', tag: d.tag || 'ai', icon: 'icon-192.png', badge: 'badge.png', data: { url } });
   })());
 });
 self.addEventListener('notificationclick', e => {
@@ -40,7 +40,7 @@ self.addEventListener('notificationclick', e => {
 });
 self.addEventListener('install', e => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'lib/supabase.js'])));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'badge.png', 'lib/supabase.js'])));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(
