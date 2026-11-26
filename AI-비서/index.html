@@ -351,7 +351,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
   <h4>⏰ 반복 일 <small style="font-weight:400;color:var(--sub)">정한 때마다 저절로</small></h4>
   <div id="rtSet" style="margin-top:6px"></div>
-  <div class="hint">대화창에 "매주 금요일 오후 4시에 다음 주 일정 정리해 줘", "3일간 아침·점심·저녁에 약 먹으라고 알려 줘"처럼 말하면 생겨요(기간을 말하면 끝난 뒤 저절로 지워져요). 그 시각에 PC 일꾼이 켜져 있으면 일꾼이 해서 폰 알림으로 보내고, 꺼져 있었으면 앱을 열 때 대신 해요. 결과는 대화에 남아요(AI 사용량 1번씩 써요).</div>
+  <div class="hint">대화창에 "매주 금요일 오후 4시에 다음 주 일정 정리해 줘", "3일간 아침·점심·저녁에 약 먹으라고 알려 줘"처럼 말하면 생겨요(기간을 말하면 끝난 뒤 저절로 지워져요). 🔔 약 먹기 같은 알림은 서버가 그 시각에 폰으로 바로 보내요(PC 일꾼이 꺼져 있어도). AI가 하는 반복 일은 PC 일꾼이 켜져 있으면 일꾼이 하고, 꺼져 있었으면 앱을 열 때 대신 해요. 결과는 대화에 남아요(AI 사용량 1번씩 써요).</div>
 
   <h4>🖥️ PC 일꾼 <small style="font-weight:400;color:var(--sub)">대신 누르기·빈자리 지켜보기</small></h4>
   <div id="wkSet" style="margin-top:6px"></div>
@@ -393,7 +393,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.23.4';
+const VERSION = '0.24.0';
 let busy = false; // AI 대답을 기다리는 중인지
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
@@ -689,7 +689,12 @@ async function addRoutine(a) {
     for (const [i, p] of parts.slice(0, 6).entries()) out.push(await addRoutine({ ...a, time: p, done_today: a.done_today && i === 0, title: TIME_WORD.some(([re]) => re.test(p)) && !TIME_WORD.some(([re]) => re.test(a.title || '')) ? `${p} ${a.title || a.text}` : a.title }));
     return out.join('\n');
   }
-  if (!a.remind && /약\s*(먹|드|챙|복용)|복용|영양제|물\s*마시|스트레칭/.test((a.title || '') + ' ' + (a.text || ''))) a.remind = true; // 약 먹기 같은 건 AI 없이 알림만
+  const said = a._said || '';
+  if (!a.remind && (/약\s*(먹|드|챙|복용)|복용|영양제|물\s*마시|스트레칭/.test((a.title || '') + ' ' + (a.text || '')) || /알려\s*줘|알림/.test(said) && /약|복용|영양제/.test(said + (a.title || '')))) a.remind = true; // 약 먹기 같은 건 AI 없이 알림만
+  // AI가 기간(until)을 빠뜨려도 사용자 말("3일간", "일주일 동안")에서 채워요
+  const nDays = (m => m ? +m[1] : /일주일|한\s*주/.test(said) ? 7 : 0)(said.match(/(\d+)\s*일\s*(간|동안)/));
+  if (!a.until && nDays > 0 && nDays <= 60) a.until = addDays(okDate(a.date) ? a.date : today(), nDays - 1);
+  if (a.remind && /^[^\s]{0,2}\s*(아침|점심|저녁|자기\s*전)?\s*약$/.test(String(a.text || '').trim())) a.text = `💊 ${(a.title || a.text).trim()} 드실 시간이에요`;
   const t = today(), from = okDate(a.date) ? a.date : '', until = okDate(a.until) ? a.until : '', time = routineTime(a);
   // 요일을 안 줬는데 기간이 있으면 그 기간 동안 매일로 봐요
   const days = parseDays(a.values?.length ? a.values : a.mode || '').length ? parseDays(a.values?.length ? a.values : a.mode || '') : [0, 1, 2, 3, 4, 5, 6]; // 요일을 안 말하면 매일
@@ -2086,7 +2091,7 @@ async function send(text) {
     }
     for (const a of (r.actions || []).filter(x => x.type === 'set_brief').slice(0, 1)) res.done.push(await setBrief(a));
     for (const a of (r.actions || []).filter(x => x.type === 'set_weather').slice(0, 1)) { try { res.done.push(await setWeatherBy(a.text || a.title)); } catch (err) { res.done.push('⚠️ ' + err.message); } }
-    for (const a of (r.actions || []).filter(x => x.type === 'add_routine').slice(0, 6)) res.done.push(await addRoutine(a));
+    for (const a of (r.actions || []).filter(x => x.type === 'add_routine').slice(0, 6)) res.done.push(await addRoutine({ ...a, _said: text }));
     for (const a of (r.actions || []).filter(x => x.type === 'delete_routine')) res.done.push(await delRoutine(a.id));
     if ((r.actions || []).some(x => x.type === 'tidy_mail')) res.done.push(await tidyMailNow());
     let reply = r.reply || '';
