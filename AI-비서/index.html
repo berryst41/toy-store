@@ -393,7 +393,8 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.23.2';
+const VERSION = '0.23.3';
+let busy = false; // AI 대답을 기다리는 중인지
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
 fitAppH(); (window.visualViewport || window).addEventListener('resize', fitAppH); addEventListener('orientationchange', () => setTimeout(fitAppH, 300));
@@ -1698,6 +1699,7 @@ function msgHTML(m) {
 // 펼치면 기기에 있는 7일 치 + 서버에서 불러온 더 오래된 것(olderChat, 기기엔 저장 안 함)을 함께 보여 줘요
 let showOld = false, olderChat = null, olderBusy = false;
 function renderChat(extra = '') {
+  if (!extra && busy) extra = '<div class="typing">비서가 생각하고 있어요… ✍️</div>'; // 대답 기다리는 중에 다른 일(반복 일·동기화)로 화면을 다시 그려도 "생각 중"이 사라지지 않게
   const near = $('msgs').scrollHeight - $('msgs').scrollTop - $('msgs').clientHeight < 80;
   const t = today(), list = S.chat.slice(-100), have = new Set(S.chat.map(m => m.id));
   const old = list.filter(m => ymd(new Date(m.ts || 0)) < t), now = list.filter(m => ymd(new Date(m.ts || 0)) >= t);
@@ -1932,9 +1934,10 @@ async function gemini(contents, opt = {}) {
       let res;
       try {
         res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body,
+          signal: AbortSignal.timeout(60000) // 1분 넘게 대답이 없으면 그만 기다리고 다시 해요(예전엔 끝없이 기다려서 대답이 안 왔어요)
         });
-      } catch (e) { last = new Error('인터넷 연결을 확인해 주세요'); await sleep(1500); continue; }
+      } catch (e) { last = new Error(e.name === 'TimeoutError' ? 'AI가 1분 넘게 대답하지 않았어요. 다시 보내 주세요' : '인터넷 연결을 확인해 주세요'); await sleep(1500); continue; }
       if (res.ok) {
         bumpUsage(false);
         const data = await res.json();
@@ -2041,7 +2044,6 @@ function applyActions(actions = [], approved = false) {
 }
 
 /* ---------- 보내기 ---------- */
-let busy = false;
 async function send(text) {
   if (busy) return;
   text = (text ?? $('inp').value).trim();
