@@ -357,6 +357,30 @@ async function pushTo(uid: string, msg: { title: string; body: string; url?: str
   return sent;
 }
 
+// 🔔 반복 알림: settings.routines 중 remind=true이고 기간·요일이 맞고, 정한 시각~2시간 안이고, 오늘 아직 안 했으면(rt_last) 보내요
+// 앱·PC 일꾼과 같은 rt_last를 써서 한 번만 가요. AI가 필요한 반복 일(remind 아님)은 그대로 일꾼·앱이 해요.
+async function routineReminders(uid: string, t: string, now: number) {
+  const { data: p } = await admin.from('ai_profile').select('settings').eq('user_id', uid).maybeSingle();
+  const st = p?.settings || {}, list = (st.routines || []) as { id: string; title: string; text: string; time: string; days: number[]; on?: boolean; from?: string; until?: string; remind?: boolean }[];
+  const day = new Date(t + 'T00:00:00Z').getUTCDay(), out: unknown[] = [];
+  for (const r of list) {
+    if (!r.remind || r.on === false || !/^\d{2}:\d{2}$/.test(r.time || '') || !(r.days || []).includes(day)) continue;
+    if ((r.from && r.from > t) || (r.until && r.until < t)) continue;
+    const at = mins(r.time);
+    if (now < at || now > at + 120) continue;
+    // 보내기 직전에 다시 읽어서 다른 곳(앱·일꾼)이 이미 했는지 봐요 → 표시 먼저
+    const { data: p2 } = await admin.from('ai_profile').select('settings').eq('user_id', uid).maybeSingle();
+    const s2 = p2?.settings || {};
+    if ((s2.rt_last || {})[r.id] === t) continue;
+    await admin.from('ai_profile').update({ settings: { ...s2, rt_last: { ...(s2.rt_last || {}), [r.id]: t } }, updated_at: new Date().toISOString() }).eq('user_id', uid);
+    const sent = await pushTo(uid, { title: '🔔 ' + r.title, body: r.text || r.title, tag: 'ai-rt-' + r.id, url: './' });
+    const id = 'c' + Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6);
+    await admin.from('ai_items').upsert({ id, user_id: uid, kind: 'chat', data: { role: 'model', text: `🔔 **${r.title}** (${r.time})\n\n${r.text || r.title}`, acts: [`🔔 반복 알림 — 서버가 폰 ${sent}곳에 보냈어요`], ts: Date.now() }, deleted: false });
+    out.push({ routine: r.id, sent });
+  }
+  return out;
+}
+
 /* ---------- 요청 처리 ---------- */
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -374,6 +398,8 @@ Deno.serve(async req => {
       const { data: owners } = await admin.from('ai_owner').select('user_id');
       for (const o of owners || []) {
         const { data: p } = await admin.from('ai_profile').select('settings, brief_sent').eq('user_id', o.user_id).maybeSingle();
+        // 🔔 반복 알림(약 먹기 등, remind=true): PC 일꾼이 꺼져 있어도 서버가 정한 시각에 폰으로 보내요 (v0.24)
+        try { out.push(...await routineReminders(o.user_id, t, now)); } catch (e) { out.push({ routine_error: String(e) }); }
         const b = p?.settings?.brief; if (!b?.on) continue;
         const at = /^\d{2}:\d{2}$/.test(b.time || '') ? mins(b.time) : mins('07:30');
         if (p.brief_sent === t || now < at || now > at + 180) continue;
