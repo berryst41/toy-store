@@ -53,7 +53,7 @@
 - [x] 사용자가 구글연결-설정.md 따라 GOOGLE_CLIENT_ID/SECRET 넣기 → 앱 게시(프로덕션, 미인증) → 계정 3개 연결됨(2026-11-21)
 - [x] v0.7.3: 계정 3개 [🔧 범위]로 다시 허락 → `ai_google_accounts.scopes`에 calendar.calendarlist.readonly 있는지 확인
 - [x] 삼성 캘린더 읽기 = B안 캘린더 다리 (v0.8.0, 2026-11-21). 사용자: 갤럭시 S26·안드로이드 17, APK 직접 설치 OK, 읽기만.
-- [ ] 사용자가 GitHub 시크릿 `CALBRIDGE_KEYSTORE` 넣기 → workflow_dispatch로 다시 빌드 → 릴리스 주소 확인
+- [x] 사용자가 GitHub 시크릿 `CALBRIDGE_KEYSTORE` 넣기 → workflow_dispatch로 다시 빌드 → 릴리스 주소 확인 (2026-11-22에 이미 끝 — 2026-11-27 `gh secret list`·릴리스 v0.4.0 서명본으로 확인)
 - [x] 실제 S26에 설치 후 `ai_phone_cal`에 줄이 생기는지, 삼성 캘린더 type 이름 확인
 - [x] 2단계 나머지 (v0.4.0): 기억 키우기, 아침 브리핑 알림, 먼저 제안
 - [x] 3단계 (v0.5.0): PC 일꾼 — 빈자리 지켜보기·대신 하기·허락·결과 확인
@@ -148,3 +148,4 @@
 - 2026-11-27 · PC Claude Code: AI 비서 v0.28.0 — ai-google 버전 20 배포. 브리핑: 학교 가는 날 '둘 다'(use 없음) 일정도 modeAuto.end(기본 16:40) 뒤면 🏠 퇴근 뒤 줄; briefChat()이 cron·push_test 때 ai_items chat(☀️ 제목+본문)으로 대화창에 남김. 반복 일 기간 끝남 = until<오늘 또는 (until=오늘이고 그 시각+2시간 지남) — 앱 rtOver()·서버 routineReminders 둘 다 지움(앱 안 열어도). 머리줄: 🍓 글자 → icon-192.png 딸기 로봇 그림(.logo), h1 flex:none + #bMode 바로 뒤 .sp(flex:1)로 🏫⇄🏠 단추를 로봇 옆에. 참고: index.html에 id="bMode"가 두 개(머리줄 단추, 예약 설정 select) — $('bMode')는 머리줄 것
 - 2026-11-27 · PC Claude Code: AI 비서 v0.28.1 — 머리줄 로고만 배경 없는 logo.svg(icon.svg에서 분홍 rect 빼고 viewBox 50 60 412 412로 자름, 안테나는 보라 머리줄에서 안 보여서 흰색). 앱 아이콘(icon*.png)은 그대로
 - 2026-11-27 · PC Claude Code: AI 비서 v0.28.2 — 브리핑 학교 가는 날 퇴근 뒤 없으면 '🏠 퇴근 뒤: 일정 없음'(ai-google 버전 21). 11/23 AI가 마감 없이 넣은 '내일 피부과 방문 준비' 등 3개를 대화 AI가 계속 오늘 할 일로 말함 → 사용자 말대로 서버에서 done:true(doneAt 11-27, 지우지 않음). applyActions add_todo: date 없고 제목이 오늘/내일/모레로 시작하면 due 채움(준비·챙기·확인·검토면 오늘), made=만든 날; 프롬프트 [할 일]에 '(마감 없음, 만든 날)' + 지난 '내일' 할 일 다루는 규칙
+- 2026-11-27 · PC Claude Code: 정리.md를 v0.28.2 기준으로 새로 씀(설정 현황은 서버에서 확인). 집 PC 일꾼 0.7.2→0.10.1(Downloads\pc-일꾼에 worker.js·autostart.ps1·README·package.json 복사 후 autostart.ps1 -Install, 설정·로그인은 %LOCALAPPDATA%\AI비서일꾼 그대로) — 옛 autostart가 윈도우 11 터미널 창으로 떠서 닫히면 꺼졌던 것. 캘린더 다리 서명 열쇠는 이미 돼 있었음
