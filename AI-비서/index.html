@@ -19,8 +19,10 @@ html.school{--main:#1c6fc4;--soft:#e3f0fc;--bg:#f2f7fc;--line:#d8e5f2}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:var(--appH,100dvh);overflow:hidden} /* 화면 전체는 안 움직이고, 안쪽(대화·각 탭)만 스크롤 */
 header{background:var(--main);color:#fff;padding:calc(8px + env(safe-area-inset-top)) 10px 8px 14px;display:flex;align-items:center;gap:6px;flex:none}
-header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;min-width:26px;overflow:hidden}
-@media(max-width:430px){header h1 .ttl{display:none}header{gap:4px;padding-left:10px}header .pill{padding:4px 7px}} /* 폰에선 🍓만 — 모드 버튼 자리 */
+header h1{font-size:18px;margin:0;flex:none;white-space:nowrap;min-width:30px;overflow:hidden;display:flex;align-items:center;gap:6px}
+header .logo{width:30px;height:30px;border-radius:9px;flex:none;display:block}
+header .sp{flex:1}
+@media(max-width:430px){header h1 .ttl{display:none}header{gap:4px;padding-left:10px}header .pill{padding:4px 7px}} /* 폰에선 딸기 로봇만 — 모드 버튼 자리 */
 header button{background:transparent;border:0;color:#fff;font-size:22px;padding:4px 6px;cursor:pointer}
 .pill{background:rgba(255,255,255,.18);border-radius:99px;padding:4px 9px;font-size:12.5px;white-space:nowrap;cursor:pointer;border:0;color:#fff}
 .pill.bad{background:#ffe3e3;color:#c92a2a}
@@ -168,8 +170,9 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 </head>
 <body>
 <header>
-  <h1>🍓<span class="ttl"> AI berryst</span></h1>
+  <h1><img class="logo" src="icon-192.png" alt="딸기 로봇"><span class="ttl">AI berryst</span></h1>
   <button class="pill" id="bMode" title="학교 모드 ⇄ 일상 모드 바꾸기">🏠 일상</button>
+  <span class="sp"></span>
   <button class="pill" id="usage" title="오늘 AI 사용량">🔋 오늘 0회</button>
   <button class="pill" id="sync" title="동기화 상태">📱 이 기기만</button>
   <button id="bSet" title="설정">⚙️</button>
@@ -400,7 +403,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.27.1';
+const VERSION = '0.28.0';
 let busy = false; // AI 대답을 기다리는 중인지
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
@@ -674,6 +677,8 @@ function parseDays(v) {
 }
 const daysTxt = ds => ds.length === 7 ? '매일' : ds.join() === '1,2,3,4,5' ? '평일' : ds.join() === '0,6' ? '주말' : '매주 ' + ds.map(d => WDN[d]).join('·');
 const rtSpan = r => r.from || r.until ? ` (${r.from ? dLabel(r.from) : ''}~${r.until ? dLabel(r.until) : ''})` : '';
+// (v0.28) 기간 끝남: 끝나는 날이 지났거나, 끝나는 날의 마지막 시각(+2시간)이 지났으면
+const rtOver = (r, t, nowM) => !!r.until && (r.until < t || (r.until === t && nowM > +r.time.slice(0, 2) * 60 + +r.time.slice(3) + 120));
 const rtLive = (r, t) => (!r.from || r.from <= t) && (!r.until || r.until >= t); // 기간 안인지
 // "아침·점심·저녁"처럼 시각을 말로 하면 기본 시각으로 바꿔요
 const TIME_WORD = [[/새벽/, '06:00'], [/아침|기상/, '07:00'], [/점심|낮/, '12:00'], [/저녁/, '17:30'], [/밤|자기\s*전|취침/, '22:00']];
@@ -753,7 +758,7 @@ let rtBusy = false;
 async function runDueRoutines() {
   if (!owner || rtBusy || busy) return;
   const t = today(), d = new Date(), nowM = d.getHours() * 60 + d.getMinutes();
-  if (RT.some(r => r.until && r.until < t)) { await saveRoutines(RT.filter(r => !r.until || r.until >= t)); } // 기간 끝난 반복 일은 저절로 지워요
+  if (RT.some(r => rtOver(r, t, nowM))) { await saveRoutines(RT.filter(r => !rtOver(r, t, nowM))); } // 기간 끝난 반복 일은 저절로 지워요 (끝나는 날 마지막 시각이 지나면 바로)
   const due = RT.filter(r => r.on !== false && rtLive(r, t) && (r.days || []).includes(d.getDay()) && nowM >= (+r.time.slice(0, 2) * 60 + +r.time.slice(3)) + 10 && (!r.remind || nowM <= (+r.time.slice(0, 2) * 60 + +r.time.slice(3)) + 120));
   if (!due.length) return;
   rtBusy = true;

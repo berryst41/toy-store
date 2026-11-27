@@ -322,7 +322,10 @@ async function buildBrief(uid: string) {
   }
   ev.sort((x, y) => (x.time || '00:00').localeCompare(y.time || '00:00'));
   const now = sch ? 'school' : 'life', other = sch ? 'life' : 'school';
-  const main = ev.filter(e => e.m !== other), side = ev.filter(e => e.m === other);
+  // (v0.27.1) 학교 가는 날엔 '둘 다'인 일정도 학교 끝나는 시각(modeAuto.end, 기본 16:40) 뒤면 퇴근 뒤로
+  const endT = /^\d{2}:\d{2}$/.test(st.modeAuto?.end || '') ? st.modeAuto.end : '16:40';
+  const isSide = (e: BEv) => e.m === other || (sch && !e.m && !!e.time && e.time >= endT);
+  const main = ev.filter(e => !isSide(e)), side = ev.filter(isSide);
   const evTxt = (l: BEv[], n: number) => l.slice(0, n).map(e => `${e.time || '종일'} ${e.title}`).join(', ') + (l.length > n ? ` 외 ${l.length - n}개` : '');
   const lines: string[] = [];
   lines.push(main.length ? `📅 오늘 일정 ${main.length}개: ` + evTxt(main, 5) : '📅 오늘 잡힌 일정 없음');
@@ -361,6 +364,11 @@ async function buildBrief(uid: string) {
   const d = kst();
   return { title: `${sch ? '🏫' : '🏠'} ${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WD[d.getUTCDay()]}) ${sch ? '학교 가는 날' : '쉬는 날'} 아침 브리핑`, body: lines.join('\n'), mode: now };
 }
+// (v0.28) 아침 브리핑을 💬 대화창에도 남겨요
+async function briefChat(uid: string, msg: { title: string; body: string }) {
+  const id = 'c' + Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6);
+  await admin.from('ai_items').upsert({ id, user_id: uid, kind: 'chat', data: { role: 'model', text: `☀️ **${msg.title}**\n\n${msg.body}`, acts: ['☀️ 아침 브리핑'], ts: Date.now() }, deleted: false });
+}
 async function vapidKey() {
   const { data: cfg } = await admin.from('ai_push_config').select('*').eq('id', 1).single();
   if (cfg?.vapid_public) return cfg.vapid_public as string;
@@ -387,6 +395,14 @@ async function routineReminders(uid: string, t: string, now: number) {
   const { data: p } = await admin.from('ai_profile').select('settings').eq('user_id', uid).maybeSingle();
   const st = p?.settings || {}, list = (st.routines || []) as { id: string; title: string; text: string; time: string; days: number[]; on?: boolean; from?: string; until?: string; remind?: boolean }[];
   const day = new Date(t + 'T00:00:00Z').getUTCDay(), out: unknown[] = [];
+  // (v0.28) 기간 끝난 반복 일(끝나는 날이 지났거나, 끝나는 날 마지막 시각+2시간이 지남)은 지워요 — 앱을 안 열어도
+  const over = (r: { until?: string; time: string }) => !!r.until && (r.until < t || (r.until === t && /^\d{2}:\d{2}$/.test(r.time || '') && now > mins(r.time) + 120));
+  if (list.some(over)) {
+    const { data: p0 } = await admin.from('ai_profile').select('settings').eq('user_id', uid).maybeSingle();
+    const s0 = p0?.settings || {};
+    await admin.from('ai_profile').update({ settings: { ...s0, routines: ((s0.routines || []) as any[]).filter(r => !over(r)) }, updated_at: new Date().toISOString() }).eq('user_id', uid);
+    out.push({ removed: list.filter(over).map(r => r.id) });
+  }
   for (const r of list) {
     if (!r.remind || r.on === false || !/^\d{2}:\d{2}$/.test(r.time || '') || !(r.days || []).includes(day)) continue;
     if ((r.from && r.from > t) || (r.until && r.until < t)) continue;
@@ -430,7 +446,9 @@ Deno.serve(async req => {
         const at = /^\d{2}:\d{2}$/.test(bt || '') ? mins(bt) : mins('07:30');
         if (p?.brief_sent === t || now < at || now > at + 180) continue;
         await admin.from('ai_profile').update({ brief_sent: t }).eq('user_id', o.user_id); // 먼저 표시 → 두 번 안 가게
-        out.push(await pushTo(o.user_id, await buildBrief(o.user_id)));
+        const bm = await buildBrief(o.user_id);
+        out.push(await pushTo(o.user_id, bm));
+        try { await briefChat(o.user_id, bm); } catch (_) { /* 대화창 남기기가 안 돼도 알림은 갔어요 */ }
       }
       return json({ ok: true, out });
     }
@@ -481,7 +499,7 @@ Deno.serve(async req => {
       }
       return json({ sent });
     }
-    if (act === 'push_test') { await vapidKey(); const msg = await buildBrief(user.id); return json({ sent: await pushTo(user.id, msg), ...msg }); }
+    if (act === 'push_test') { await vapidKey(); const msg = await buildBrief(user.id); const sent = await pushTo(user.id, msg); await briefChat(user.id, msg).catch(() => {}); return json({ sent, ...msg }); }
     if (!(CID && CSECRET)) return json({ error: 'not_configured' }, 400);
 
     const { data: rows } = await admin.from('ai_google_accounts').select('*').eq('user_id', user.id).order('created_at');
