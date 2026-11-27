@@ -12,11 +12,15 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--main:#5b4fd6;--soft:#ecebff;--bg:#f6f5fb;--card:#fff;--line:#e2e0f0;--text:#211f33;--sub:#7a7690;--ok:#2f9e44;--warn:#e8590c}
+/* 🏫 학교 모드(v0.25): 파란색 */
+html.school{--main:#1c6fc4;--soft:#e3f0fc;--bg:#f2f7fc;--line:#d8e5f2}
+#bMode{background:rgba(255,255,255,.95);color:var(--main);font-weight:700}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:var(--appH,100dvh);overflow:hidden} /* 화면 전체는 안 움직이고, 안쪽(대화·각 탭)만 스크롤 */
 header{background:var(--main);color:#fff;padding:calc(8px + env(safe-area-inset-top)) 10px 8px 14px;display:flex;align-items:center;gap:6px;flex:none}
-header h1{font-size:18px;margin:0;flex:1;white-space:nowrap}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;min-width:26px;overflow:hidden}
+@media(max-width:430px){header h1 .ttl{display:none}header{gap:4px;padding-left:10px}header .pill{padding:4px 7px}} /* 폰에선 🍓만 — 모드 버튼 자리 */
 header button{background:transparent;border:0;color:#fff;font-size:22px;padding:4px 6px;cursor:pointer}
 .pill{background:rgba(255,255,255,.18);border-radius:99px;padding:4px 9px;font-size:12.5px;white-space:nowrap;cursor:pointer;border:0;color:#fff}
 .pill.bad{background:#ffe3e3;color:#c92a2a}
@@ -164,7 +168,8 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 </head>
 <body>
 <header>
-  <h1>🍓 AI berryst</h1>
+  <h1>🍓<span class="ttl"> AI berryst</span></h1>
+  <button class="pill" id="bMode" title="학교 모드 ⇄ 일상 모드 바꾸기">🏠 일상</button>
   <button class="pill" id="usage" title="오늘 AI 사용량">🔋 오늘 0회</button>
   <button class="pill" id="sync" title="동기화 상태">📱 이 기기만</button>
   <button id="bSet" title="설정">⚙️</button>
@@ -203,6 +208,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <select id="evWhere" title="어디에 넣을까요?"><option value="">🍓 AI 비서</option></select>
       <button class="p" id="evAdd">추가</button>
     </div>
+    <div id="planView" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px"></div>
     <div id="evList"></div>
   </section>
 
@@ -343,10 +349,11 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px"><input type="checkbox" id="bOn" style="width:20px;height:20px;accent-color:var(--main)"> 매일 받기</label>
       <input type="time" id="bTime" value="07:30">
     </div>
+    <div class="add" style="margin-top:6px;align-items:center;font-size:14px;color:var(--sub)">🏠 쉬는 날(주말·방학)엔 <input type="time" id="bTime2" title="비우면 위와 같은 시각"> <button class="chip" id="bTime2X" title="쉬는 날도 같은 시각">같게</button></div>
     <div class="btns" style="margin-top:8px"><button class="g" id="bPush">🔔 이 기기에서 알림 받기</button><button class="g" id="bTest">📨 지금 시험으로 받아 보기</button></div>
     <div style="margin-top:10px;font-size:15px">🌤️ 날씨 지역: <b id="wxName">안 정함</b></div>
     <div class="add" style="margin-top:6px"><input id="wxQ" placeholder="예: 세종, 서울 강남구, 대전 유성구"><button class="g" id="wxFind">찾기</button><button class="g" id="wxHere">📍 지금 위치</button></div>
-    <div class="hint" id="bHint">정한 시각에 오늘 일정·마감·안 읽은 메일·💡 제안을 알림으로 보내요(AI 사용량은 안 써요). 알림을 누르면 앱이 열리고 브리핑을 자세히 해 줘요. 알림 받을 기기마다 [🔔 알림 받기]를 한 번씩 눌러 주세요.</div>
+    <div class="hint" id="bHint">정한 시각에 오늘 일정·마감·안 읽은 메일·💡 제안을 알림으로 보내요(AI 사용량은 안 써요). 학교 가는 날은 🏫 학교 브리핑(시간표·급식·쿨메신저 먼저), 주말·방학은 🏠 쉬는 날 브리핑이에요. 알림을 누르면 앱이 열리고 브리핑을 자세히 해 줘요. 알림 받을 기기마다 [🔔 알림 받기]를 한 번씩 눌러 주세요.</div>
   </div>
 
   <h4>⏰ 반복 일 <small style="font-weight:400;color:var(--sub)">정한 때마다 저절로</small></h4>
@@ -393,7 +400,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.24.0';
+const VERSION = '0.27.0';
 let busy = false; // AI 대답을 기다리는 중인지
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
@@ -416,7 +423,7 @@ try {
   if (!ls.get('me') && localStorage.getItem('me')) ls.set('me', localStorage.getItem('me'));
 } catch (e) {}
 
-let S = { events: [], todos: [], memos: [], chat: [] };
+let S = { events: [], todos: [], memos: [], chat: [], notes: [], cls: [] }; // notes=📝 노트·회의록·일기, cls=🏫 학급(명렬표·출결·상담·일지·시간표·서류철)
 try { Object.assign(S, JSON.parse(ls.get('data') || (() => { try { return localStorage.getItem('ai-secretary'); } catch (e) { return null; } })() || '{}')); } catch (e) {}
 const uid = p => p + Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 6);
 S.chat.forEach((m, i) => { if (!m.id) m.id = uid('c'); if (!m.ts) m.ts = Date.now() - (S.chat.length - i) * 1000; });
@@ -468,9 +475,11 @@ const toB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.
 /* ==========================================================
    데이터 바꾸기는 모두 put / remove 로만 (그래야 서버와 맞춰져요)
    ========================================================== */
-const LIST = { event: 'events', todo: 'todos', memo: 'memos', chat: 'chat' };
+const LIST = { event: 'events', todo: 'todos', memo: 'memos', chat: 'chat', note: 'notes', class: 'cls' };
 function put(kind, obj) {
   const arr = S[LIST[kind]], i = arr.findIndex(x => x.id === obj.id);
+  // 🏫/🏠 새 일정·할 일엔 지금 모드 꼬리표 + 분류·⭐중요(school.js)
+  if (i < 0 && (kind === 'event' || kind === 'todo') && !obj.mode) { obj.mode = effMode(); if (window.tagNew) tagNew(obj); }
   if (i >= 0) arr[i] = obj; else arr.push(obj);
   dirty[obj.id] = { kind, deleted: false };
   saveLocal(); schedulePush();
@@ -570,8 +579,11 @@ async function pullProfile() {
   if (data) {
     if (data.me) ls.set('me', data.me);
     if (data.settings?.limit) ls.set('limit', String(data.settings.limit));
+    if (data.settings?.school && JSON.stringify(data.settings.school) !== ls.get('school')) { ls.set('school', JSON.stringify(data.settings.school)); window.neisRefresh?.(true); }
     if (data.settings?.brief) ls.set('brief', JSON.stringify(data.settings.brief));
     if (data.settings?.weather && JSON.stringify(data.settings.weather) !== ls.get('weather')) { setWxLoc(data.settings.weather, false); loadWx(true).then(() => renderChat()); }
+    const sm = data.settings?.mode; if (sm?.m && (sm.at || 0) > modeCfg().at) setMode(sm.m, false, sm.at);
+    window.scPull?.(data.settings || {});
     RT = data.settings?.routines || []; RT_LAST = data.settings?.rt_last || {}; ls.set('routines', JSON.stringify(RT)); renderRt();
     // 🔑 AI 키: 다른 기기(폰·PC)에서 넣은 키가 있으면 이 기기에도 저절로 (로그인한 주인만 보는 칸)
     srvKey = data.settings?.gkey || '';
@@ -856,16 +868,17 @@ async function subscribePush() {
 }
 function renderBrief() {
   const b = briefCfg();
-  $('bOn').checked = !!b.on; $('bTime').value = b.time || '07:30';
+  $('bOn').checked = !!b.on; $('bTime').value = b.time || '07:30'; $('bTime2').value = b.time_off || '';
   $('bPush').textContent = ls.get('pushOn') && typeof Notification !== 'undefined' && Notification.permission === 'granted' ? '🔔 이 기기 알림 켜짐 ✓' : '🔔 이 기기에서 알림 받기';
   $('briefBox').style.opacity = owner ? 1 : .5;
 }
 $('bPush').onclick = subscribePush;
+$('bTime2X').onclick = () => { $('bTime2').value = ''; };
 // 대화로 브리핑 시각 바꾸기 ("브리핑 7시 반으로 바꿔 줘") — 서버에 저장된 걸 다시 읽어 확인해요
 async function setBrief(a) {
   const cur = briefCfg(), off = a.mode === 'off';
   const time = okTime(a.time) || cur.time || '07:30';
-  const nb = { on: !off, time };
+  const nb = { on: !off, time, ...(cur.time_off ? { time_off: cur.time_off } : {}) };
   ls.set('brief', JSON.stringify(nb)); renderBrief();
   if (!owner) return `☀️ 아침 브리핑 ${off ? '끔' : time} — ⚠️ 로그인해야 알림이 와요`;
   await pushProfile({ brief: nb });
@@ -1564,18 +1577,60 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   if (b.dataset.p === 'pTodo') { renderPlan(); renderCool(); gRefresh().then(renderTodo); }
   if (b.dataset.p === 'pWork') { renderWork(); loadTasks(); }
 });
-function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pTodo').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
+function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pTodo').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); window.scRefresh?.(); }
 
 /* ---------- 빠른 버튼 ---------- */
-const QUICK = [
-  ['☀️ 오늘 브리핑', '오늘 일정이랑 할 일 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
-  ['🗓️ 이번 주', '이번 주 일정과 마감 있는 할 일을 요일별로 정리해 줘.'],
-  ['📬 메일 정리', '최근 메일을 정리해 줘. 답장이 필요한 것, 할 일·마감·일정이 있는 것을 먼저 알려 주고, 일정은 캘린더에 넣을지 물어봐 줘.']
-];
-$('quick').innerHTML = QUICK.map((q, i) => `<button class="chip" data-i="${i}">${q[0]}</button>`).join('');
+// 빠른 버튼: 모드마다 달라요. 끝이 띄어쓰기로 끝나는 말은 입력칸에만 넣고 사용자가 이어 써요
+const QUICKS = {
+  life: [
+    ['☀️ 오늘 브리핑', '오늘 일정이랑 할 일 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
+    ['🗓️ 이번 주', '이번 주 일정과 마감 있는 할 일을 요일별로 정리해 줘.'],
+    ['📬 메일 정리', '최근 메일을 정리해 줘. 답장이 필요한 것, 할 일·마감·일정이 있는 것을 먼저 알려 주고, 일정은 캘린더에 넣을지 물어봐 줘.'],
+    ['🍱 저녁 메뉴', '오늘 날씨랑 요즘 내가 좋아하는 걸 생각해서 저녁 메뉴 3가지 추천해 줘.'],
+    ['🧺 주말 계획', '이번 주말 일정을 보고, 빈 시간에 할 만한 것(쉬기·나들이·밀린 일)을 추천해 줘.'],
+    ['🚌 버스 빈자리', '고속버스 빈자리 나면 알려 줘: ']
+  ],
+  school: [
+    ['🎙️ 회의 녹음', '__rec__'],
+    ['☀️ 오늘 학교', '오늘 학교 일정과 쿨메신저 마감 할 일을 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
+    ['⏰ 이번 주 마감', '이번 주 학교 일정과 쿨메신저 마감 할 일을 요일별로 정리해 줘. 오늘·내일 마감은 맨 위에.'],
+    ['📄 공문 요약', '이 공문을 요약해 줘(할 일·마감·제출할 것 먼저): '],
+    ['✍️ 기안문', '기안문을 써 줘. 내용: '],
+    ['🏠 가정통신문', '가정통신문을 써 줘. 내용: '],
+    ['💬 학부모 문자', '학부모님께 보낼 문자를 정중하고 짧게 써 줘. 내용: ']
+  ]
+};
+/* ---------- 🏫 학교 모드 ⇄ 🏠 일상 모드 (v0.25) ----------
+   ls 'mode' = {m:'school'|'life', at:바꾼 시각}. 로그인하면 ai_profile.settings.mode로 폰·PC가 같이 바뀌어요(나중에 바꾼 쪽이 이김). */
+const modeCfg = () => { try { return { m: 'life', at: 0, ...JSON.parse(ls.get('mode') || '{}') }; } catch (e) { return { m: 'life', at: 0 }; } };
+// (v0.27) 시간 따라 저절로: school.js의 autoState()가 {m, since}를 줘요. 손으로 바꾼 게(at) 마지막 경계(since)보다 나중이면 그걸 따라요
+function effMode() { const c = modeCfg(), a = window.autoState?.(); return a && (c.at || 0) < a.since ? a.m : c.m; }
+const isSchool = () => effMode() === 'school';
+function setMode(m, push = true, at = Date.now()) {
+  ls.set('mode', JSON.stringify({ m, at }));
+  applyMode();
+  if (push && owner) pushProfile({ mode: { m, at } }).catch(() => {});
+}
+function applyMode() {
+  const sc = isSchool();
+  document.documentElement.classList.toggle('school', sc);
+  $('bMode').textContent = sc ? '🏫 학교' : '🏠 일상';
+  document.querySelector('meta[name=theme-color]').content = sc ? '#1c6fc4' : '#5b4fd6';
+  $('inp').placeholder = sc ? '학교 일 무엇이든 (예: 금요일까지 생기부 마감 넣어줘)' : '무엇이든 물어보세요 (예: 내일 3시 치과 넣어줘)';
+  window.scMode?.(sc);
+  $('quick').innerHTML = QUICKS[sc ? 'school' : 'life'].map((q, i) => `<button class="chip" data-i="${i}">${q[0]}</button>`).join('');
+}
+$('bMode').onclick = () => { setMode(isSchool() ? 'life' : 'school'); toast((isSchool() ? '🏫 학교 모드로 바꿨어요' : '🏠 일상 모드로 바꿨어요') + (window.modeUntil?.() || ''), 3500); };
+applyMode();
+// 다른 기기에서 모드를 바꿨을 수 있으니, 앱으로 돌아올 때 한 번 확인해요(30초에 한 번까지)
+let profAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && owner && Date.now() - profAt > 30e3) { profAt = Date.now(); pullProfile().catch(() => {}); }
+});
 $('quick').onclick = e => {
   const b = e.target.closest('.chip'); if (!b) return;
-  const q = QUICK[b.dataset.i][1];
+  const q = QUICKS[isSchool() ? 'school' : 'life'][b.dataset.i][1];
+  if (q === '__rec__') return window.scMeeting?.();
   if (q.endsWith(' ') || q.endsWith('\n')) { $('inp').value = q; grow(); $('inp').focus(); $('inp').setSelectionRange(q.length, q.length); }
   else send(q);
 };
@@ -1896,6 +1951,14 @@ function systemPrompt() {
    - add_gtask·done_gtask·append_sheet·make_doc도 [허락] 버튼을 눌러야 실행돼.
 2) 그 밖의 질문: 무엇이든 성실하게 답해. 모르는 건 모른다고 해.
 reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "넣어 둘게요"처럼 한 줄로 알려 줘.
+${isSchool() ? `
+🏫 [지금 모드: 학교 모드] 사용자는 지금 학교에서 일하는 중이야. 초등학교 교사의 업무 비서처럼 대답해.
+   - 오늘·이번 주·할 일을 물으면 학교 일정과 [쿨메신저] 마감 할 일을 먼저, 개인 일정은 학교 일과 겹치거나 퇴근 뒤 바로 있는 것만 짧게 덧붙여.
+   - 공문 요약은 "해야 할 일 / 마감 / 제출할 것 / 대상"을 먼저 뽑고 나머지는 짧게.
+   - 기안문은 학교 공문 서식으로: 제목, "1. 관련: …", "2. …을(를) 다음과 같이 시행하고자 합니다." 그 아래 "가. 일시 나. 장소 다. 대상 라. 내용" 같은 항목, 끝에 "붙임 …  끝." 모르는 건 ○○로 비워 둬.
+   - 가정통신문은 따뜻하고 쉬운 말, 학부모 문자는 정중하고 짧게(3~5줄). 학생 개인정보는 꼭 필요한 만큼만.` : `
+🏠 [지금 모드: 일상 모드] 사용자는 지금 개인 생활 중이야. 생활 비서처럼 편하게 대답해.
+   - 오늘·이번 주·할 일을 물으면 개인 일정·할 일을 먼저 말해. [쿨메신저](학교 일)는 사용자가 학교 일을 물을 때나, 오늘·내일 마감이라 놓치면 안 되는 것만 맨 끝에 한 줄로 알려 줘.`}
 
 [지금] ${t} ${WD[now.getDay()]}요일 ${pad(now.getHours())}:${pad(now.getMinutes())}
 [달력] ${week}
@@ -1906,8 +1969,8 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 [쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '일정', remember: '알아 둘 것' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
 [지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
 [날씨] ${WX && WX.day === t ? wxText() + (WX.tom ? ` / 내일 ${WX_ICON(WX.tom.code)} ${WX.tom.min}~${WX.tom.max}° 비 ${WX.tom.pop}%` : '') : wxLoc() ? '(아직 못 받아 옴)' : '(지역 안 정함 — ⚙️ 설정이나 대화로 정할 수 있어)'}
-[반복 일] ${RT.map(r => `(${r.id}) ${daysTxt(r.days || [])} ${r.time} ${r.title}${r.on === false ? ' [꺼 둠]' : ''}: ${r.text}`).join(' / ') || '(없음)'}
-[아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
+${window.scPrompt ? scPrompt() : ''}[반복 일] ${RT.map(r => `(${r.id}) ${daysTxt(r.days || [])} ${r.time} ${r.title}${r.on === false ? ' [꺼 둠]' : ''}: ${r.text}`).join(' / ') || '(없음)'}
+[아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음${b.time_off ? ` (쉬는 날은 ${b.time_off})` : ''}` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
 [PC 일꾼] ${W ? (workerOn() ? '켜짐' : '꺼짐') : '연결 안 됨'} / 맡긴 일: ${T.slice(0, 5).map(t => `${t.title}(${ST[t.status] || t.status})`).join(', ') || '(없음)'}
 [구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${capTxt(a)}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
 [구글 할 일] ${G.tasks.slice(0, 40).map(x => `(${x.id}) [${x.label}] ${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
@@ -1918,7 +1981,7 @@ reply에는 사용자에게 보여 줄 대답만 써. 넣은 것은 reply에 "�
 }
 // 📨 쿨메신저 비서가 뽑은 일정(kind=note, 날짜 있는 것)도 일정 탭·브리핑에 함께
 const coolEvents = () => owner ? coolOpen().filter(x => x.kind === 'note' && okDate(x.due)).map(x => ({ id: 'c_' + x.id, cid: x.id, date: x.due, time: x.time || '', title: x.text, sender: x.sender, cool: true })) : [];
-const allEvents = () => [...S.events, ...G.events.map(e => ({ ...e, g: true })), ...phoneEvents(), ...coolEvents()];
+const allEvents = () => [...S.events, ...G.events.map(e => ({ ...e, g: true })), ...phoneEvents(), ...coolEvents(), ...(window.neisEvents ? neisEvents() : [])];
 // 구글 AI가 바쁠 때(503·500) 저절로 다시 하고, 그래도 안 되면 다른 무료 모델로 바꿔서 해요
 const BACKUP_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1940,7 +2003,7 @@ async function gemini(contents, opt = {}) {
       try {
         res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body,
-          signal: AbortSignal.timeout(60000) // 1분 넘게 대답이 없으면 그만 기다리고 다시 해요(예전엔 끝없이 기다려서 대답이 안 왔어요)
+          signal: AbortSignal.timeout(opt.timeout || 60000) // 1분 넘게 대답이 없으면 그만 기다리고 다시 해요(예전엔 끝없이 기다려서 대답이 안 왔어요)
         });
       } catch (e) { last = new Error(e.name === 'TimeoutError' ? 'AI가 1분 넘게 대답하지 않았어요. 다시 보내 주세요' : '인터넷 연결을 확인해 주세요'); await sleep(1500); continue; }
       if (res.ok) {
@@ -2114,14 +2177,17 @@ async function send(text) {
 /* ---------- 일정·할 일 화면 ---------- */function renderPlan() {
   const t = today();
   fillEvWhere();
-  const evs = allEvents().filter(e => e.date >= addDays(t, -1)).sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
+  if (window.scCal && scCal()) return renderTodo(); // 📆 주간·월간 달력(school.js)
+  const evAll = allEvents().filter(e => e.date >= addDays(t, -1)).sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
+  const om = window.otherMode || (() => false), evs = evAll.filter(e => !om(e)), evOther = evAll.filter(om);
   let h = '', last = '';
   for (const e of evs) {
     if (e.date !== last) { if (last) h += '</div>'; h += `<div class="dhead ${e.date === t ? 'today' : ''}">${dLabel(e.date)}</div><div class="box">`; last = e.date; }
-    const src = e.cool ? `<small>📨 쿨메신저${e.sender ? ' · ' + esc(e.sender) : ''}</small>` : e.p ? `<small>${dotH(e.color)}📱 ${esc(e.label)}${e.loc ? ' · ' + esc(e.loc) : ''}</small>` : e.g ? `<small>${dotH(e.color)}${esc(e.label)}</small>` : '<small>🍓 AI 비서</small>';
-    h += `<div class="row"><span class="when">${esc(e.time || '종일')}${e.end ? `<br><span class="tag">~${esc(e.end)}</span>` : ''}</span><div class="t"><div>${esc(e.title)}${e.endDate ? ` <span class="tag">~${esc(dLabel(e.endDate))}</span>` : ''}</div>${G.accounts.length || P.length || e.cool ? src : ''}</div>${e.cool ? `<button class="del" data-cool-hide="${esc(e.cid)}" title="다 봤어요(쿨메신저 비서에서도 끝냄)">✓</button>` : e.p ? `<button class="del" data-del-pev="${esc(e.id)}" title="폰에서 지우기">✕</button>` : `<button class="del" ${e.g ? `data-del-gev="${e.id}"` : `data-del-ev="${e.id}"`} title="삭제">✕</button>`}</div>`;
+    const src = e.neis ? `<small>🏫 학사일정${e.off ? ' · 쉬는 날' : ''}</small>` : e.cool ? `<small>📨 쿨메신저${e.sender ? ' · ' + esc(e.sender) : ''}</small>` : e.p ? `<small>${dotH(e.color)}📱 ${esc(e.label)}${e.loc ? ' · ' + esc(e.loc) : ''}</small>` : e.g ? `<small>${dotH(e.color)}${esc(e.label)}</small>` : '<small>🍓 AI 비서</small>';
+    h += `<div class="row"><span class="when">${esc(e.time || '종일')}${e.end ? `<br><span class="tag">~${esc(e.end)}</span>` : ''}</span><div class="t"><div>${window.markH ? markH(e, 'event') : ''}${esc(e.title)}${e.endDate ? ` <span class="tag">~${esc(dLabel(e.endDate))}</span>` : ''}</div>${G.accounts.length || P.length || e.cool || e.neis ? src : ''}</div>${e.neis ? '' : e.cool ? `<button class="del" data-cool-hide="${esc(e.cid)}" title="다 봤어요(쿨메신저 비서에서도 끝냄)">✓</button>` : e.p ? `<button class="del" data-del-pev="${esc(e.id)}" title="폰에서 지우기">✕</button>` : `<button class="del" ${e.g ? `data-del-gev="${e.id}"` : `data-del-ev="${e.id}"`} title="삭제">✕</button>`}</div>`;
   }
   if (last) h += '</div>';
+  if (evOther.length && window.foldH) h += foldH(evOther.length, evOther.map(e => `<div class="row"><span class="when">${esc(dLabel(e.date))}<br><span class="tag">${esc(e.time || '종일')}</span></span><div class="t"><div>${esc(e.title)}</div></div></div>`).join(''));
   // 📱 폰에 부탁한 일(넣기·고치기·지우기) — 처리 중이거나 막 끝난 것
   const pq = PQ.filter(x => ['wait', 'run'].includes(x.status) || (x.status === 'fail' && Date.now() - new Date(x.done_at || x.created_at).getTime() < 86400e3));
   if (pq.length) h = `<div class="box">${pq.map(x => `<div class="row"><span class="when">${x.status === 'fail' ? '⚠️' : '⏳'}</span><div class="t"><div>${esc(x.label || '')}</div><small>${x.status === 'fail' ? esc(x.result || '안 됐어요') : `폰이 처리하길 기다리는 중 · ${fmtWhen(x.created_at)}${isAndroid ? '' : ' (급하면 폰에서 캘린더 다리 앱 열기)'}`}</small></div>${x.status === 'wait' ? `<button class="del" data-cancel-pq="${x.id}" title="부탁 취소">✕</button>` : ''}</div>`).join('')}</div>` + h;
@@ -2138,13 +2204,16 @@ let tdEdit = ''; // ✏️ 고치는 중인 체크리스트 항목('me:id' 또�
 function renderTodo() {
   const t = today();
   const keep = tdEdit && $('tdEditT') ? { t: $('tdEditT').value, d: $('tdEditD')?.value || '' } : null; // 다시 그려도 쓰던 글자 그대로
-  const coolTd = owner ? coolOpen().filter(x => x.kind === 'todo').map(x => ({ ...x, title: x.text, src: 'cool' })) : [];
+  const coolTd0 = owner ? coolOpen().filter(x => x.kind === 'todo').map(x => ({ ...x, title: x.text, src: 'cool' })) : [];
+  const coolTd = window.otherMode && !isSchool() ? [] : coolTd0;
   renderNotes(keep);
-  const all = [
+  const all0 = [
     ...S.todos.filter(x => !x.done && x.kind !== 'remember').map(x => ({ ...x, src: 'me' })),
     ...G.tasks.map(x => ({ ...x, src: 'g' })),
-    ...coolTd
-  ].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'));
+    ...coolTd0
+  ].sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'));
+  const omT = window.otherMode || (() => false), tdOther = all0.filter(omT);
+  const all = all0.filter(x => !omT(x));
   const nMe = all.filter(x => x.src !== 'cool').length;
   $('tdFilter').innerHTML = coolTd.length ? [['all', `전체 ${all.length}`], ['me', `내 것 ${nMe}`], ['cool', `📨 쿨메신저 ${coolTd.length}`]].map(([k, l]) => `<button class="chip" data-tdf="${k}" style="${tdF === k ? 'background:var(--main);color:#fff;border-color:var(--main)' : ''}">${l}</button>`).join('') : '';
   const open = all.filter(x => !coolTd.length || tdF === 'all' || (tdF === 'cool') === (x.src === 'cool'));
@@ -2162,7 +2231,7 @@ function renderTodo() {
     if (x.src === 'cool') return `<div class="row"><input type="checkbox" data-cool="${esc(x.id)}"><div class="t" data-td-edit="${esc(key)}"><div data-td-edit="${esc(key)}">${tag}${x.fav ? '⭐ ' : ''}${esc(x.title)}</div><small${late ? ' style="color:var(--warn)"' : ''}>📨 ${esc([x.time, x.sender].filter(Boolean).join(' · ') || '쿨메신저')}${late ? ' · ' + dLabel(x.due) + ' 마감 지남' : ''}</small></div><button class="del" data-td-edit="${esc(key)}" title="고치기">✏️</button></div>`;
     return x.src === 'g'
       ? `<div class="row"><input type="checkbox" data-gtd="${esc(x.id)}"><div class="t"><div>${tag}${esc(x.title)}</div><small>${dotH(x.color)}☑️ ${esc(x.label)}${late ? ' · ' + dLabel(x.due) : ''}</small></div></div>`
-      : `<div class="row"><input type="checkbox" data-chk="${x.id}"><div class="t" data-td-edit="${esc(key)}"><div data-td-edit="${esc(key)}">${tag}${esc(x.title)}</div>${late ? `<small style="color:var(--warn)">${dLabel(x.due)} 마감 지남</small>` : ''}</div><button class="del" data-td-edit="${esc(key)}" title="고치기">✏️</button><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
+      : `<div class="row"><input type="checkbox" data-chk="${x.id}"><div class="t" data-td-edit="${esc(key)}"><div data-td-edit="${esc(key)}">${tag}${window.markH ? markH(x, 'todo') : ''}${esc(x.title)}</div>${late ? `<small style="color:var(--warn)">${dLabel(x.due)} 마감 지남</small>` : ''}</div><button class="del" data-td-edit="${esc(key)}" title="고치기">✏️</button><button class="del" data-del-td="${x.id}" title="삭제">✕</button></div>`;
   };
   const head = k => {
     if (k === 'late') return `⚠️ 마감 지남`;
@@ -2172,6 +2241,7 @@ function renderTodo() {
   };
   let h = keys.map(k => `<div class="dhead ${k === t ? 'today' : ''}">${head(k)} <small style="color:var(--sub);font-weight:400">${groups.get(k).length}개</small></div><div class="box">${groups.get(k).map(row).join('')}</div>`).join('');
   if (!h) h = '<div class="box"><div class="none">해야 할 것이 없어요 🎉</div></div>';
+  if (tdOther.length && window.foldH) h += foldH(tdOther.length, tdOther.map(x => `<div class="row"><div class="t"><div>${esc(x.title)}</div><small>${x.src === 'cool' ? '📨 쿨메신저' : x.due ? dLabel(x.due) + ' 마감' : '마감 없음'}</small></div></div>`).join(''));
   if (tdF === 'cool' && coolTd.length) { $('tdList').innerHTML = h; focusEdit(); return badge(); }
   // 끝낸 것은 최근 7일 것만 아래에 흐리게
   const done = S.todos.filter(x => x.done && x.kind !== 'remember' && (x.doneAt || '') >= addDays(t, -7)).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || ''));
@@ -2401,7 +2471,7 @@ $('sClose').onclick = () => $('mSet').classList.remove('show');
 $('sSave').onclick = () => {
   ls.set('gkey', $('sKey').value.trim()); ls.set('gmodel', $('sModel').value.trim() || DEFAULT_MODEL);
   ls.set('me', $('sMe').value.trim()); ls.set('limit', String(+$('sLimit').value || DEFAULT_LIMIT));
-  const bOn = $('bOn').checked, nb = { on: bOn, time: $('bTime').value || '07:30' };
+  const bOn = $('bOn').checked, nb = { on: bOn, time: $('bTime').value || '07:30', ...($('bTime2').value && $('bTime2').value !== $('bTime').value ? { time_off: $('bTime2').value } : {}) };
   const briefChanged = JSON.stringify(nb) !== briefAtOpen; // 브리핑 칸을 실제로 바꿨을 때만 서버에 올려요
   if (briefChanged) ls.set('brief', JSON.stringify(nb));
   pushProfile(briefChanged ? { brief: nb } : {}); renderUsage(); $('mSet').classList.remove('show');
@@ -2444,10 +2514,11 @@ const sp = new URLSearchParams(location.search);
 const shared = [sp.get('title'), sp.get('text'), sp.get('url')].filter(Boolean).join('\n');
 if (shared) { history.replaceState(null, '', location.pathname); $('inp').value = shared + '\n\n위 내용 정리해 줘.'; grow(); }
 // 아침 브리핑 알림을 누르고 들어왔으면 → 자세한 브리핑 바로 해 주기
-if (sp.get('brief')) { history.replaceState(null, '', location.pathname); if (ls.get('gkey')) setTimeout(async () => { await gRefresh(true); send(QUICK[0][1]); }, 1500); }
+if (sp.get('brief')) { history.replaceState(null, '', location.pathname); if (ls.get('gkey')) setTimeout(async () => { await gRefresh(true); send(QUICKS[isSchool() ? 'school' : 'life'].find(q => q[1] !== '__rec__')[1]); }, 1500); }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 // 키 안내는 로그인해서 다른 기기의 키를 받아 볼 시간을 준 뒤, 그래도 없을 때 하루 한 번만
 setTimeout(() => { if (!ls.get('gkey') && ls.get('keyHint') !== today()) { ls.set('keyHint', today()); toast('처음이면 ⚙️ 설정에서 무료 AI 키를 넣어 주세요', 5000); } }, 5000);
 </script>
+<script src="school.js"></script>
 </body>
 </html>

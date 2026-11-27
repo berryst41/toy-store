@@ -281,16 +281,23 @@ const kst = () => new Date(Date.now() + 9 * 3600e3);
 const kDate = () => kst().toISOString().slice(0, 10);
 const addD = (s: string, n: number) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const mins = (s: string) => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+// (v0.27) 학교 가는 날 / 쉬는 날: 앱이 올린 settings.sdays.off(나이스 방학·휴업일·공휴일)를 보고, 없으면 평일이면 학교 날
+const schoolDayOf = (st: any, d: string) => { const w = new Date(d + 'T00:00:00Z').getUTCDay(); return w >= 1 && w <= 5 && !((st?.sdays?.off || []) as string[]).includes(d); };
+type BEv = { time: string; title: string; m: string }; // m: 'school' | 'life' | '' (둘 다)
 async function buildBrief(uid: string) {
   const t = kDate(), tm = addD(t, 1);
+  const { data: pf } = await admin.from('ai_profile').select('settings,mail').eq('user_id', uid).maybeSingle();
+  const st = pf?.settings || {}, use = (st.use || {}) as Record<string, string>;
+  const sch = schoolDayOf(st, t), tmSch = schoolDayOf(st, tm);
   const { data: items } = await admin.from('ai_items').select('kind,data').eq('user_id', uid).eq('deleted', false).in('kind', ['event', 'todo']);
-  const ev: { time: string; title: string }[] = (items || []).filter((i: any) => i.kind === 'event' && i.data.date === t).map((i: any) => ({ time: i.data.time || '', title: i.data.title }));
-  const todos = (items || []).filter((i: any) => i.kind === 'todo' && !i.data.done).map((i: any) => i.data);
+  const ev: BEv[] = (items || []).filter((i: any) => i.kind === 'event' && i.data.date === t).map((i: any) => ({ time: i.data.time || '', title: i.data.title, m: i.data.mode || '' }));
+  const todos = (items || []).filter((i: any) => i.kind === 'todo' && !i.data.done && i.data.kind !== 'remember').map((i: any) => i.data);
   const { data: rows } = await admin.from('ai_google_accounts').select('*').eq('user_id', uid);
   let unread = 0;
   if (CID && CSECRET) for (const a of (rows || []) as Acct[]) {
-    try { (await calList(a, t, t)).forEach((e: any) => ev.push({ time: e.time, title: e.title })); } catch (_) { /* 계정 하나가 안 돼도 계속 */ }
-    if (canMail(a)) try { const d = await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + new URLSearchParams({ q: 'is:unread in:inbox newer_than:1d', maxResults: '50' })); unread += (d.messages || []).length; } catch (_) { /* */ }
+    const m = use['g:' + a.email.toLowerCase()] || '';
+    try { (await calList(a, t, t)).forEach((e: any) => ev.push({ time: e.time, title: e.title, m })); } catch (_) { /* 계정 하나가 안 돼도 계속 */ }
+    if (canMail(a) && (sch || m !== 'school')) try { const d = await g(a, 'https://gmail.googleapis.com/gmail/v1/users/me/messages?' + new URLSearchParams({ q: 'is:unread in:inbox newer_than:1d', maxResults: '50' })); unread += (d.messages || []).length; } catch (_) { /* */ }
   }
   // 📱 캘린더 다리 앱이 올린 폰 캘린더(삼성·내 폰 등) 일정 (v0.8) — 이미 연결한 구글 계정 캘린더와 같은 일정은 한 번만
   const gmails = new Set(((rows || []) as Acct[]).map(a => a.email.toLowerCase()));
@@ -303,23 +310,39 @@ async function buildBrief(uid: string) {
       if (e.date !== t || (c && c.visible === false)) continue;
       if (c && c.type === 'com.google' && gmails.has(String(c.account || '').toLowerCase())) continue;
       const k = (e.time || '') + '|' + String(e.title || '').trim(); if (seen.has(k)) continue; seen.add(k);
-      ev.push({ time: e.time || '', title: e.title || '(제목 없음)' });
+      ev.push({ time: e.time || '', title: e.title || '(제목 없음)', m: use['p:' + e.cal] || '' });
     }
   }
+  // 📨 쿨메신저 비서: 할 일(todo, 마감 있는 것) + 일정(note, 날짜 있는 것 — v0.15.1부터 앱은 일정으로 봐요)
+  const { data: cool } = await admin.from('ai_cool').select('kind,text,due,time').eq('user_id', uid).in('kind', ['todo', 'note']).eq('done', false).eq('gone', false);
+  for (const x of (cool || []) as any[]) {
+    if (x.kind !== 'note' || x.due !== t) continue;
+    const k = (x.time || '') + '|' + String(x.text || '').trim(); if (seen.has(k)) continue; seen.add(k);
+    ev.push({ time: x.time || '', title: '📨 ' + String(x.text || '').slice(0, 30), m: 'school' });
+  }
   ev.sort((x, y) => (x.time || '00:00').localeCompare(y.time || '00:00'));
-  const late = todos.filter((x: any) => x.due && x.due < t), dueToday = todos.filter((x: any) => x.due === t), dueTom = todos.filter((x: any) => x.due === tm);
+  const now = sch ? 'school' : 'life', other = sch ? 'life' : 'school';
+  const main = ev.filter(e => e.m !== other), side = ev.filter(e => e.m === other);
+  const evTxt = (l: BEv[], n: number) => l.slice(0, n).map(e => `${e.time || '종일'} ${e.title}`).join(', ') + (l.length > n ? ` 외 ${l.length - n}개` : '');
   const lines: string[] = [];
-  lines.push(ev.length ? `📅 오늘 일정 ${ev.length}개: ` + ev.slice(0, 5).map(e => `${e.time || '종일'} ${e.title}`).join(', ') : '📅 오늘 잡힌 일정 없음');
+  lines.push(main.length ? `📅 오늘 일정 ${main.length}개: ` + evTxt(main, 5) : '📅 오늘 잡힌 일정 없음');
+  if (side.length) lines.push((sch ? '🏠 퇴근 뒤: ' : '🏫 학교 일정도 있어요: ') + evTxt(side, 3));
+  // 🏫 학교 가는 날: 시간표·급식 (앱이 나이스에서 받아 settings.sdays.days에 올려 둔 것)
+  const nd = st.sdays?.days?.[t];
+  if (sch && nd?.t?.some((x: string) => x)) lines.push('📚 ' + (nd.t as string[]).map((x, i) => x ? `${i + 1}.${x}` : '').filter(Boolean).join(' '));
+  if (sch && nd?.m?.length) lines.push('🍱 ' + (nd.m as string[]).slice(0, 5).join(', '));
+  // 할 일: 쉬는 날엔 학교 할 일은 오늘 마감만 (지난 것·내일 것은 학교 가는 날에)
+  const mine = (x: any) => sch || x.mode !== 'school';
+  const late = todos.filter((x: any) => x.due && x.due < t && mine(x)), dueToday = todos.filter((x: any) => x.due === t), dueTom = todos.filter((x: any) => x.due === tm && (mine(x) || tmSch));
   if (dueToday.length) lines.push('⏰ 오늘 마감: ' + dueToday.slice(0, 3).map((x: any) => x.title).join(', '));
   if (late.length) lines.push(`⚠️ 마감 지난 할 일 ${late.length}개`);
-  // 📨 쿨메신저 비서 할 일 (v0.6)
-  const { data: cool } = await admin.from('ai_cool').select('text,due').eq('user_id', uid).eq('kind', 'todo').eq('done', false).eq('gone', false);
-  const cT = (cool || []).filter((x: any) => x.due === t), cLate = (cool || []).filter((x: any) => x.due && x.due < t);
-  if (cT.length) lines.push('📨 쿨메신저 오늘 마감: ' + cT.slice(0, 3).map((x: any) => x.text.slice(0, 25)).join(', '));
-  if (cLate.length) lines.push(`📨 쿨메신저 마감 지남 ${cLate.length}개`);
+  const cTodo = ((cool || []) as any[]).filter(x => x.kind === 'todo' && x.due);
+  const cT = cTodo.filter(x => x.due === t), cLate = cTodo.filter(x => x.due < t), cTm = cTodo.filter(x => x.due === tm);
+  if (cT.length) lines.push('📨 쿨메신저 오늘 마감: ' + cT.slice(0, 3).map(x => x.text.slice(0, 25)).join(', '));
+  if (sch && cLate.length) lines.push(`📨 쿨메신저 마감 지남 ${cLate.length}개`);
+  if (!sch && tmSch && cTm.length) lines.push('📨 내일(학교) 마감: ' + cTm.slice(0, 3).map(x => x.text.slice(0, 25)).join(', '));
   // 📬 메일 요약 (v0.11): AI 딸기 앱이 메일을 나눈 결과(ai_profile.mail)를 써요 — 36시간 안의 것만
-  const { data: pm } = await admin.from('ai_profile').select('mail').eq('user_id', uid).maybeSingle();
-  const mail = pm?.mail && Date.now() - new Date(pm.mail.at).getTime() < 36 * 3600e3 ? pm.mail : null;
+  const mail = pf?.mail && Date.now() - new Date(pf.mail.at).getTime() < 36 * 3600e3 ? pf.mail : null;
   let replyN = 0;
   if (mail) {
     const rp = (mail.reply || []) as any[], tdm = (mail.todo || []) as any[];
@@ -333,9 +356,10 @@ async function buildBrief(uid: string) {
   if (late.length) tips.push('마감 지난 할 일 정리하기');
   if (replyN) tips.push('답장할 메일 먼저 보내기');
   else if (unread >= 3) tips.push('메일 요약 받아 보기');
+  if (!sch && tmSch) tips.push('내일은 학교 가는 날 — 준비물 미리 보기');
   if (tips.length) lines.push('💡 ' + tips.join(' · '));
   const d = kst();
-  return { title: `☀️ ${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WD[d.getUTCDay()]}) 아침 브리핑`, body: lines.join('\n') };
+  return { title: `${sch ? '🏫' : '🏠'} ${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WD[d.getUTCDay()]}) ${sch ? '학교 가는 날' : '쉬는 날'} 아침 브리핑`, body: lines.join('\n'), mode: now };
 }
 async function vapidKey() {
   const { data: cfg } = await admin.from('ai_push_config').select('*').eq('id', 1).single();
@@ -401,8 +425,10 @@ Deno.serve(async req => {
         // 🔔 반복 알림(약 먹기 등, remind=true): PC 일꾼이 꺼져 있어도 서버가 정한 시각에 폰으로 보내요 (v0.24)
         try { out.push(...await routineReminders(o.user_id, t, now)); } catch (e) { out.push({ routine_error: String(e) }); }
         const b = p?.settings?.brief; if (!b?.on) continue;
-        const at = /^\d{2}:\d{2}$/.test(b.time || '') ? mins(b.time) : mins('07:30');
-        if (p.brief_sent === t || now < at || now > at + 180) continue;
+        // (v0.27) 쉬는 날(주말·방학)엔 time_off 시각이 있으면 그때
+        const bt = !schoolDayOf(p?.settings, t) && b.time_off ? b.time_off : b.time;
+        const at = /^\d{2}:\d{2}$/.test(bt || '') ? mins(bt) : mins('07:30');
+        if (p?.brief_sent === t || now < at || now > at + 180) continue;
         await admin.from('ai_profile').update({ brief_sent: t }).eq('user_id', o.user_id); // 먼저 표시 → 두 번 안 가게
         out.push(await pushTo(o.user_id, await buildBrief(o.user_id)));
       }

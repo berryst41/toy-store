@@ -1,6 +1,6 @@
 // 서비스 워커: 항상 인터넷에서 최신 파일을 먼저 받고, 안 되면(오프라인) 저장해 둔 걸 써요.
 // → 코드를 고쳐 올리면 앱을 다시 설치하지 않아도 다음에 열 때 바로 바뀌어요.
-const CACHE = 'ai-secretary-v0.24.0';
+const CACHE = 'ai-secretary-v0.27.0';
 // 아침 브리핑 알림 받기 → 누르면 앱 열기
 // ☀️ 아침 브리핑이면 앱이 'ai-cfg' 캐시에 적어 둔 날씨 지역으로 오늘 날씨를 받아 한 줄 붙여요(4초 안에 못 받으면 그냥 보내요)
 const WX_ICON = c => c === 0 ? '☀️ 맑음' : c <= 2 ? '🌤️ 구름 조금' : c === 3 ? '☁️ 흐림' : c <= 48 ? '🌫️ 안개' : c <= 57 ? '🌦️ 이슬비' : c <= 67 ? '🌧️ 비' : c <= 77 ? '🌨️ 눈' : c <= 82 ? '🌧️ 소나기' : c <= 86 ? '🌨️ 눈' : '⛈️ 뇌우';
@@ -40,15 +40,29 @@ self.addEventListener('notificationclick', e => {
 });
 self.addEventListener('install', e => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'badge.png', 'lib/supabase.js'])));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'badge.png', 'lib/supabase.js', 'school.js'])));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== 'ai-cfg').map(k => caches.delete(k)))).then(() => clients.claim())
+    caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== 'ai-cfg' && k !== 'ai-share').map(k => caches.delete(k)))).then(() => clients.claim())
   );
 });
 self.addEventListener('fetch', e => {
   const r = e.request;
+  // 📤 다른 앱에서 '공유하기 → AI 딸기'(글·녹음 파일·사진·PDF) → 'ai-share' 캐시에 잠깐 두고 앱을 ?shared=1로 열어요
+  if (r.method === 'POST' && new URL(r.url).pathname.endsWith('/share')) {
+    e.respondWith((async () => {
+      try {
+        const fd = await r.formData(), c = await caches.open('ai-share');
+        for (const k of await c.keys()) await c.delete(k);
+        const files = fd.getAll('f').filter(f => f && typeof f === 'object' && f.size);
+        await c.put('/__share/meta', new Response(JSON.stringify({ title: fd.get('title') || '', text: fd.get('text') || '', url: fd.get('url') || '', files: files.map(f => ({ name: f.name, type: f.type, size: f.size })) })));
+        for (let i = 0; i < files.length; i++) await c.put('/__share/f' + i, new Response(files[i], { headers: { 'content-type': files[i].type || 'application/octet-stream' } }));
+      } catch (_) {}
+      return Response.redirect(new URL('./?shared=1', self.registration.scope).href, 303);
+    })());
+    return;
+  }
   if (r.method !== 'GET' || new URL(r.url).origin !== location.origin) return; // 구글 AI 호출 등은 건드리지 않음
   e.respondWith(
     fetch(r, { cache: 'no-cache' })
