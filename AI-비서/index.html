@@ -576,6 +576,7 @@ async function pullProfile() {
     if (data.settings?.limit) ls.set('limit', String(data.settings.limit));
     if (data.settings?.brief) ls.set('brief', JSON.stringify(data.settings.brief));
     if (data.settings?.weather && JSON.stringify(data.settings.weather) !== ls.get('weather')) { setWxLoc(data.settings.weather, false); loadWx(true).then(() => renderChat()); }
+    const sm = data.settings?.mode; if (sm?.m && (sm.at || 0) > modeCfg().at) setMode(sm.m, false, sm.at);
     RT = data.settings?.routines || []; RT_LAST = data.settings?.rt_last || {}; ls.set('routines', JSON.stringify(RT)); renderRt();
     // 🔑 AI 키: 다른 기기(폰·PC)에서 넣은 키가 있으면 이 기기에도 저절로 (로그인한 주인만 보는 칸)
     srvKey = data.settings?.gkey || '';
