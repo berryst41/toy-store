@@ -330,6 +330,7 @@ async function buildBrief(uid: string) {
   const lines: string[] = [];
   lines.push(main.length ? `📅 오늘 일정 ${main.length}개: ` + evTxt(main, 5) : '📅 오늘 잡힌 일정 없음');
   if (side.length) lines.push((sch ? '🏠 퇴근 뒤: ' : '🏫 학교 일정도 있어요: ') + evTxt(side, 3));
+  else if (sch) lines.push('🏠 퇴근 뒤: 일정 없음'); // (v0.28.2)
   // 🏫 학교 가는 날: 시간표·급식 (앱이 나이스에서 받아 settings.sdays.days에 올려 둔 것)
   const nd = st.sdays?.days?.[t];
   if (sch && nd?.t?.some((x: string) => x)) lines.push('📚 ' + (nd.t as string[]).map((x, i) => x ? `${i + 1}.${x}` : '').filter(Boolean).join(' '));

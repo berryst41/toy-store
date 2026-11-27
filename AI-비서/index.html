@@ -403,7 +403,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.28.1';
+const VERSION = '0.28.2';
 let busy = false; // AI 대답을 기다리는 중인지
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
@@ -1941,6 +1941,7 @@ function systemPrompt() {
    구글 계정이 연결돼 있고 폰 캘린더가 없거나 사용자가 구글을 말하면: add_gcal_event(account=계정 이름표, date, time, end_time, title)로 구글 캘린더에 넣어. 계정을 말하지 않으면 ⭐기본 계정. 구글 일정 지우기는 delete_gcal_event(id=[구글 일정]의 id). 구글 계정이 없으면 add_event를 써.
    메일 보내기는 send_mail(account, to, subject, body). 받는 사람 주소를 모르면 보내지 말고 물어봐. 메일 읽기 계정의 [최근 메일]을 보고 요약·답장 초안을 도와줘.
    add_gcal_event·delete_gcal_event·send_mail도 [허락] 버튼을 눌러야 실행돼. "넣었어요/보냈어요"라고 말하지 말고 "아래에서 확인하고 허락해 주세요"라고 해.
+   📆 add_todo에 '오늘·내일·○일' 같은 날짜 말이 들어가면 date(마감)를 꼭 YYYY-MM-DD로 넣어. [할 일]에서 제목의 '내일·오늘'은 만든 날 기준이야 — 만든 날이 지났으면 지금의 내일·오늘이 아니니 오늘 할 일처럼 말하지 말고 "아직 안 끝낸 지난 할 일이 있어요, 끝냈나요?"처럼 물어봐.
    ⚠️ add_event·add_todo·done_todo·update_todo·add_memo·update_memo는 [허락] 없이 바로 들어가. 이것만 담았을 때는 "허락해 주세요"라고 하지 말고 "넣어 뒀어요"처럼 끝난 말로 해.
    할 일 마감을 미루거나 이름을 고치면 update_todo(id, title, date=새 마감일).
    🧠 기억 키우기: 사용자가 대화 중에 오래 쓸 정보(나·가족·반·학교·담당 업무·좋아하는 것·싫어하는 것·습관·자주 하는 일·연락처 이름 등)를 말하면 묻지 말고 add_memo(title=짧은 한 줄)로 기억해. [기억]에 이미 비슷한 게 있으면 새로 넣지 말고 update_memo(id, title)로 고쳐. 한 번만 쓸 일시적인 내용은 기억하지 마. 기억했으면 reply 끝에 "(기억해 둘게요)"라고 짧게 붙여.
@@ -1984,7 +1985,7 @@ ${isSchool() ? `
 [내 정보] ${ls.get('me') || '(없음)'}
 [기억] ${S.memos.map(m => `(${m.id}) ${m.text}`).join(' / ') || '(없음)'}
 [일정] ${evs.map(e => `(${e.id}) ${e.date} ${e.time || '종일'} ${e.title}`).join(' / ') || '(없음)'}
-[할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.kind === 'remember' ? '[알아 둘 것] ' : ''}${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
+[할 일] ${tds.map(x => `(${x.id}) ${x.done ? '[끝남] ' : ''}${x.kind === 'remember' ? '[알아 둘 것] ' : ''}${x.title}${x.due ? ' ~' + x.due : x.made ? ` (마감 없음, ${x.made}에 만듦)` : ''}`).join(' / ') || '(없음)'}
 [쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '일정', remember: '알아 둘 것' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
 [지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
 [날씨] ${WX && WX.day === t ? wxText() + (WX.tom ? ` / 내일 ${WX_ICON(WX.tom.code)} ${WX.tom.min}~${WX.tom.max}° 비 ${WX.tom.pop}%` : '') : wxLoc() ? '(아직 못 받아 옴)' : '(지역 안 정함 — ⚙️ 설정이나 대화로 정할 수 있어)'}
@@ -2109,7 +2110,10 @@ function applyActions(actions = [], approved = false) {
     } else if (a.type === 'delete_event' && find(S.events)) {
       const e = find(S.events); remove('event', e.id); removedIds.push(e.id); done.push(`🗑️ 일정 삭제: ${e.title}`);
     } else if (a.type === 'add_todo' && title) {
-      const x = { id: uid('t'), title, due: okDate(a.date) ? a.date : '', done: false }; put('todo', x); addedIds.push(x.id);
+      // (v0.28.2) AI가 마감을 빠뜨려도 '오늘·내일·모레 ~'로 시작하면 마감을 채워요('내일 ~ 준비'는 오늘 할 일). 마감 없는 건 만든 날(made)을 남겨요
+      const rel = title.match(/^(오늘|내일|모레)/), prep = /준비|챙기|확인|검토/.test(title);
+      const due = okDate(a.date) ? a.date : rel ? addDays(today(), rel[1] === '오늘' || prep ? 0 : rel[1] === '내일' ? 1 : 2) : '';
+      const x = { id: uid('t'), title, due, done: false, made: today() }; put('todo', x); addedIds.push(x.id);
       done.push(`✅ 할 일 추가: ${title}${x.due ? ' (~' + dLabel(x.due) + ')' : ''}`);
     } else if (a.type === 'done_todo' && find(S.todos)) {
       const x = { ...find(S.todos), done: true, doneAt: today() }; put('todo', x); addedIds.push(x.id); done.push(`✔️ 끝남: ${x.title}`);
