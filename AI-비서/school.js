@@ -209,22 +209,22 @@ async function neisRefresh(force) {
   neisBusy = true;
   const t = today(), ay = curAY(t), mon = addDays(t, -((dowOf(t) + 6) % 7)), to = addDays(mon, 11);
   const base = { ATPT_OFCDC_SC_CODE: s.office, SD_SCHUL_CODE: s.code };
-  const out = { key, day: t, sched: [], meal: {}, tt: {}, err: [] };
+  const out = { key, day: t, sched: [], meal: {}, tt: {}, err: [] }, same = NC.key === key;
   const GF = ['ONE', 'TW', 'THREE', 'FR', 'FIV', 'SIX'][(+s.grade || 0) - 1];
   try {
     const rows = await neis('SchoolSchedule', { ...base, AA_FROM_YMD: ay + '0301', AA_TO_YMD: (ay + 1) + '0228' });
     out.sched = rows.filter(r => r.EVENT_NM && r.EVENT_NM !== '토요휴업일' && (!GF || r[GF + '_GRADE_EVENT_YN'] !== 'N'))
       .map(r => ({ d: fromN(r.AA_YMD), n: r.EVENT_NM.trim(), off: r.SBTR_DD_SC_NM === '휴업일' || r.SBTR_DD_SC_NM === '공휴일' }));
-  } catch (e) { out.err.push('학사일정: ' + e.message); }
+  } catch (e) { out.err.push('학사일정: ' + e.message); if (same) out.sched = NC.sched || []; } // 못 받으면 전에 받은 것 그대로
   try {
     for (const r of await neis('mealServiceDietInfo', { ...base, MLSV_FROM_YMD: nYmd(mon), MLSV_TO_YMD: nYmd(to) }))
       if (!r.MMEAL_SC_NM || r.MMEAL_SC_NM === '중식') out.meal[fromN(r.MLSV_YMD)] = String(r.DDISH_NM || '').split(/<br\s*\/?>/i).map(x => x.replace(/\s*\([\d.\s]+\)\s*/g, '').trim()).filter(Boolean);
-  } catch (e) { out.err.push('급식: ' + e.message); }
+  } catch (e) { out.err.push('급식: ' + e.message); if (same) out.meal = NC.meal || {}; }
   if (s.grade && s.cls) try {
     for (const r of await neis('elsTimetable', { ...base, AY: String(ay), GRADE: String(s.grade), CLASS_NM: String(s.cls), TI_FROM_YMD: nYmd(mon), TI_TO_YMD: nYmd(to) })) {
       const d = fromN(r.ALL_TI_YMD), p = (+r.PERIO || 1) - 1; (out.tt[d] ||= [])[p] = (r.ITRT_CNTNT || '').replace(/^-/, '').trim();
     }
-  } catch (e) { out.err.push('시간표: ' + e.message); }
+  } catch (e) { out.err.push('시간표: ' + e.message); if (same) out.tt = NC.tt || {}; }
   if (!s.key && out.sched.length >= 5) out.err.push('인증키가 없어서 5개까지만 받았어요');
   NC = out; ls.set('neisC', JSON.stringify(NC)); neisBusy = false; OFF = null; pushSdays();
   scRefresh(); if ($('pPlan').classList.contains('on')) renderPlan();
@@ -904,18 +904,6 @@ function scPrompt() {
   return out.length ? out.join('\n') + '\n' : '';
 }
 
-/* ---------- 시작 ---------- */
-applyMode(); // 시간 따라 저절로(autoState)가 이제 있으니 다시
-neisRefresh().then(pushSdays);
-setInterval(() => { neisRefresh(); if ($('pClass').classList.contains('on') && clsTab === 'today' && document.visibilityState === 'visible' && !document.activeElement?.closest?.('#pClass')) cRender(); }, 5 * 60 * 1000);
-(() => {
-  const q = new URLSearchParams(location.search);
-  if (q.get('shared') || q.get('rec') || q.get('note')) history.replaceState(null, '', location.pathname);
-  if (q.get('shared')) takeShare();
-  else if (q.get('rec')) setTimeout(scMeeting, 600);
-  else if (q.get('note')) { newNote('note'); goPage('pNote'); }
-})();
-
 /* ---------- 🏫⇄🏠 계정·캘린더 나누기 + 시간 따라 저절로 바꾸기 (v0.27) ----------
    ls/settings 'use' = {'g:메일주소': 'school'|'life', 'p:폰캘린더id': …} — 없으면 두 모드 모두
    ls/settings 'modeAuto' = {on, start, end} — 학교 가는 날(평일 - 나이스 방학·휴업일·공휴일) start~end는 🏫, 나머지는 🏠
@@ -1036,3 +1024,15 @@ for (const id of ['maOn', 'maS', 'maE']) $(id).addEventListener('change', () => 
   if (s >= e) return toast('끝나는 시각이 시작보다 늦어야 해요');
   maSave({ modeAuto: { on: $('maOn').checked, start: s, end: e } }); maRender(); toast($('maOn').checked ? '🔁 시간 따라 저절로 바꿔요' : '손으로만 바꿔요');
 });
+
+/* ---------- 시작 ---------- */
+applyMode(); // 시간 따라 저절로(autoState)가 이제 있으니 다시
+neisRefresh().then(pushSdays);
+setInterval(() => { neisRefresh(); if ($('pClass').classList.contains('on') && clsTab === 'today' && document.visibilityState === 'visible' && !document.activeElement?.closest?.('#pClass')) cRender(); }, 5 * 60 * 1000);
+(() => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('shared') || q.get('rec') || q.get('note')) history.replaceState(null, '', location.pathname);
+  if (q.get('shared')) takeShare();
+  else if (q.get('rec')) setTimeout(scMeeting, 600);
+  else if (q.get('note')) { newNote('note'); goPage('pNote'); }
+})();
