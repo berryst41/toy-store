@@ -12,11 +12,14 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--main:#5b4fd6;--soft:#ecebff;--bg:#f6f5fb;--card:#fff;--line:#e2e0f0;--text:#211f33;--sub:#7a7690;--ok:#2f9e44;--warn:#e8590c}
+/* 🏫 학교 모드(v0.25): 파란색 */
+html.school{--main:#1c6fc4;--soft:#e3f0fc;--bg:#f2f7fc;--line:#d8e5f2}
+#bMode{background:rgba(255,255,255,.95);color:var(--main);font-weight:700}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;display:flex;flex-direction:column;height:var(--appH,100dvh);overflow:hidden} /* 화면 전체는 안 움직이고, 안쪽(대화·각 탭)만 스크롤 */
 header{background:var(--main);color:#fff;padding:calc(8px + env(safe-area-inset-top)) 10px 8px 14px;display:flex;align-items:center;gap:6px;flex:none}
-header h1{font-size:18px;margin:0;flex:1;white-space:nowrap}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 header button{background:transparent;border:0;color:#fff;font-size:22px;padding:4px 6px;cursor:pointer}
 .pill{background:rgba(255,255,255,.18);border-radius:99px;padding:4px 9px;font-size:12.5px;white-space:nowrap;cursor:pointer;border:0;color:#fff}
 .pill.bad{background:#ffe3e3;color:#c92a2a}
@@ -165,6 +168,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 <body>
 <header>
   <h1>🍓 AI berryst</h1>
+  <button class="pill" id="bMode" title="학교 모드 ⇄ 일상 모드 바꾸기">🏠 일상</button>
   <button class="pill" id="usage" title="오늘 AI 사용량">🔋 오늘 0회</button>
   <button class="pill" id="sync" title="동기화 상태">📱 이 기기만</button>
   <button id="bSet" title="설정">⚙️</button>
