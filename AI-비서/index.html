@@ -1572,15 +1572,52 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
 function refreshAll() { if ($('pWork').classList.contains('on')) renderWork(); renderChat(); if ($('pTodo').classList.contains('on')) { renderPlan(); renderCool(); } if ($('pPlan').classList.contains('on')) renderPlan(); if ($('pMemo').classList.contains('on')) renderMemo(); if ($('pMail').classList.contains('on')) renderMail(); }
 
 /* ---------- 빠른 버튼 ---------- */
-const QUICK = [
-  ['☀️ 오늘 브리핑', '오늘 일정이랑 할 일 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
-  ['🗓️ 이번 주', '이번 주 일정과 마감 있는 할 일을 요일별로 정리해 줘.'],
-  ['📬 메일 정리', '최근 메일을 정리해 줘. 답장이 필요한 것, 할 일·마감·일정이 있는 것을 먼저 알려 주고, 일정은 캘린더에 넣을지 물어봐 줘.']
-];
-$('quick').innerHTML = QUICK.map((q, i) => `<button class="chip" data-i="${i}">${q[0]}</button>`).join('');
+// 빠른 버튼: 모드마다 달라요. 끝이 띄어쓰기로 끝나는 말은 입력칸에만 넣고 사용자가 이어 써요
+const QUICKS = {
+  life: [
+    ['☀️ 오늘 브리핑', '오늘 일정이랑 할 일 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
+    ['🗓️ 이번 주', '이번 주 일정과 마감 있는 할 일을 요일별로 정리해 줘.'],
+    ['📬 메일 정리', '최근 메일을 정리해 줘. 답장이 필요한 것, 할 일·마감·일정이 있는 것을 먼저 알려 주고, 일정은 캘린더에 넣을지 물어봐 줘.'],
+    ['🍱 저녁 메뉴', '오늘 날씨랑 요즘 내가 좋아하는 걸 생각해서 저녁 메뉴 3가지 추천해 줘.'],
+    ['🧺 주말 계획', '이번 주말 일정을 보고, 빈 시간에 할 만한 것(쉬기·나들이·밀린 일)을 추천해 줘.'],
+    ['🚌 버스 빈자리', '고속버스 빈자리 나면 알려 줘: ']
+  ],
+  school: [
+    ['☀️ 오늘 학교', '오늘 학교 일정과 쿨메신저 마감 할 일을 정리해 주고, 먼저 할 일 순서도 추천해 줘.'],
+    ['⏰ 이번 주 마감', '이번 주 학교 일정과 쿨메신저 마감 할 일을 요일별로 정리해 줘. 오늘·내일 마감은 맨 위에.'],
+    ['📄 공문 요약', '이 공문을 요약해 줘(할 일·마감·제출할 것 먼저): '],
+    ['✍️ 기안문', '기안문을 써 줘. 내용: '],
+    ['🏠 가정통신문', '가정통신문을 써 줘. 내용: '],
+    ['💬 학부모 문자', '학부모님께 보낼 문자를 정중하고 짧게 써 줘. 내용: ']
+  ]
+};
+/* ---------- 🏫 학교 모드 ⇄ 🏠 일상 모드 (v0.25) ----------
+   ls 'mode' = {m:'school'|'life', at:바꾼 시각}. 로그인하면 ai_profile.settings.mode로 폰·PC가 같이 바뀌어요(나중에 바꾼 쪽이 이김). */
+const modeCfg = () => { try { return { m: 'life', at: 0, ...JSON.parse(ls.get('mode') || '{}') }; } catch (e) { return { m: 'life', at: 0 }; } };
+const isSchool = () => modeCfg().m === 'school';
+function setMode(m, push = true, at = Date.now()) {
+  ls.set('mode', JSON.stringify({ m, at }));
+  applyMode();
+  if (push && owner) pushProfile({ mode: { m, at } }).catch(() => {});
+}
+function applyMode() {
+  const sc = isSchool();
+  document.documentElement.classList.toggle('school', sc);
+  $('bMode').textContent = sc ? '🏫 학교' : '🏠 일상';
+  document.querySelector('meta[name=theme-color]').content = sc ? '#1c6fc4' : '#5b4fd6';
+  $('inp').placeholder = sc ? '학교 일 무엇이든 (예: 금요일까지 생기부 마감 넣어줘)' : '무엇이든 물어보세요 (예: 내일 3시 치과 넣어줘)';
+  $('quick').innerHTML = QUICKS[sc ? 'school' : 'life'].map((q, i) => `<button class="chip" data-i="${i}">${q[0]}</button>`).join('');
+}
+$('bMode').onclick = () => { setMode(isSchool() ? 'life' : 'school'); toast(isSchool() ? '🏫 학교 모드로 바꿨어요' : '🏠 일상 모드로 바꿨어요'); };
+applyMode();
+// 다른 기기에서 모드를 바꿨을 수 있으니, 앱으로 돌아올 때 한 번 확인해요(30초에 한 번까지)
+let profAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && owner && Date.now() - profAt > 30e3) { profAt = Date.now(); pullProfile().catch(() => {}); }
+});
 $('quick').onclick = e => {
   const b = e.target.closest('.chip'); if (!b) return;
-  const q = QUICK[b.dataset.i][1];
+  const q = QUICKS[isSchool() ? 'school' : 'life'][b.dataset.i][1];
   if (q.endsWith(' ') || q.endsWith('\n')) { $('inp').value = q; grow(); $('inp').focus(); $('inp').setSelectionRange(q.length, q.length); }
   else send(q);
 };
