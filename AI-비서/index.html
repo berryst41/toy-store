@@ -54,7 +54,7 @@ main{flex:1;overflow:hidden;display:flex;flex-direction:column;width:100%;max-wi
 .ask.done{border-color:var(--line);background:#f8f9fa}
 .m.err{align-self:flex-start;background:#fff4e6;border:1px solid #ffd8a8;color:#a14b00;font-size:14px}
 .typing{align-self:flex-start;color:var(--sub);font-size:14px;padding:4px 8px}
-.rt{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14.5px}.rt .t{flex:1}.rt input{width:20px;height:20px;accent-color:var(--main)}
+.rt{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14.5px}.rt .t{flex:1}.sheet .rt input,.rt input{flex:none;width:20px;padding:0;height:20px;min-width:0;margin:0;accent-color:var(--main)}.rt .t{min-width:0}.rt .del{flex:none}
 .oldbtn{align-self:center;background:none;border:1px dashed var(--line);border-radius:20px;padding:6px 14px;font-size:13px;color:var(--sub);cursor:pointer}
 .daysep{align-self:center;font-size:12px;color:var(--sub)}
 .welcome{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;line-height:1.7;font-size:14.5px}
@@ -400,7 +400,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
 
 <script src="lib/supabase.js"></script>
 <script>
-const VERSION = '0.27.0';
+const VERSION = '0.27.1';
 let busy = false; // AI 대답을 기다리는 중인지
 // 📱 폰에서 입력창이 화면 밑으로 잘리지 않게: 화면에 진짜 보이는 높이로 앱 높이를 맞춰요(키보드가 올라와도 따라 줄어요)
 function fitAppH() { const h = window.visualViewport ? visualViewport.height : innerHeight; if (h > 200) document.documentElement.style.setProperty('--appH', Math.round(h) + 'px'); }
@@ -726,10 +726,23 @@ async function addRoutine(a) {
   if (ok && skipToday) { RT_LAST = { ...RT_LAST, [r.id]: t }; await pushProfile({ rt_last: RT_LAST }); renderRt(); }
   return ok ? `⏰ 반복 일 만듦: ${daysTxt(days)} ${time}${rtSpan(r)} — ${r.title}${skipToday ? (a.done_today ? ' (오늘 것은 했다고 표시)' : ' (오늘은 시각이 지나서 내일부터)') : ''}` : '⚠️ 반복 일을 서버에 저장하지 못했어요';
 }
+// ✏️ 반복 일 고치기: 기간(until)·시각·이름·글·켜기/끄기만 바꿔요
+async function updRoutine(a) {
+  const r = RT.find(x => x.id === a.id); if (!r) return '⚠️ 고칠 반복 일을 못 찾았어요';
+  const n = { ...r }, ch = [];
+  if (okDate(a.until) && a.until !== r.until) { n.until = a.until; ch.push(`${dLabel(a.until)}까지`); }
+  const tm = a.time ? routineTime(a) : ''; if (tm && tm !== r.time) { n.time = tm; ch.push(tm); }
+  if (a.title && a.title.trim() !== r.title) { n.title = a.title.trim().slice(0, 40); ch.push('이름 ' + n.title); }
+  if (a.text && a.text.trim() !== r.text) { n.text = a.text.trim(); ch.push('글 바꿈'); }
+  if (a.mode === 'off' || a.mode === 'on') { n.on = a.mode === 'on'; ch.push(a.mode === 'on' ? '켬' : '끔'); }
+  if (!ch.length) return `⚠️ ${r.title}: 바꿀 게 없었어요`;
+  const ok = await saveRoutines(RT.map(x => x.id === r.id ? n : x));
+  return ok ? `✏️ 반복 일 고침: ${r.time} ${r.title} → ${ch.join(', ')}` : '⚠️ 반복 일을 서버에 저장하지 못했어요';
+}
 async function delRoutine(id) { const r = RT.find(x => x.id === id); if (!r) return '⚠️ 그 반복 일을 못 찾았어요'; await saveRoutines(RT.filter(x => x.id !== id)); return `🗑️ 반복 일 지움: ${r.title}`; }
 function renderRt() {
   const el = $('rtSet'); if (!el) return;
-  el.innerHTML = RT.length ? RT.map(r => `<div class="rt"><input type="checkbox" data-rt-on="${r.id}" ${r.on !== false ? 'checked' : ''} title="켜기·끄기"><div class="t"><b>${daysTxt(r.days || [])} ${esc(r.time)}${esc(rtSpan(r))}</b> · ${r.remind ? '🔔 ' : ''}${esc(r.title)}<br><small style="color:var(--sub)">${esc(r.text)}${RT_LAST[r.id] ? ` · 마지막 ${esc(RT_LAST[r.id].slice(5).replace('-', '/'))}` : ''}</small></div><button class="del" data-rt-del="${r.id}" title="지우기">✕</button></div>`).join('') : '<div class="hint" style="margin:0">아직 없어요.</div>';
+  el.innerHTML = RT.length ? RT.map(r => `<div class="rt"><input type="checkbox" data-rt-on="${r.id}" ${r.on !== false ? 'checked' : ''} title="켜기·끄기"><div class="t"><b>${daysTxt(r.days || [])} ${esc(r.time)}${esc(rtSpan(r))}</b> · ${r.remind ? '🔔 ' : ''}${esc(r.title)}<br><small style="color:var(--sub)">${esc(r.text)}${RT_LAST[r.id] ? ` · 최근 알림 ${esc(RT_LAST[r.id].slice(5).replace('-', '/'))}` : ''}</small></div><button class="del" data-rt-del="${r.id}" title="지우기">✕</button></div>`).join('') : '<div class="hint" style="margin:0">아직 없어요.</div>';
 }
 $('rtSet').onclick = async e => {
   const d = e.target.closest('[data-rt-del]'), o = e.target.closest('[data-rt-on]');
@@ -1897,7 +1910,7 @@ const SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event', 'tidy_mail', 'book_site', 'watch_bus', 'set_weather', 'add_routine', 'delete_routine'] },
+          type: { type: 'STRING', enum: ['add_event', 'delete_event', 'add_todo', 'update_todo', 'done_todo', 'delete_todo', 'add_memo', 'update_memo', 'delete_memo', 'add_gcal_event', 'delete_gcal_event', 'send_mail', 'watch_site', 'do_on_site', 'done_cool', 'set_brief', 'find_drive', 'read_drive', 'find_youtube', 'add_gtask', 'done_gtask', 'append_sheet', 'make_doc', 'add_phone_event', 'update_phone_event', 'delete_phone_event', 'tidy_mail', 'book_site', 'watch_bus', 'set_weather', 'add_routine', 'update_routine', 'delete_routine'] },
           values: { type: 'ARRAY', items: { type: 'STRING' } },
           id: { type: 'STRING' }, date: { type: 'STRING' }, time: { type: 'STRING' }, end_time: { type: 'STRING' }, title: { type: 'STRING' },
           account: { type: 'STRING' }, to: { type: 'STRING' }, subject: { type: 'STRING' }, body: { type: 'STRING' },
@@ -1939,6 +1952,7 @@ function systemPrompt() {
    🌤️ 날씨: [날씨]를 보고 대답해(옷차림·우산·미세먼지·체육 같은 바깥 활동 조언도). 사용자가 날씨 지역을 정하거나 바꾸라고 하면 set_weather(text=지역 이름, 예: "세종", "서울 강남구"). 다른 지역이나 며칠 뒤 날씨는 아직 모른다고 해.
    ⏰ 반복 일: 사용자가 "매주 금요일 4시에 다음 주 일정 정리해 줘", "평일 아침 8시마다 오늘 할 일 알려 줘"처럼 정해진 때마다 해 달라고 하면 add_routine(title=짧은 이름, text=그때 AI에게 시킬 말(그것만 읽어도 알게 자세히, 예: "다음 주 월~금 일정과 마감 할 일을 요일별로 정리하고 준비할 것을 알려 줘"), time=HH:MM 24시간, values=요일 목록 예 ["금"] / 매일이면 ["매일"] / 평일이면 ["평일"] / 주말이면 ["주말"]). 그만하거나 지우라면 delete_routine(id=[반복 일]의 id). 매달·격주는 아직 못 한다고 해. 반복 일은 결과를 대화와 알림으로 보여 주기만 하고 일정·할 일을 바꾸지는 않아. 매일 아침 브리핑 알림 자체는 set_brief야.
    🔔 반복 알림(약 먹기·물 마시기·스트레칭처럼 "~할 때 알려 줘", "~하라고 알려 줘"): add_routine에 remind=true를 넣고 text=알림에 보일 말(예: "💊 점심 약 드실 시간이에요"). 시각마다 add_routine을 하나씩 따로 담아(아침·점심·저녁이면 3개, 최대 6개. 각각 title="아침 약"·"점심 약"·"저녁 약"처럼 달리 써). 시각을 정확히 말하지 않아도 되묻지 말고 기본 시각을 써: 아침 07:00, 점심 12:00, 저녁 17:30, 자기 전 22:00 — 그리고 reply에 쓴 시각을 밝혀(바꾸고 싶으면 말해 달라고). 정말 아무 때인지 모를 때만 물어봐.
+   ✏️ 이미 있는 반복 일의 끝나는 날·시각·이름을 바꾸라면 새로 만들지 말고 update_routine(id=[반복 일]의 id, until=YYYY-MM-DD, time, title, text, mode=on/off 중 바뀌는 것만)을 하나씩 담아. 예: "약 알림 내일 점심까지만" → 아침·점심 약은 until=내일, 저녁 약은 until=오늘. 고치지 않고 "수정해 둘게요"라고만 말하면 안 돼.
    📆 기간: "3일간·이번 주만·금요일까지"처럼 기간이 있으면 date=시작일(오늘부터면 비워도 돼), until=마지막 날(YYYY-MM-DD, 그날까지 포함), values=["매일"]. "오늘부터 3일간"은 오늘 포함 3일이라 until=오늘+2일(아래 달력으로 정확히 계산하고 reply에 "○일(○)까지"라고 날짜를 밝혀). 기간이 끝나면 저절로 지워져.
    ✅ 사용자가 "오늘 아침 약은 먹었어"처럼 오늘 그 회차는 이미 했다고 하면 그 시각의 add_routine에 done_today=true를 넣어(오늘만 건너뛰고 내일부터 알려 줘). 이미 지난 시각은 앱이 알아서 오늘 건너뛰어.
    반복 일·반복 알림은 [허락] 없이 바로 만들어지지만, 결과는 아래 줄에 따로 표시되니 reply에서는 "만들어 둘게요"처럼 말해.
@@ -1969,7 +1983,7 @@ ${isSchool() ? `
 [쿨메신저] ${coolOpen().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, 40).map(x => `(${x.id}) [${{ todo: '할 일', note: '일정', remember: '알아 둘 것' }[x.kind] || x.kind}] ${x.text}${x.due ? ' ~' + x.due + (x.time ? ' ' + x.time : '') : ''}${x.sender ? ' (보낸이:' + x.sender + ')' : ''}`).join(' / ') || '(없음)'}
 [지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
 [날씨] ${WX && WX.day === t ? wxText() + (WX.tom ? ` / 내일 ${WX_ICON(WX.tom.code)} ${WX.tom.min}~${WX.tom.max}° 비 ${WX.tom.pop}%` : '') : wxLoc() ? '(아직 못 받아 옴)' : '(지역 안 정함 — ⚙️ 설정이나 대화로 정할 수 있어)'}
-${window.scPrompt ? scPrompt() : ''}[반복 일] ${RT.map(r => `(${r.id}) ${daysTxt(r.days || [])} ${r.time} ${r.title}${r.on === false ? ' [꺼 둠]' : ''}: ${r.text}`).join(' / ') || '(없음)'}
+${window.scPrompt ? scPrompt() : ''}[반복 일] ${RT.map(r => `(${r.id}) ${daysTxt(r.days || [])} ${r.time}${r.until ? ' ~' + r.until + '까지' : ' (끝나는 날 없음)'}${r.remind ? ' [알림]' : ''} ${r.title}${r.on === false ? ' [꺼 둠]' : ''}: ${r.text}`).join(' / ') || '(없음)'}
 [아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음${b.time_off ? ` (쉬는 날은 ${b.time_off})` : ''}` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
 [PC 일꾼] ${W ? (workerOn() ? '켜짐' : '꺼짐') : '연결 안 됨'} / 맡긴 일: ${T.slice(0, 5).map(t => `${t.title}(${ST[t.status] || t.status})`).join(', ') || '(없음)'}
 [구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${capTxt(a)}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
@@ -2155,6 +2169,7 @@ async function send(text) {
     for (const a of (r.actions || []).filter(x => x.type === 'set_brief').slice(0, 1)) res.done.push(await setBrief(a));
     for (const a of (r.actions || []).filter(x => x.type === 'set_weather').slice(0, 1)) { try { res.done.push(await setWeatherBy(a.text || a.title)); } catch (err) { res.done.push('⚠️ ' + err.message); } }
     for (const a of (r.actions || []).filter(x => x.type === 'add_routine').slice(0, 6)) res.done.push(await addRoutine({ ...a, _said: text }));
+    for (const a of (r.actions || []).filter(x => x.type === 'update_routine').slice(0, 6)) res.done.push(await updRoutine(a));
     for (const a of (r.actions || []).filter(x => x.type === 'delete_routine')) res.done.push(await delRoutine(a.id));
     if ((r.actions || []).some(x => x.type === 'tidy_mail')) res.done.push(await tidyMailNow());
     let reply = r.reply || '';
@@ -2162,6 +2177,7 @@ async function send(text) {
     const fails = res.done.filter(x => /^⚠️/.test(x)), oks = res.done.filter(x => !/^⚠️/.test(x));
     if (fails.length && !oks.length && !res.wait.length) reply = `⚠️ **죄송해요, 말씀하신 걸 처리하지 못했어요.**\n\n${fails.map(x => '- ' + x.replace(/^⚠️\s*/, '')).join('\n')}\n\n조금 더 자세히(언제·몇 시·무엇을) 다시 말씀해 주세요.`;
     else if (fails.length) reply = `⚠️ **일부는 처리하지 못했어요** — 아래 ⚠️ 줄을 확인해 주세요.\n\n` + reply;
+    else if (!(r.actions || []).length && /(수정|변경|바꿔|맞춰|설정|만들어|넣어|지워|등록)\S*\s*(둘게요|뒀어요|드릴게요|드렸어요|놨어요|했어요)/.test(reply)) reply += '\n\n⚠️ (실제로는 아무것도 바뀌지 않았어요. 한 번 더 말씀해 주세요)';
     if (!res.wait.length) reply = reply.replace(/[^.!?\n]*허락(해|하여|을 눌러)\s*주세요[.!?~]?/g, '').replace(/[ \t]+\n/g, '\n').trim(); // 허락 카드가 없는데 "허락해 주세요"라고 하면 그 문장 빼기
     const am = { id: uid('c'), role: 'model', text: reply || (res.done.length ? '해 뒀어요.' : '(대답이 비어 있어요)'), acts: res.done, ts: Date.now() };
     if (res.wait.length) am.ask = { status: 'wait', items: res.wait.map(w => w.d), actions: res.wait.map(w => w.a) };
