@@ -66,13 +66,14 @@
   학교 모드 = 쌤다이어리(ssam-diary.web.app) 기능 대부분을 AI 비서식으로(겉모습·이름 베끼지 않기). 사용자가 고른 것: 월간·주간 달력, 노트·회의록·AI 요약, 교실 도구, 학급 일지, 서류철(드라이브 연결), 나이스. 위젯은 나중. 뺀 것: 동학년 공유방(주인 1명 구조), 손글씨, 종이 테마.
   학교 모드 탭: 💬 대화 / ✅ 할 일 / 📅 일정 / 📝 노트 / 🏫 학급(시간표·학급 일지·교실 도구·서류철) / 📒 기억 — 메일·일꾼은 일상 모드 탭(학교 모드에선 ⚙️나 대화로).
   - [x] v0.25.0: 스위치(#bMode)·파란색(html.school)·모드별 빠른 버튼(QUICKS)·AI 말투([지금 모드])
-  - [ ] v0.26.0: 학교/일상 꼬리표(data.mode, 새 항목엔 지금 모드, 쿨메신저=늘 학교) + 분류(업무·수업준비·회의·공문행정·학생학부모·연수·개인·가족·기타, AI가 자동) + ⭐중요 + 모드별 탭 구성. 다른 모드 것은 아래 접기
-  - [ ] v0.27.0: 📅 월간·주간 달력(일정 탭에 목록/주간/월간, 내 일정·구글·폰·쿨메신저·마감 할 일 합쳐, 분류 색, 날짜 누르면 그날 + 바로 넣기)
-  - [ ] v0.28.0: 🏫 나이스 교육정보 개방 포털(무료 인증키 — 사용자가 받아야 함, 브라우저 CORS 안 되면 ai-google에 proxy). ⚙️ 학교 이름 검색 → 고르기(학교 코드 저장, 전근 땐 다시 고르기만) + 학년·반(3월 1일에 확인 물어봄). 학사일정 → 일정, 급식 → 오늘 화면·아침 브리핑, 시간표(초등 elsTimetable, 비어 있거나 틀리면 손으로 고치기·엑셀 붙여넣기, 교시 시간 설정)
-  - [ ] v0.29.0: 📝 노트·회의록(ai_items kind=note 추가 — 칸 추가만) + ✨ AI 요약(요약·정해진 것·할 일 → [할 일/일정으로 넣기]) + 일기. 클로바노트 연계: 공개 API 없음 → 폰 공유하기로 받기(manifest share_target을 POST+files로 넓혀 txt·docx·음성 파일도), 회의록 서식으로 노트에 저장. 음성 파일 직접 오면 Gemini 오디오(길면 나눠 보내기)
-  - [ ] v0.30.0: 📋 학급 일지 — 명렬표(엑셀 붙여넣기), 출결, 상담 일지, 일일 기록, 🖨️ 인쇄. 학생 이름 OK(주인만 RLS)
-  - [ ] v0.31.0: 🎲 교실 도구 — 타이머(TV 전체 화면), 뽑기(명렬표 연결), 자리 바꾸기, 점수판, 대진표. AI·서버 안 씀
-  - [ ] v0.32.0: 📁 서류철 — 구글 드라이브 "AI 딸기 서류철" 폴더(drive.file, 이미 허락 범위 있음), 파일 올리기·주소로 걸기·폴더, 노트·일정에 붙이기. 파일은 드라이브에만, 앱엔 링크
+  - (2026-11-27 한 번에 v0.26.0으로 냄 — 아래 v0.26~0.32 항목 모두. 서류철은 drive.readonly라 '올리기'는 드라이브 새 창 → 🔍 찾아 걸기, 직접 올리기는 drive.file 허락을 따로 받아야 함(유튜브와 같이 못 받음))
+  - [x] v0.26.0: 학교/일상 꼬리표(data.mode, 새 항목엔 지금 모드, 쿨메신저=늘 학교) + 분류(업무·수업준비·회의·공문행정·학생학부모·연수·개인·가족·기타, AI가 자동) + ⭐중요 + 모드별 탭 구성. 다른 모드 것은 아래 접기
+  - [x] v0.27.0: 📅 월간·주간 달력(일정 탭에 목록/주간/월간, 내 일정·구글·폰·쿨메신저·마감 할 일 합쳐, 분류 색, 날짜 누르면 그날 + 바로 넣기)
+  - [x] v0.28.0: 🏫 나이스 교육정보 개방 포털(무료 인증키 — 사용자가 받아야 함, 브라우저 CORS 안 되면 ai-google에 proxy). ⚙️ 학교 이름 검색 → 고르기(학교 코드 저장, 전근 땐 다시 고르기만) + 학년·반(3월 1일에 확인 물어봄). 학사일정 → 일정, 급식 → 오늘 화면·아침 브리핑, 시간표(초등 elsTimetable, 비어 있거나 틀리면 손으로 고치기·엑셀 붙여넣기, 교시 시간 설정)
+  - [x] v0.29.0: 📝 노트·회의록(ai_items kind=note 추가 — 칸 추가만) + ✨ AI 요약(요약·정해진 것·할 일 → [할 일/일정으로 넣기]) + 일기. 클로바노트 연계: 공개 API 없음 → 폰 공유하기로 받기(manifest share_target을 POST+files로 넓혀 txt·docx·음성 파일도), 회의록 서식으로 노트에 저장. 음성 파일 직접 오면 Gemini 오디오(길면 나눠 보내기)
+  - [x] v0.30.0: 📋 학급 일지 — 명렬표(엑셀 붙여넣기), 출결, 상담 일지, 일일 기록, 🖨️ 인쇄. 학생 이름 OK(주인만 RLS)
+  - [x] v0.31.0: 🎲 교실 도구 — 타이머(TV 전체 화면), 뽑기(명렬표 연결), 자리 바꾸기, 점수판, 대진표. AI·서버 안 씀
+  - [x] v0.32.0: 📁 서류철 — 구글 드라이브 "AI 딸기 서류철" 폴더(drive.file, 이미 허락 범위 있음), 파일 올리기·주소로 걸기·폴더, 노트·일정에 붙이기. 파일은 드라이브에만, 앱엔 링크
   - [ ] 그다음: 구글 계정·폰 캘린더 학교용/일상용 나누기 → 자동 전환(평일 8:30~16:40 학교, 주말·방학 일상(나이스 학사일정으로 방학 알기), 손으로 바꾸면 다음 경계까지) + 아침 브리핑 모드별(ai-google 재배포)
   - [ ] 나중: PC 바탕화면 위젯(쿨메신저 비서 창 방식)
 - [ ] 4단계: 쇼핑(네이버 쇼핑 검색 API 최저가)·예약 사이트별 다듬기
@@ -139,3 +140,4 @@
 - 2026-11-26 · 클라우드 Claude: AI 비서 v0.23.0~0.24.0 — ⏰ 반복 일에 from/until(기간, 끝나면 앱이 지움)·remind(AI 없이 글 알림)·done_today, TIME_WORD 기본 시각(아침 07:00·점심 12:00·저녁 17:30), time 여러 개면 나눠 만들기, 같은 것 두 번 안 만들기, 사용자 말(_said)에서 "N일간"·알림 채우기. saveRoutines 확인은 canon() 비교(jsonb가 칸 순서를 바꿔서 늘 실패로 뜨던 것). 처리 못 한 action만 있으면 reply를 ⚠️로 바꿈. renderChat은 busy면 생각 중 표시 유지, Gemini fetch 60초 제한. 알림 badge.png(투명 배경 흰 그림). **서버 cron_brief가 remind 반복 일을 5분마다 보고 web-push + 대화 줄 남김(rt_last 공유, ai-google 재배포)** → 일꾼이 꺼져 있어도 감. 일꾼 v0.10.1도 from/until·remind 지킴(학교 PC 일꾼은 아직 0.9.1이라 반복 일 자체를 모름 — 새 zip으로 바꿔야 함)
 - 2026-11-27 · PC Claude Code: AI 비서 v0.25.0 — 🏫⇄🏠 모드 1단계. ls/settings `mode`={m:school|life, at}(나중 at이 이김, pullProfile에서 적용, 앱으로 돌아올 때 visibilitychange로 30초에 한 번 pullProfile). applyMode(): html.school 파란 변수, theme-color, 입력칸 안내, QUICKS[school|life]. systemPrompt에 [지금 모드] 문단(학교: 쿨메신저 먼저·공문 요약·기안문 서식 / 일상: 쿨메신저는 물을 때나 오늘·내일 마감만). 폰 폭 430px 이하는 제목을 🍓만. Playwright(360px) 시험 통과, 실서버 기기 간 동기화는 사용자 확인 남음
 - 2026-11-27 · PC Claude Code: 학교 모드 계획 고침 — 쌤다이어리 기능(달력·나이스·노트/회의록·학급 일지·교실 도구·서류철) 순서 정함, 클로바노트는 공유하기로 연계
+- 2026-11-27 · PC Claude Code: AI 비서 v0.26.0 — 🏫 학교 모드 큰 업데이트. 새 파일 `school.js`(index.html 뒤에 읽힘, 전역 공유 — 새 전역 이름은 index와 겹치지 않게, index가 window.xxx로 부르는 건 꼭 function 선언). ai_items kind에 note·class 추가(check 제약만 넓힘). S.notes(note: type note|meeting|diary, title, body, date, sum{summary,decisions,todos,events,added}), S.cls(class: t=roster(id cls_roster)|tt(cls_tt: periods, week{1..5:[]}, prefer neis|me)|att(att_날짜: marks{번호:{k,why,memo}})|counsel|log(log_날짜)|file{title,url,folder,src}). put()이 새 event/todo에 mode(ls mode)·tagNew(cat 규칙 CAT_RULES, "!"·"(중요)"→star). renderTodo/renderPlan: otherMode는 foldH로 접기, markH(⭐·분류 칩, capture 클릭). 학교 모드 탭: 노트·학급 / 일상: 메일·일꾼(scMode). 📆 planView 목록/주간/월간(scCal, calData=allEvents+마감 할 일). 나이스: CORS 열림, ⚙️ 🏫 칸(키·학교 찾기·학년·반, settings.school 동기화), neisRefresh 하루 1번(학사일정 AY 3/1~2/28 학년 필터·토요휴업일 빼기, 급식 이번·다음 주 중식, elsTimetable), neisEvents()를 allEvents에. 키 없으면 5줄만. 🎙️ 녹음: MediaRecorder 5분 조각 → toWav(16kHz mono) → gemini inline audio/wav(받아쓰기 {text}) → 노트에 붙임 → 끝나면 summarize. 20MB 넘는 파일은 Files API(multipart, CORS OK) → file_data. wakeLock, #recPill. gemini()에 opt.timeout 추가. 공유: manifest share_target POST multipart(files f) → sw.js가 ai-share 캐시 → ?shared=1 → takeShare(녹음=회의록 받아쓰기, 긴 글·txt=회의록+요약, 사진·PDF=대화 첨부). manifest shortcuts ?rec=1·?note=1. scPrompt()가 [오늘 시간표]·[급식]·[학사일정]·[오늘 출결]·[최근 노트]. Playwright(가짜 마이크·가짜 AI·진짜 나이스) 시험 통과. 실제 Gemini 오디오 받아쓰기는 사용자 키로 확인 남음

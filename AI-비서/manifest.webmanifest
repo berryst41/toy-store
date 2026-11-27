@@ -28,12 +28,54 @@
     }
   ],
   "share_target": {
-    "action": "./",
-    "method": "GET",
+    "action": "./share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
     "params": {
       "title": "title",
       "text": "text",
-      "url": "url"
+      "url": "url",
+      "files": [
+        {
+          "name": "f",
+          "accept": [
+            "audio/*",
+            "text/plain",
+            ".txt",
+            "image/*",
+            "application/pdf",
+            ".m4a",
+            ".mp3",
+            ".wav",
+            ".amr",
+            ".3gp"
+          ]
+        }
+      ]
     }
-  }
+  },
+  "shortcuts": [
+    {
+      "name": "🎙️ 회의 녹음",
+      "short_name": "회의 녹음",
+      "url": "./?rec=1",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "📝 새 노트",
+      "short_name": "새 노트",
+      "url": "./?note=1",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }
