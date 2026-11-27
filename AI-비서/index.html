@@ -349,6 +349,7 @@ label{display:block;font-size:13px;color:var(--sub);margin:12px 0 4px}
       <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px"><input type="checkbox" id="bOn" style="width:20px;height:20px;accent-color:var(--main)"> 매일 받기</label>
       <input type="time" id="bTime" value="07:30">
     </div>
+    <div class="add" style="margin-top:6px;align-items:center;font-size:14px;color:var(--sub)">🏠 쉬는 날(주말·방학)엔 <input type="time" id="bTime2" title="비우면 위와 같은 시각"> <button class="chip" id="bTime2X" title="쉬는 날도 같은 시각">같게</button></div>
     <div class="btns" style="margin-top:8px"><button class="g" id="bPush">🔔 이 기기에서 알림 받기</button><button class="g" id="bTest">📨 지금 시험으로 받아 보기</button></div>
     <div style="margin-top:10px;font-size:15px">🌤️ 날씨 지역: <b id="wxName">안 정함</b></div>
     <div class="add" style="margin-top:6px"><input id="wxQ" placeholder="예: 세종, 서울 강남구, 대전 유성구"><button class="g" id="wxFind">찾기</button><button class="g" id="wxHere">📍 지금 위치</button></div>
@@ -478,7 +479,7 @@ const LIST = { event: 'events', todo: 'todos', memo: 'memos', chat: 'chat', note
 function put(kind, obj) {
   const arr = S[LIST[kind]], i = arr.findIndex(x => x.id === obj.id);
   // 🏫/🏠 새 일정·할 일엔 지금 모드 꼬리표 + 분류·⭐중요(school.js)
-  if (i < 0 && (kind === 'event' || kind === 'todo') && !obj.mode) { try { obj.mode = JSON.parse(ls.get('mode') || '{}').m || 'life'; } catch (e) { obj.mode = 'life'; } if (window.tagNew) tagNew(obj); }
+  if (i < 0 && (kind === 'event' || kind === 'todo') && !obj.mode) { obj.mode = effMode(); if (window.tagNew) tagNew(obj); }
   if (i >= 0) arr[i] = obj; else arr.push(obj);
   dirty[obj.id] = { kind, deleted: false };
   saveLocal(); schedulePush();
@@ -582,6 +583,7 @@ async function pullProfile() {
     if (data.settings?.brief) ls.set('brief', JSON.stringify(data.settings.brief));
     if (data.settings?.weather && JSON.stringify(data.settings.weather) !== ls.get('weather')) { setWxLoc(data.settings.weather, false); loadWx(true).then(() => renderChat()); }
     const sm = data.settings?.mode; if (sm?.m && (sm.at || 0) > modeCfg().at) setMode(sm.m, false, sm.at);
+    window.scPull?.(data.settings || {});
     RT = data.settings?.routines || []; RT_LAST = data.settings?.rt_last || {}; ls.set('routines', JSON.stringify(RT)); renderRt();
     // 🔑 AI 키: 다른 기기(폰·PC)에서 넣은 키가 있으면 이 기기에도 저절로 (로그인한 주인만 보는 칸)
     srvKey = data.settings?.gkey || '';
@@ -866,16 +868,17 @@ async function subscribePush() {
 }
 function renderBrief() {
   const b = briefCfg();
-  $('bOn').checked = !!b.on; $('bTime').value = b.time || '07:30';
+  $('bOn').checked = !!b.on; $('bTime').value = b.time || '07:30'; $('bTime2').value = b.time_off || '';
   $('bPush').textContent = ls.get('pushOn') && typeof Notification !== 'undefined' && Notification.permission === 'granted' ? '🔔 이 기기 알림 켜짐 ✓' : '🔔 이 기기에서 알림 받기';
   $('briefBox').style.opacity = owner ? 1 : .5;
 }
 $('bPush').onclick = subscribePush;
+$('bTime2X').onclick = () => { $('bTime2').value = ''; };
 // 대화로 브리핑 시각 바꾸기 ("브리핑 7시 반으로 바꿔 줘") — 서버에 저장된 걸 다시 읽어 확인해요
 async function setBrief(a) {
   const cur = briefCfg(), off = a.mode === 'off';
   const time = okTime(a.time) || cur.time || '07:30';
-  const nb = { on: !off, time };
+  const nb = { on: !off, time, ...(cur.time_off ? { time_off: cur.time_off } : {}) };
   ls.set('brief', JSON.stringify(nb)); renderBrief();
   if (!owner) return `☀️ 아침 브리핑 ${off ? '끔' : time} — ⚠️ 로그인해야 알림이 와요`;
   await pushProfile({ brief: nb });
@@ -1600,7 +1603,9 @@ const QUICKS = {
 /* ---------- 🏫 학교 모드 ⇄ 🏠 일상 모드 (v0.25) ----------
    ls 'mode' = {m:'school'|'life', at:바꾼 시각}. 로그인하면 ai_profile.settings.mode로 폰·PC가 같이 바뀌어요(나중에 바꾼 쪽이 이김). */
 const modeCfg = () => { try { return { m: 'life', at: 0, ...JSON.parse(ls.get('mode') || '{}') }; } catch (e) { return { m: 'life', at: 0 }; } };
-const isSchool = () => modeCfg().m === 'school';
+// (v0.27) 시간 따라 저절로: school.js의 autoState()가 {m, since}를 줘요. 손으로 바꾼 게(at) 마지막 경계(since)보다 나중이면 그걸 따라요
+function effMode() { const c = modeCfg(), a = window.autoState?.(); return a && (c.at || 0) < a.since ? a.m : c.m; }
+const isSchool = () => effMode() === 'school';
 function setMode(m, push = true, at = Date.now()) {
   ls.set('mode', JSON.stringify({ m, at }));
   applyMode();
@@ -1615,7 +1620,7 @@ function applyMode() {
   window.scMode?.(sc);
   $('quick').innerHTML = QUICKS[sc ? 'school' : 'life'].map((q, i) => `<button class="chip" data-i="${i}">${q[0]}</button>`).join('');
 }
-$('bMode').onclick = () => { setMode(isSchool() ? 'life' : 'school'); toast(isSchool() ? '🏫 학교 모드로 바꿨어요' : '🏠 일상 모드로 바꿨어요'); };
+$('bMode').onclick = () => { setMode(isSchool() ? 'life' : 'school'); toast((isSchool() ? '🏫 학교 모드로 바꿨어요' : '🏠 일상 모드로 바꿨어요') + (window.modeUntil?.() || ''), 3500); };
 applyMode();
 // 다른 기기에서 모드를 바꿨을 수 있으니, 앱으로 돌아올 때 한 번 확인해요(30초에 한 번까지)
 let profAt = 0;
@@ -1965,7 +1970,7 @@ ${isSchool() ? `
 [지메일 정리] ${G.accounts.filter(a => a.caps?.tidy).map(a => aName(a)).join(', ') || '허락한 계정 없음'}
 [날씨] ${WX && WX.day === t ? wxText() + (WX.tom ? ` / 내일 ${WX_ICON(WX.tom.code)} ${WX.tom.min}~${WX.tom.max}° 비 ${WX.tom.pop}%` : '') : wxLoc() ? '(아직 못 받아 옴)' : '(지역 안 정함 — ⚙️ 설정이나 대화로 정할 수 있어)'}
 ${window.scPrompt ? scPrompt() : ''}[반복 일] ${RT.map(r => `(${r.id}) ${daysTxt(r.days || [])} ${r.time} ${r.title}${r.on === false ? ' [꺼 둠]' : ''}: ${r.text}`).join(' / ') || '(없음)'}
-[아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
+[아침 브리핑] ${(b => b.on ? `매일 ${b.time}에 받음${b.time_off ? ` (쉬는 날은 ${b.time_off})` : ''}` : '꺼짐')(briefCfg())}${ls.get('pushOn') ? '' : ' (이 기기 알림은 아직 안 켬)'}
 [PC 일꾼] ${W ? (workerOn() ? '켜짐' : '꺼짐') : '연결 안 됨'} / 맡긴 일: ${T.slice(0, 5).map(t => `${t.title}(${ST[t.status] || t.status})`).join(', ') || '(없음)'}
 [구글 계정] ${G.accounts.map(a => `${aName(a)}(${a.email}, ${LEVEL_TXT[a.level]}${capTxt(a)}${a.is_default ? ', ⭐기본' : ''})`).join(' / ') || '(연결 안 됨)'}
 [구글 할 일] ${G.tasks.slice(0, 40).map(x => `(${x.id}) [${x.label}] ${x.title}${x.due ? ' ~' + x.due : ''}`).join(' / ') || '(없음)'}
@@ -2466,7 +2471,7 @@ $('sClose').onclick = () => $('mSet').classList.remove('show');
 $('sSave').onclick = () => {
   ls.set('gkey', $('sKey').value.trim()); ls.set('gmodel', $('sModel').value.trim() || DEFAULT_MODEL);
   ls.set('me', $('sMe').value.trim()); ls.set('limit', String(+$('sLimit').value || DEFAULT_LIMIT));
-  const bOn = $('bOn').checked, nb = { on: bOn, time: $('bTime').value || '07:30' };
+  const bOn = $('bOn').checked, nb = { on: bOn, time: $('bTime').value || '07:30', ...($('bTime2').value && $('bTime2').value !== $('bTime').value ? { time_off: $('bTime2').value } : {}) };
   const briefChanged = JSON.stringify(nb) !== briefAtOpen; // 브리핑 칸을 실제로 바꿨을 때만 서버에 올려요
   if (briefChanged) ls.set('brief', JSON.stringify(nb));
   pushProfile(briefChanged ? { brief: nb } : {}); renderUsage(); $('mSet').classList.remove('show');
