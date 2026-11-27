@@ -889,6 +889,7 @@ async function takeShare() {
 /* ---------- 🤖 AI가 아는 학교 정보 ---------- */
 function scPrompt() {
   const t = today(), sc = isSchool(), out = [];
+  out.push(`[오늘] ${schoolDay(t) ? '학교 가는 날' : '쉬는 날(주말·방학·휴일)'}${MAUTO().on ? ` · 모드는 ${MAUTO().start}~${MAUTO().end} 학교 시간에 저절로 바뀜` : ''}`);
   const tt = ttFor(t); if (sc && tt.some(Boolean)) out.push(`[오늘 시간표] ${tt.map((x, i) => x ? `${i + 1}교시 ${x}` : '').filter(Boolean).join(', ')}`);
   if (SCH().code) {
     const ml = NC.meal?.[t]; if (ml) out.push(`[오늘 급식] ${ml.join(', ')}`);
