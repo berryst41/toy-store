@@ -62,6 +62,11 @@
 - [x] v0.6.1: 숨어서 자동 켜기 — `autostart.ps1`(-Install: 시작프로그램 바로가기 `AI 비서 PC 일꾼.lnk` → powershell -WindowStyle Hidden, 쿨메신저 비서와 같은 방식 / -Uninstall: 바로가기 지우고 켜짐.json의 node pid 종료 / 없음: `node worker.js --hidden`을 돌리고 꺼지면 60초 뒤 다시, 종료코드 0·3(연결 필요)·4(이미 켜짐)면 멈춤). worker `--hidden`: 글은 `일꾼-기록.txt`로, 입력 안 물음, 브라우저는 일이 올 때만. 한 PC에 하나: `켜짐.json`{pid,t} 30초마다 갱신, 90초 넘으면 죽은 걸로 봄. bat 2개(`PC-켤때-자동켜기.bat`, `자동켜기-끄기.bat`)는 autostart.ps1만 부름. ps1은 UTF-8 BOM.
 - [ ] 학교 PC에서 진짜 시험(쿨메신저 비서 v0.2.4 + 일꾼 v0.6.1, 자동 켜기 포함)
 - [ ] 다음: 예약 사이트 맞추기 — 코레일 → 네이버 예약 → 고속·시외버스
+- [ ] **🏫 학교 모드 ⇄ 🏠 일상 모드 (2026-11-27 사용자와 정함, 추천안 그대로)** — 결정: ③ 시간 따라 자동 + 손으로도 바꿈 / 다른 모드 것은 숨기지 말고 맨 아래 접기 / 폰·PC 같이 바뀜(ai_profile.settings.mode) / 📒 기억은 나누지 않음. 꼬리표 없는 옛 항목은 두 모드 모두에 보이고 지우는 건 없음.
+  - [x] 1단계 v0.25.0: 스위치(#bMode)·파란색(html.school)·모드별 빠른 버튼(QUICKS)·AI 말투([지금 모드])
+  - [ ] 2단계 v0.26.0: 학교/일상 꼬리표(data.mode, 새 항목에 지금 모드, 쿨메신저=늘 학교) + 할 일·일정 탭 거르기(다른 모드는 아래 접기)
+  - [ ] 3단계 v0.27.0: ⚙️에서 구글 계정·폰 캘린더를 학교용/일상용으로 정하기 → 메일 탭·일정 나누기
+  - [ ] 4단계 v0.28.0: 자동 전환(평일 8:30~16:40 학교, 주말·방학 일상, 손으로 바꾸면 다음 경계까지 유지) + 아침 브리핑 모드별(ai-google 재배포)
 - [ ] 4단계: 쇼핑(네이버 쇼핑 검색 API 최저가)·예약 사이트별 다듬기
 
 > 사용자용 정리 문서: `정리.md`(같은 내용 클로드 문서 https://claude.ai/artifact/TvFw971mrsqkGpoukKC3dB). 사용자가 답 칸을 채워 올릴 수 있음 → 작업 시작 전에 꼭 읽기.
@@ -124,3 +129,4 @@
 - 2026-11-24 · 학교 PC Claude Code: AI 비서 v0.21.0 — 대화 보관(사용자 결정): CHAT_KEEP_DAYS=30(서버), CHAT_DEVICE_DAYS=7(기기). pruneChat: 30일↑ dirty deleted, 7일↑는 owner이고 dirty 없을 때만 기기에서 덜어 냄(비로그인은 30일까지 기기 유지). pruneServer 하루 1번(ls chatPruned): serverChats()로 30일↑ 찾아 upsert {data:{},deleted:true}, deleted 표시도 30일 지나면 hard delete(RLS가 막으면 조용히 넘어감). 지난 대화 펼치면 loadOlder()로 서버 대화(olderChat, 기기 저장 안 함) 함께 표시. Playwright 시험 통과(실서버 시험은 안 함)
 - 2026-11-24 · 학교 PC Claude Code: 사용자 확인 — 캘린더 다리 설치·폰 일정, 구글 범위 다시 허락, 폰↔PC 동기화 모두 잘 됨. 아침 브리핑(0.18.1 고침)은 다음 날 아침 확인 남음. 피클 비교 후 다음 후보: 날씨 브리핑 → 한글·워드 파일 → 쇼핑 → 반복 일
 - 2026-11-26 · 클라우드 Claude: AI 비서 v0.23.0~0.24.0 — ⏰ 반복 일에 from/until(기간, 끝나면 앱이 지움)·remind(AI 없이 글 알림)·done_today, TIME_WORD 기본 시각(아침 07:00·점심 12:00·저녁 17:30), time 여러 개면 나눠 만들기, 같은 것 두 번 안 만들기, 사용자 말(_said)에서 "N일간"·알림 채우기. saveRoutines 확인은 canon() 비교(jsonb가 칸 순서를 바꿔서 늘 실패로 뜨던 것). 처리 못 한 action만 있으면 reply를 ⚠️로 바꿈. renderChat은 busy면 생각 중 표시 유지, Gemini fetch 60초 제한. 알림 badge.png(투명 배경 흰 그림). **서버 cron_brief가 remind 반복 일을 5분마다 보고 web-push + 대화 줄 남김(rt_last 공유, ai-google 재배포)** → 일꾼이 꺼져 있어도 감. 일꾼 v0.10.1도 from/until·remind 지킴(학교 PC 일꾼은 아직 0.9.1이라 반복 일 자체를 모름 — 새 zip으로 바꿔야 함)
+- 2026-11-27 · PC Claude Code: AI 비서 v0.25.0 — 🏫⇄🏠 모드 1단계. ls/settings `mode`={m:school|life, at}(나중 at이 이김, pullProfile에서 적용, 앱으로 돌아올 때 visibilitychange로 30초에 한 번 pullProfile). applyMode(): html.school 파란 변수, theme-color, 입력칸 안내, QUICKS[school|life]. systemPrompt에 [지금 모드] 문단(학교: 쿨메신저 먼저·공문 요약·기안문 서식 / 일상: 쿨메신저는 물을 때나 오늘·내일 마감만). 폰 폭 430px 이하는 제목을 🍓만. Playwright(360px) 시험 통과, 실서버 기기 간 동기화는 사용자 확인 남음
