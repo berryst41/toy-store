@@ -81,9 +81,10 @@ function markH(x, kind) {
   if (x.src === 'g' || x.src === 'cool' || x.g || x.p || x.cool || x.neis) return '';
   return `<span class="star" data-star="${kind}:${esc(x.id)}" title="중요 표시">${x.star ? '⭐' : '☆'}</span>${x.cat ? `<span class="cat" data-cat="${kind}:${esc(x.id)}" style="background:${catColor(x.cat)}" title="눌러서 분류 바꾸기">${esc(x.cat)}</span>` : ''}`;
 }
-function otherMode(x) { // 지금 모드가 아닌 것(아래에 접어 둬요). 꼬리표 없는 옛 것·구글·폰 일정은 두 모드 모두
+function otherMode(x) { // 지금 모드가 아닌 것(아래에 접어 둬요). 꼬리표 없는 옛 것은 두 모드 모두
   const sc = isSchool();
   if (x.src === 'cool' || x.cool || x.neis) return !sc;
+  if (x.g || x.p || x.src === 'g') { const u = useOf(x); return !!u && u !== (sc ? 'school' : 'life'); } // 구글·폰은 ⚙️ 모드 나누기에서 정한 대로
   return !!x.mode && x.mode !== (sc ? 'school' : 'life');
 }
 function foldH(n, rows) { return `<details class="fold"><summary>${isSchool() ? '🏠 일상' : '🏫 학교'} 것 ${n}개 — 다른 모드라 접어 뒀어요</summary><div class="box">${rows}</div></details>`; }
@@ -213,7 +214,7 @@ async function neisRefresh(force) {
   try {
     const rows = await neis('SchoolSchedule', { ...base, AA_FROM_YMD: ay + '0301', AA_TO_YMD: (ay + 1) + '0228' });
     out.sched = rows.filter(r => r.EVENT_NM && r.EVENT_NM !== '토요휴업일' && (!GF || r[GF + '_GRADE_EVENT_YN'] !== 'N'))
-      .map(r => ({ d: fromN(r.AA_YMD), n: r.EVENT_NM.trim(), off: r.SBTR_DD_SC_NM === '휴업일' }));
+      .map(r => ({ d: fromN(r.AA_YMD), n: r.EVENT_NM.trim(), off: r.SBTR_DD_SC_NM === '휴업일' || r.SBTR_DD_SC_NM === '공휴일' }));
   } catch (e) { out.err.push('학사일정: ' + e.message); }
   try {
     for (const r of await neis('mealServiceDietInfo', { ...base, MLSV_FROM_YMD: nYmd(mon), MLSV_TO_YMD: nYmd(to) }))
@@ -225,7 +226,7 @@ async function neisRefresh(force) {
     }
   } catch (e) { out.err.push('시간표: ' + e.message); }
   if (!s.key && out.sched.length >= 5) out.err.push('인증키가 없어서 5개까지만 받았어요');
-  NC = out; ls.set('neisC', JSON.stringify(NC)); neisBusy = false;
+  NC = out; ls.set('neisC', JSON.stringify(NC)); neisBusy = false; OFF = null; pushSdays();
   scRefresh(); if ($('pPlan').classList.contains('on')) renderPlan();
 }
 function neisEvents() {
@@ -904,8 +905,8 @@ function scPrompt() {
 }
 
 /* ---------- 시작 ---------- */
-scMode(isSchool());
-neisRefresh();
+applyMode(); // 시간 따라 저절로(autoState)가 이제 있으니 다시
+neisRefresh().then(pushSdays);
 setInterval(() => { neisRefresh(); if ($('pClass').classList.contains('on') && clsTab === 'today' && document.visibilityState === 'visible' && !document.activeElement?.closest?.('#pClass')) cRender(); }, 5 * 60 * 1000);
 (() => {
   const q = new URLSearchParams(location.search);
@@ -914,3 +915,124 @@ setInterval(() => { neisRefresh(); if ($('pClass').classList.contains('on') && c
   else if (q.get('rec')) setTimeout(scMeeting, 600);
   else if (q.get('note')) { newNote('note'); goPage('pNote'); }
 })();
+
+/* ---------- 🏫⇄🏠 계정·캘린더 나누기 + 시간 따라 저절로 바꾸기 (v0.27) ----------
+   ls/settings 'use' = {'g:메일주소': 'school'|'life', 'p:폰캘린더id': …} — 없으면 두 모드 모두
+   ls/settings 'modeAuto' = {on, start, end} — 학교 가는 날(평일 - 나이스 방학·휴업일·공휴일) start~end는 🏫, 나머지는 🏠
+   손으로 바꾸면(ls mode.at) 다음 경계(start 또는 end)까지 그대로예요.
+   settings 'sdays' = {off:[쉬는 평일], days:{날짜:{m:급식, t:시간표}}} — 서버 아침 브리핑이 학교 날/쉬는 날을 알게 올려요 */
+const USE = () => { try { return JSON.parse(ls.get('use') || '{}'); } catch (e) { return {}; } };
+const MAUTO = () => { try { return { on: true, start: '08:30', end: '16:40', ...JSON.parse(ls.get('modeAuto') || '{}') }; } catch (e) { return { on: true, start: '08:30', end: '16:40' }; } };
+function useOf(x) { // 구글·폰 일정(·구글 할 일)이 어느 모드 것인지 ('' = 둘 다)
+  const u = USE();
+  if (x.p) return u['p:' + x.cal] || '';
+  const a = G.accounts.find(y => y.id === x.account);
+  return a ? u['g:' + String(a.email).toLowerCase()] || '' : '';
+}
+let OFF = null;
+function offSet() { // 평일인데 쉬는 날: 나이스 휴업일·공휴일 + 방학식(종업식) 다음 날 ~ 개학 전날
+  if (OFF) return OFF;
+  const s = [...(NC.sched || [])].sort((a, b) => a.d.localeCompare(b.d)), off = new Set();
+  s.forEach((x, i) => {
+    if (x.off || (/방학|대체공휴|재량휴업/.test(x.n) && !/방학식/.test(x.n))) off.add(x.d);
+    if (/방학식|종업식/.test(x.n)) {
+      const nx = s.find((y, k) => k > i && y.d > x.d && /개학/.test(y.n));
+      const end = nx ? addDays(nx.d, -1) : addDays(`${curAY(x.d) + 1}-03-01`, -1);
+      for (let d = addDays(x.d, 1), n = 0; d <= end && n < 90; d = addDays(d, 1), n++) off.add(d);
+    }
+  });
+  return (OFF = off);
+}
+const schoolDay = d => { const w = dowOf(d); return w >= 1 && w <= 5 && !offSet().has(d); };
+function autoState(now = new Date()) {
+  const A = MAUTO(); if (!A.on) return null;
+  const t = ymd(now), hm = pad(now.getHours()) + ':' + pad(now.getMinutes()), at = (d, h) => new Date(d + 'T' + h).getTime();
+  const since = hm >= A.end ? at(t, A.end) : hm >= A.start ? at(t, A.start) : at(addDays(t, -1), A.end);
+  return { m: schoolDay(t) && hm >= A.start && hm < A.end ? 'school' : 'life', since };
+}
+function modeUntil() { // 손으로 바꿨을 때 "언제까지" 안내
+  const A = MAUTO(); if (!A.on) return '';
+  const n = new Date(), hm = pad(n.getHours()) + ':' + pad(n.getMinutes());
+  const nx = hm < A.start ? '오늘 ' + A.start : hm < A.end ? '오늘 ' + A.end : '내일 ' + A.start;
+  return ` — ${nx}부터는 다시 저절로`;
+}
+// 1분마다(그리고 앱으로 돌아올 때) 지금 모드가 바뀌었는지 봐요
+function modeTick() {
+  const sc = isSchool();
+  if (sc !== document.documentElement.classList.contains('school')) { applyMode(); toast(sc ? '🏫 학교 시간이라 학교 모드로 바꿨어요' : '🏠 학교 시간이 끝나서 일상 모드로 바꿨어요', 3500); }
+}
+setInterval(modeTick, 60e3);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { OFF = null; modeTick(); } });
+// 서버에서 받은 설정(pullProfile이 불러요)
+function scPull(st) {
+  setTimeout(pushSdays, 2000); // 로그인한 뒤라 이제 올릴 수 있어요
+  let ch = false;
+  for (const k of ['use', 'modeAuto']) if (st[k] && JSON.stringify(st[k]) !== ls.get(k)) { ls.set(k, JSON.stringify(st[k])); ch = true; }
+  if (ch) { modeTick(); if ($('pPlan').classList.contains('on') || $('pTodo').classList.contains('on')) renderPlan(); if ($('maBox')?.open) maRender(); }
+}
+// 서버 브리핑용: 쉬는 평일 + 앞으로 12일 급식·시간표 (바뀌었을 때만 올려요)
+function pushSdays() {
+  if (!owner) return;
+  const t = today(), days = {};
+  for (let i = 0; i < 12; i++) {
+    const d = addDays(t, i), m = NC.meal?.[d], tt = ttFor(d);
+    if (m?.length || tt.some(Boolean)) days[d] = { ...(m?.length ? { m: m.slice(0, 6) } : {}), ...(tt.some(Boolean) ? { t: tt.map(x => x || '') } : {}) };
+  }
+  const sd = { off: [...offSet()].filter(d => d >= addDays(t, -1) && dowOf(d) % 6).sort().slice(0, 200), days };
+  const j = JSON.stringify(sd); if (j === ls.get('sdaysSent')) return;
+  pushProfile({ sdays: { ...sd, at: t } }).then(() => ls.set('sdaysSent', j)).catch(() => {});
+}
+setInterval(pushSdays, 30 * 60e3);
+// ⚙️ 설정 창에 🏫⇄🏠 모드 나누기
+(() => {
+  const anchor = [...document.querySelectorAll('#mSet h4')].find(h => /백업/.test(h.textContent));
+  anchor.insertAdjacentHTML('beforebegin', `
+  <h4>🏫⇄🏠 모드 나누기</h4>
+  <details id="maBox"><summary style="cursor:pointer;color:var(--main)">열어서 정하기 — 저절로 바꾸기 · 계정·캘린더 나누기</summary>
+  <div class="add" style="margin-top:8px;align-items:center"><label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px"><input type="checkbox" id="maOn" style="width:20px;height:20px;accent-color:var(--main)"> 시간 따라 저절로 바꾸기</label></div>
+  <div class="add" style="margin-top:6px;align-items:center;font-size:14px">🏫 학교 시간 <input type="time" id="maS"> ~ <input type="time" id="maE"></div>
+  <div class="hint">학교 가는 날(평일에서 나이스 학사일정의 방학·휴업일·공휴일을 뺀 날) 이 시간엔 🏫 학교, 나머지는 🏠 일상 모드예요. 위 🏫/🏠 버튼으로 손으로 바꾸면 다음 경계 시각까지 그대로예요.</div>
+  <div class="hint" id="maDays"></div>
+  <label style="margin-top:10px">구글 계정·폰 캘린더는 어느 모드 것인가요?</label>
+  <div class="hint">고른 모드가 아닐 땐 일정·할 일 목록 아래에 접혀요(지워지지 않아요). 아침 브리핑도 이걸 보고 나눠요.</div>
+  <div id="useList"></div>
+  </details>`);
+  $('maBox').addEventListener('toggle', () => { if ($('maBox').open) maRender(); });
+  $('bSet').addEventListener('click', () => setTimeout(() => { if ($('maBox').open) maRender(); }, 0));
+})();
+function maRender() {
+  const A = MAUTO(), u = USE(), t = today();
+  $('maOn').checked = A.on; $('maS').value = A.start; $('maE').value = A.end;
+  const wk = Array.from({ length: 14 }, (_, i) => addDays(t, i)).filter(d => dowOf(d) % 6);
+  const offs = [...offSet()].filter(d => d >= t && dowOf(d) % 6).sort();
+  $('maDays').innerHTML = `앞으로 2주: ${wk.map(d => `${+d.slice(8)}일(${WD[dowOf(d)]})${schoolDay(d) ? '🏫' : '🏠'}`).join(' ')}`
+    + (offs.length ? `<br>다음 쉬는 평일: ${offs.slice(0, 6).map(d => `${+d.slice(5, 7)}/${+d.slice(8)}`).join(', ')}${offs.length > 6 ? ` 외 ${offs.length - 6}일` : ''}` : '')
+    + (SCH().code ? '' : '<br>⚠️ 학교(나이스)를 고르지 않아서 방학·휴일을 몰라요 — 위 🏫 학교 칸에서 골라 주세요');
+  const sel = (k, name, color) => `<div class="add" style="margin-top:6px;align-items:center">${dotH(color)}<span class="grow" style="font-size:14px">${esc(name)}</span><select data-use="${esc(k)}">${[['', '🏫🏠 둘 다'], ['school', '🏫 학교'], ['life', '🏠 일상']].map(([v, l]) => `<option value="${v}" ${(u[k] || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
+  const gm = new Set(G.accounts.map(a => String(a.email).toLowerCase()));
+  const cals = [], seen = new Set();
+  for (const r of P) for (const c of r.calendars || []) {
+    if (c.visible === false || seen.has(String(c.id))) continue;
+    if (c.type === 'com.google' && gm.has(String(c.account || '').toLowerCase())) continue; // 구글 계정으로 이미 나눠요
+    seen.add(String(c.id)); cals.push(c);
+  }
+  $('useList').innerHTML = (G.accounts.length ? '<div class="hint" style="margin-top:6px">🗓️ 구글 계정</div>' + G.accounts.map(a => sel('g:' + String(a.email).toLowerCase(), `${aName(a)} (${a.email})`, a.color)).join('') : '')
+    + (cals.length ? '<div class="hint" style="margin-top:8px">📱 폰 캘린더</div>' + cals.map(c => sel('p:' + c.id, c.name || '폰 캘린더', c.color)).join('') : '')
+    || '<div class="hint">연결된 구글 계정·폰 캘린더가 없어요.</div>';
+}
+function maSave(patch) {
+  if (patch.use) ls.set('use', JSON.stringify(patch.use));
+  if (patch.modeAuto) ls.set('modeAuto', JSON.stringify(patch.modeAuto));
+  if (owner) pushProfile(patch).catch(() => {});
+  modeTick(); if ($('pPlan').classList.contains('on') || $('pTodo').classList.contains('on')) renderPlan();
+}
+$('useList').addEventListener('change', e => {
+  const s = e.target.closest('[data-use]'); if (!s) return;
+  const u = USE(); if (s.value) u[s.dataset.use] = s.value; else delete u[s.dataset.use];
+  maSave({ use: u }); toast('저장했어요');
+});
+for (const id of ['maOn', 'maS', 'maE']) $(id).addEventListener('change', () => {
+  const s = $('maS').value || '08:30', e = $('maE').value || '16:40';
+  if (s >= e) return toast('끝나는 시각이 시작보다 늦어야 해요');
+  maSave({ modeAuto: { on: $('maOn').checked, start: s, end: e } }); maRender(); toast($('maOn').checked ? '🔁 시간 따라 저절로 바꿔요' : '손으로만 바꿔요');
+});
